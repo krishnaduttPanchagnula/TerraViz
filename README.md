@@ -1,7 +1,7 @@
-# TerraVis — Cloud Architecture Visualizer
+# TerraViz — Cloud Architecture Visualizer
 
-[![Release](https://img.shields.io/github/v/release/krishnaduttPanchagnula/TerraVis?style=flat-square)](https://github.com/krishnaduttPanchagnula/TerraVis/releases/latest)
-[![Go](https://img.shields.io/github/go-mod/go-version/krishnaduttPanchagnula/TerraVis?style=flat-square)](https://go.dev/)
+[![Release](https://img.shields.io/github/v/release/krishnaduttPanchagnula/TerraViz?style=flat-square)](https://github.com/krishnaduttPanchagnula/TerraViz/releases/latest)
+[![Go](https://img.shields.io/github/go-mod/go-version/krishnaduttPanchagnula/TerraViz?style=flat-square)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 
 Generate interactive architecture diagrams from Terraform state files or live AWS accounts. A single self-contained binary — no external dependencies, no CDN, no runtime assets.
@@ -13,26 +13,26 @@ Generate interactive architecture diagrams from Terraform state files or live AW
 ### Homebrew (macOS / Linux)
 
 ```bash
-brew install krishnaduttPanchagnula/TerraVis/terraviz
+brew install krishnaduttPanchagnula/TerraViz/terraviz
 ```
 
 The formula is automatically updated on every release.
 
 ### Download a Release
 
-Download the latest binary for your platform from the [Releases page](https://github.com/krishnaduttPanchagnula/TerraVis/releases/latest).
+Download the latest binary for your platform from the [Releases page](https://github.com/krishnaduttPanchagnula/TerraViz/releases/latest).
 
 ```bash
 # Linux (amd64)
 curl -Lo terraviz.tar.gz \
-  https://github.com/krishnaduttPanchagnula/TerraVis/releases/latest/download/terraviz_$(curl -s https://api.github.com/repos/krishnaduttPanchagnula/TerraVis/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')_linux_amd64.tar.gz
+  https://github.com/krishnaduttPanchagnula/TerraViz/releases/latest/download/terraviz_$(curl -s https://api.github.com/repos/krishnaduttPanchagnula/TerraViz/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')_linux_amd64.tar.gz
 tar xzf terraviz.tar.gz
 chmod +x terraviz
 sudo mv terraviz /usr/local/bin/
 
 # macOS (Apple Silicon)
 curl -Lo terraviz.tar.gz \
-  https://github.com/krishnaduttPanchagnula/TerraVis/releases/latest/download/terraviz_$(curl -s https://api.github.com/repos/krishnaduttPanchagnula/TerraVis/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')_darwin_arm64.tar.gz
+  https://github.com/krishnaduttPanchagnula/TerraViz/releases/latest/download/terraviz_$(curl -s https://api.github.com/repos/krishnaduttPanchagnula/TerraViz/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')_darwin_arm64.tar.gz
 tar xzf terraviz.tar.gz
 chmod +x terraviz
 sudo mv terraviz /usr/local/bin/
@@ -41,8 +41,8 @@ sudo mv terraviz /usr/local/bin/
 ### Build from Source
 
 ```bash
-git clone https://github.com/krishnaduttPanchagnula/TerraVis.git
-cd TerraVis
+git clone https://github.com/krishnaduttPanchagnula/TerraViz.git
+cd TerraViz
 go build -o terraviz ./cmd/main.go
 ```
 

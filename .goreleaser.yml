@@ -59,11 +59,11 @@ brews:
   - name: terraviz
     repository:
       owner: krishnaduttPanchagnula
-      name: TerraVis
+      name: TerraViz
       branch: main
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: HomebrewFormula
-    homepage: "https://github.com/krishnaduttPanchagnula/TerraVis"
+    homepage: "https://github.com/krishnaduttPanchagnula/TerraViz"
     description: "Generate interactive architecture diagrams from Terraform state files or live AWS accounts"
     license: "MIT"
     install: |

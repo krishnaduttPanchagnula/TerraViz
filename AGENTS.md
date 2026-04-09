@@ -4,7 +4,7 @@
 
 Go CLI tool that parses Terraform `.tfstate` files (v4 raw or `terraform show -json`) and live AWS accounts, then serves interactive SVG-based infrastructure diagrams via a Gin web server. The frontend renders zoomable, filterable diagrams in the browser.
 
-**Repository:** `krishnaduttPanchagnula/TerraVis`
+**Repository:** `krishnaduttPanchagnula/TerraViz`
 
 ## Build / Run / Verify
 
@@ -85,7 +85,7 @@ GoReleaser config (`.goreleaser.yml`):
 ### Homebrew Tap
 
 The formula lives in `HomebrewFormula/terraviz.rb` (same repo).
-Users install via: `brew install krishnaduttPanchagnula/TerraVis/terraviz`
+Users install via: `brew install krishnaduttPanchagnula/TerraViz/terraviz`
 
 GoReleaser auto-generates and commits the formula on every non-prerelease tag.
 Requires a `HOMEBREW_TAP_TOKEN` secret (PAT with `repo` scope) in GitHub repo settings.

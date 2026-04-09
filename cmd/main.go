@@ -44,7 +44,7 @@ var (
 
 // printHeader prints the application banner.
 func printHeader() {
-	fmt.Println(titleStyle.Render("TerraVis " + version))
+	fmt.Println(titleStyle.Render("TerraViz " + version))
 }
 
 // writeJSON marshals v as indented JSON and writes it to path.

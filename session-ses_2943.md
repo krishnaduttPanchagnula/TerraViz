@@ -1678,7 +1678,7 @@ What's the GitHub owner/repo? For example: `krishnaalagiri/cloud-arch-visualizer
 
 ## User
 
-krishnaduttPanchagnula/TerraVis
+krishnaduttPanchagnula/TerraViz
 
 ---
 
@@ -1686,7 +1686,7 @@ krishnaduttPanchagnula/TerraVis
 
 
 
-Got it — `krishnaduttPanchagnula/TerraVis`. Let me start working through the remaining tasks.
+Got it — `krishnaduttPanchagnula/TerraViz`. Let me start working through the remaining tasks.
 
 **Tool: todowrite**
 
@@ -1943,7 +1943,7 @@ Now I have everything I need. `CLAUDE.md` is outdated (still references `web/sta
 ```json
 {
   "filePath": "/home/krishna/work/POC/state-diagram-generator/README.md",
-  "content": "# TerraVis — Cloud Architecture Visualizer\n\n[![Release](https://img.shields.io/github/v/release/krishnaduttPanchagnula/TerraVis?style=flat-square)](https://github.com/krishnaduttPanchagnula/TerraVis/releases/latest)\n[![Go](https://img.shields.io/github/go-mod/go-version/krishnaduttPanchagnula/TerraVis?style=flat-square)](https://go.dev/)\n[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)\n\nGenerate interactive architecture diagrams from Terraform state files or live AWS accounts. A single self-contained binary — no external dependencies, no CDN, no runtime assets.\n\n![Enhanced UI](docs/screenshots/enhanced-ui.png)\n\n## Installation\n\n### Download a Release (Recommended)\n\nDownload the latest binary for your platform from the [Releases page](https://github.com/krishnaduttPanchagnula/TerraVis/releases/latest).\n\n```bash\n# Linux (amd64)\ncurl -Lo cloud-arch-visualizer.tar.gz \\\n  https://github.com/krishnaduttPanchagnula/TerraVis/releases/latest/download/cloud-arch-visualizer_$(curl -s https://api.github.com/repos/krishnaduttPanchagnula/TerraVis/releases/latest | grep tag_name | cut -d '\"' -f4 | sed 's/^v//')_linux_amd64.tar.gz\ntar xzf cloud-arch-visualizer.tar.gz\nchmod +x cloud-arch-visualizer\nsudo mv cloud-arch-visualizer /usr/local/bin/\n\n# macOS (Apple Silicon)\ncurl -Lo cloud-arch-visualizer.tar.gz \\\n  https://github.com/krishnaduttPanchagnula/TerraVis/releases/latest/download/cloud-arch-visualizer_$(curl -s https://api.github.com/repos/krishnaduttPanchagnula/TerraVis/releases/latest | grep tag_name | cut -d '\"' -f4 | sed 's/^v//')_darwin_arm64.tar.gz\ntar xzf cloud-arch-visualizer.tar.gz\nchmod +x cloud-arch-visualizer\nsudo mv cloud-arch-visualizer /usr/local/bin/\n```\n\n### Build from Source\n\n```bash\ngit clone https://github.com/krishnaduttPanchagnula/TerraVis.git\ncd TerraVis\ngo build -o cloud-arch-visualizer ./cmd/main.go\n```\n\nTo embed version info:\n\n```bash\ngo build -ldflags \"-s -w -X main.version=1.0.0 -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \\\n  -o cloud-arch-visualizer ./cmd/main.go\n```\n\n## Quick Start\n\n```bash\n# Scan a Terraform state file\ncloud-arch-visualizer scan terraform terraform.tfstate\n\n# Serve the diagram\ncloud-arch-visualizer serve diagram.json\n\n# Open in browser\nopen http://localhost:8080/enhanced\n```\n\nThat's it. One binary, zero setup.\n\n## Screenshots\n\n### Enhanced UI — Interactive Diagram\nFull-featured diagram view with zoom, pan, filtering, and search.\n\n![Enhanced UI](docs/screenshots/enhanced-ui.png)\n\n### Resource Details\nClick any resource to see its properties, connections, and metadata.\n\n![Resource Details](docs/screenshots/resource-details.png)\n\n### Basic UI\nLightweight diagram view.\n\n![Basic UI](docs/screenshots/basic-ui.png)\n\n## Features\n\n### Input Sources\n- **Terraform State Files** — Parse `.tfstate` (v4 raw format) or `terraform show -json` output\n- **Live AWS Account** — Scan EC2, S3, RDS, Lambda, VPCs, subnets, security groups, IAM, and more across multiple regions\n\n### Interactive Web Diagrams\n- SVG-based rendering with zoom, pan, and fit-to-view\n- Filter by resource type, provider, region, or state\n- Real-time search by resource name or ID\n- Hide/show individual resources; add or delete connections at runtime\n- Hover tooltips with resource details\n- Two UI modes: basic (`/`) and enhanced (`/enhanced`)\n\n### Infrastructure Comparison\n- Compare two scan results to see added, removed, and modified resources\n- Connection diffs (added/removed)\n- Detailed per-property change reports with `--verbose`\n\n### Self-Contained Binary\n- `go build` produces a single binary (~47 MB) with all HTML templates, JavaScript, fonts, and ~620 AWS icons embedded via `go:embed`\n- No external files, CDN dependencies, or runtime assets needed\n- Download and run from anywhere\n\n## CLI Reference\n\n### Global Flags\n| Flag | Short | Default | Description |\n|------|-------|---------|-------------|\n| `--output` | `-o` | `diagram.json` | Output file path |\n| `--verbose` | `-v` | `false` | Verbose output |\n| `--version` | | | Print version, commit, and build date |\n\n### `scan terraform <state-file>`\nParses a Terraform state file. Supports both raw `.tfstate` (v4) and `terraform show -json` format. Auto-detects which format based on whether the JSON contains `format_version`.\n\n### `scan aws`\nScans a live AWS account using the AWS SDK.\n\n| Flag | Short | Default | Description |\n|------|-------|---------|-------------|\n| `--regions` | `-r` | `us-east-1` | Comma-separated AWS regions |\n| `--profile` | `-p` | (default) | AWS credentials profile |\n\n**Required IAM permissions:** `ec2:Describe*`, `s3:ListAllMyBuckets`, `s3:GetBucketLocation`, `rds:DescribeDBInstances`, `lambda:ListFunctions`, `elbv2:DescribeLoadBalancers`, `iam:ListRoles`, `iam:ListUsers`\n\n### `compare <scan1.json> <scan2.json>`\nCompares two scan result JSON files and outputs a comparison JSON. With `--verbose`, prints per-resource property diffs to stdout.\n\n### `serve <diagram.json>`\nStarts a local web server to display the interactive diagram.\n\n| Flag | Short | Default | Description |\n|------|-------|---------|-------------|\n| `--port` | `-P` | `8080` | Port to bind |\n| `--host` | `-H` | `localhost` | Host to bind |\n\n**Routes:**\n- `GET /` — Basic diagram view\n- `GET /enhanced` — Enhanced diagram view (recommended)\n- `GET /api/diagram` — Full diagram JSON\n- `GET /api/resources` — All resources\n- `GET /api/resources/search?q=<query>` — Search resources\n- `GET /api/resources/filter?type=&provider=&region=&state=&tag=` — Filter resources\n- `POST /api/resources/:id/hide` — Hide a resource\n- `POST /api/resources/:id/show` — Show a resource\n- `GET /api/connections` — All connections\n- `POST /api/connections` — Create a connection\n- `DELETE /api/connections/:id` — Delete a connection\n- `GET /api/stats` — Diagram statistics\n- `POST /api/export/:format` — Export (json supported; svg/png handled client-side)\n\n## Supported AWS Resource Types\n\n**Compute:** EC2 instances, Lambda functions, ECS clusters/services/task definitions\n**Storage:** S3 buckets, ECR repositories\n**Database:** RDS instances\n**Networking:** VPCs, subnets, security groups, load balancers (ALB/NLB), listeners, target groups, Route53 zones/records\n**Security:** IAM roles/users/policies, ACM certificates, WAF web ACLs, KMS keys, Secrets Manager\n**Messaging:** SNS topics/subscriptions, SQS queues\n**API:** API Gateway REST APIs, stages, resources, methods, integrations, domain names, usage plans, VPC links\n**CDN:** CloudFront distributions\n**Monitoring:** CloudWatch log groups\n**Service Discovery:** Cloud Map namespaces/services\n\n## Connection Types\n\nConnections between resources are automatically inferred from Terraform state attributes (e.g., `vpc_id`, `subnet_id`, security group references, IAM role ARNs, target group attachments, SNS/SQS subscriptions).\n\n| Type | Description |\n|------|-------------|\n| `networking` | Network-level (VPC, subnet, security group) |\n| `access` | Security and permission relationships |\n| `data` | Data flow connections |\n| `trigger` | Event-driven connections |\n| `dependency` | Resource dependencies |\n| `reference` | Logical references |\n\n## Project Structure\n\n```\ncmd/\n  main.go                  CLI entry point (Cobra commands)\ninternal/\n  models/\n    models.go              Resource, Connection, Diagram, ScanResult types; icon map\n    utils.go               DiagramBuilder, comparison logic, search/filter, FNV ID generation\n  parsers/\n    terraform.go           Terraform state parser (raw v4 + terraform-json)\n    connections.go         Connection inference analyzers\n  scanners/\n    aws.go                 Live AWS account scanner (EC2, S3, RDS, Lambda)\n  server/\n    server.go              Gin HTTP server, REST API, mutex-protected state\nweb/\n  embed.go                 go:embed directive (embeds all assets into binary)\n  templates/               Go HTML templates (index.html, index_enhanced.html, error.html)\n  static/\n    js/                    Frontend JavaScript (diagram.js, diagram_enhanced.js)\n    fonts/                 Bundled Inter + JetBrains Mono fonts (WOFF2)\n  icons/                   Full AWS icon packs (~620 SVGs)\n.goreleaser.yml            GoReleaser config for multi-platform releases\n.github/workflows/         CI/CD (release on tag push)\n```\n\n## Releasing\n\nReleases are automated via GitHub Actions and [GoReleaser](https://goreleaser.com/).\n\n```bash\n# Tag and push to trigger a release\ngit tag v1.0.0\ngit push origin v1.0.0\n```\n\nThis builds binaries for Linux, macOS, and Windows (amd64 + arm64), creates a GitHub release with checksums and changelogs.\n\n## Development\n\n```bash\n# Install dependencies\ngo mod download\n\n# Build\ngo build -o cloud-arch-visualizer ./cmd/main.go\n\n# Vet\ngo vet ./...\n\n# Run with sample data\ncloud-arch-visualizer scan terraform payments-state.tfstate --output diagram.json\ncloud-arch-visualizer serve diagram.json --port 8081\n```\n\n## Key Dependencies\n\n| Package | Purpose |\n|---------|---------|\n| `github.com/spf13/cobra` | CLI framework |\n| `github.com/gin-gonic/gin` | HTTP server |\n| `github.com/hashicorp/terraform-json` | Terraform state parsing |\n| `github.com/aws/aws-sdk-go-v2` | AWS API access (EC2, S3, RDS, Lambda) |\n| `github.com/charmbracelet/lipgloss` | Terminal styling |\n\n## License\n\nMIT\n"
+  "content": "# TerraViz — Cloud Architecture Visualizer\n\n[![Release](https://img.shields.io/github/v/release/krishnaduttPanchagnula/TerraViz?style=flat-square)](https://github.com/krishnaduttPanchagnula/TerraViz/releases/latest)\n[![Go](https://img.shields.io/github/go-mod/go-version/krishnaduttPanchagnula/TerraViz?style=flat-square)](https://go.dev/)\n[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)\n\nGenerate interactive architecture diagrams from Terraform state files or live AWS accounts. A single self-contained binary — no external dependencies, no CDN, no runtime assets.\n\n![Enhanced UI](docs/screenshots/enhanced-ui.png)\n\n## Installation\n\n### Download a Release (Recommended)\n\nDownload the latest binary for your platform from the [Releases page](https://github.com/krishnaduttPanchagnula/TerraViz/releases/latest).\n\n```bash\n# Linux (amd64)\ncurl -Lo cloud-arch-visualizer.tar.gz \\\n  https://github.com/krishnaduttPanchagnula/TerraViz/releases/latest/download/cloud-arch-visualizer_$(curl -s https://api.github.com/repos/krishnaduttPanchagnula/TerraViz/releases/latest | grep tag_name | cut -d '\"' -f4 | sed 's/^v//')_linux_amd64.tar.gz\ntar xzf cloud-arch-visualizer.tar.gz\nchmod +x cloud-arch-visualizer\nsudo mv cloud-arch-visualizer /usr/local/bin/\n\n# macOS (Apple Silicon)\ncurl -Lo cloud-arch-visualizer.tar.gz \\\n  https://github.com/krishnaduttPanchagnula/TerraViz/releases/latest/download/cloud-arch-visualizer_$(curl -s https://api.github.com/repos/krishnaduttPanchagnula/TerraViz/releases/latest | grep tag_name | cut -d '\"' -f4 | sed 's/^v//')_darwin_arm64.tar.gz\ntar xzf cloud-arch-visualizer.tar.gz\nchmod +x cloud-arch-visualizer\nsudo mv cloud-arch-visualizer /usr/local/bin/\n```\n\n### Build from Source\n\n```bash\ngit clone https://github.com/krishnaduttPanchagnula/TerraViz.git\ncd TerraViz\ngo build -o cloud-arch-visualizer ./cmd/main.go\n```\n\nTo embed version info:\n\n```bash\ngo build -ldflags \"-s -w -X main.version=1.0.0 -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \\\n  -o cloud-arch-visualizer ./cmd/main.go\n```\n\n## Quick Start\n\n```bash\n# Scan a Terraform state file\ncloud-arch-visualizer scan terraform terraform.tfstate\n\n# Serve the diagram\ncloud-arch-visualizer serve diagram.json\n\n# Open in browser\nopen http://localhost:8080/enhanced\n```\n\nThat's it. One binary, zero setup.\n\n## Screenshots\n\n### Enhanced UI — Interactive Diagram\nFull-featured diagram view with zoom, pan, filtering, and search.\n\n![Enhanced UI](docs/screenshots/enhanced-ui.png)\n\n### Resource Details\nClick any resource to see its properties, connections, and metadata.\n\n![Resource Details](docs/screenshots/resource-details.png)\n\n### Basic UI\nLightweight diagram view.\n\n![Basic UI](docs/screenshots/basic-ui.png)\n\n## Features\n\n### Input Sources\n- **Terraform State Files** — Parse `.tfstate` (v4 raw format) or `terraform show -json` output\n- **Live AWS Account** — Scan EC2, S3, RDS, Lambda, VPCs, subnets, security groups, IAM, and more across multiple regions\n\n### Interactive Web Diagrams\n- SVG-based rendering with zoom, pan, and fit-to-view\n- Filter by resource type, provider, region, or state\n- Real-time search by resource name or ID\n- Hide/show individual resources; add or delete connections at runtime\n- Hover tooltips with resource details\n- Two UI modes: basic (`/`) and enhanced (`/enhanced`)\n\n### Infrastructure Comparison\n- Compare two scan results to see added, removed, and modified resources\n- Connection diffs (added/removed)\n- Detailed per-property change reports with `--verbose`\n\n### Self-Contained Binary\n- `go build` produces a single binary (~47 MB) with all HTML templates, JavaScript, fonts, and ~620 AWS icons embedded via `go:embed`\n- No external files, CDN dependencies, or runtime assets needed\n- Download and run from anywhere\n\n## CLI Reference\n\n### Global Flags\n| Flag | Short | Default | Description |\n|------|-------|---------|-------------|\n| `--output` | `-o` | `diagram.json` | Output file path |\n| `--verbose` | `-v` | `false` | Verbose output |\n| `--version` | | | Print version, commit, and build date |\n\n### `scan terraform <state-file>`\nParses a Terraform state file. Supports both raw `.tfstate` (v4) and `terraform show -json` format. Auto-detects which format based on whether the JSON contains `format_version`.\n\n### `scan aws`\nScans a live AWS account using the AWS SDK.\n\n| Flag | Short | Default | Description |\n|------|-------|---------|-------------|\n| `--regions` | `-r` | `us-east-1` | Comma-separated AWS regions |\n| `--profile` | `-p` | (default) | AWS credentials profile |\n\n**Required IAM permissions:** `ec2:Describe*`, `s3:ListAllMyBuckets`, `s3:GetBucketLocation`, `rds:DescribeDBInstances`, `lambda:ListFunctions`, `elbv2:DescribeLoadBalancers`, `iam:ListRoles`, `iam:ListUsers`\n\n### `compare <scan1.json> <scan2.json>`\nCompares two scan result JSON files and outputs a comparison JSON. With `--verbose`, prints per-resource property diffs to stdout.\n\n### `serve <diagram.json>`\nStarts a local web server to display the interactive diagram.\n\n| Flag | Short | Default | Description |\n|------|-------|---------|-------------|\n| `--port` | `-P` | `8080` | Port to bind |\n| `--host` | `-H` | `localhost` | Host to bind |\n\n**Routes:**\n- `GET /` — Basic diagram view\n- `GET /enhanced` — Enhanced diagram view (recommended)\n- `GET /api/diagram` — Full diagram JSON\n- `GET /api/resources` — All resources\n- `GET /api/resources/search?q=<query>` — Search resources\n- `GET /api/resources/filter?type=&provider=&region=&state=&tag=` — Filter resources\n- `POST /api/resources/:id/hide` — Hide a resource\n- `POST /api/resources/:id/show` — Show a resource\n- `GET /api/connections` — All connections\n- `POST /api/connections` — Create a connection\n- `DELETE /api/connections/:id` — Delete a connection\n- `GET /api/stats` — Diagram statistics\n- `POST /api/export/:format` — Export (json supported; svg/png handled client-side)\n\n## Supported AWS Resource Types\n\n**Compute:** EC2 instances, Lambda functions, ECS clusters/services/task definitions\n**Storage:** S3 buckets, ECR repositories\n**Database:** RDS instances\n**Networking:** VPCs, subnets, security groups, load balancers (ALB/NLB), listeners, target groups, Route53 zones/records\n**Security:** IAM roles/users/policies, ACM certificates, WAF web ACLs, KMS keys, Secrets Manager\n**Messaging:** SNS topics/subscriptions, SQS queues\n**API:** API Gateway REST APIs, stages, resources, methods, integrations, domain names, usage plans, VPC links\n**CDN:** CloudFront distributions\n**Monitoring:** CloudWatch log groups\n**Service Discovery:** Cloud Map namespaces/services\n\n## Connection Types\n\nConnections between resources are automatically inferred from Terraform state attributes (e.g., `vpc_id`, `subnet_id`, security group references, IAM role ARNs, target group attachments, SNS/SQS subscriptions).\n\n| Type | Description |\n|------|-------------|\n| `networking` | Network-level (VPC, subnet, security group) |\n| `access` | Security and permission relationships |\n| `data` | Data flow connections |\n| `trigger` | Event-driven connections |\n| `dependency` | Resource dependencies |\n| `reference` | Logical references |\n\n## Project Structure\n\n```\ncmd/\n  main.go                  CLI entry point (Cobra commands)\ninternal/\n  models/\n    models.go              Resource, Connection, Diagram, ScanResult types; icon map\n    utils.go               DiagramBuilder, comparison logic, search/filter, FNV ID generation\n  parsers/\n    terraform.go           Terraform state parser (raw v4 + terraform-json)\n    connections.go         Connection inference analyzers\n  scanners/\n    aws.go                 Live AWS account scanner (EC2, S3, RDS, Lambda)\n  server/\n    server.go              Gin HTTP server, REST API, mutex-protected state\nweb/\n  embed.go                 go:embed directive (embeds all assets into binary)\n  templates/               Go HTML templates (index.html, index_enhanced.html, error.html)\n  static/\n    js/                    Frontend JavaScript (diagram.js, diagram_enhanced.js)\n    fonts/                 Bundled Inter + JetBrains Mono fonts (WOFF2)\n  icons/                   Full AWS icon packs (~620 SVGs)\n.goreleaser.yml            GoReleaser config for multi-platform releases\n.github/workflows/         CI/CD (release on tag push)\n```\n\n## Releasing\n\nReleases are automated via GitHub Actions and [GoReleaser](https://goreleaser.com/).\n\n```bash\n# Tag and push to trigger a release\ngit tag v1.0.0\ngit push origin v1.0.0\n```\n\nThis builds binaries for Linux, macOS, and Windows (amd64 + arm64), creates a GitHub release with checksums and changelogs.\n\n## Development\n\n```bash\n# Install dependencies\ngo mod download\n\n# Build\ngo build -o cloud-arch-visualizer ./cmd/main.go\n\n# Vet\ngo vet ./...\n\n# Run with sample data\ncloud-arch-visualizer scan terraform payments-state.tfstate --output diagram.json\ncloud-arch-visualizer serve diagram.json --port 8081\n```\n\n## Key Dependencies\n\n| Package | Purpose |\n|---------|---------|\n| `github.com/spf13/cobra` | CLI framework |\n| `github.com/gin-gonic/gin` | HTTP server |\n| `github.com/hashicorp/terraform-json` | Terraform state parsing |\n| `github.com/aws/aws-sdk-go-v2` | AWS API access (EC2, S3, RDS, Lambda) |\n| `github.com/charmbracelet/lipgloss` | Terminal styling |\n\n## License\n\nMIT\n"
 }
 ```
 
@@ -2046,7 +2046,7 @@ No `assets/` directory exists and no `Zone.Identifier` files found — these mig
 **Input:**
 ```json
 {
-  "content": "# Cloud Architecture Visualizer -- Agent Guide\n\n## What This Project Does\n\nGo CLI tool that parses Terraform `.tfstate` files (v4 raw or `terraform show -json`) and live AWS accounts, then serves interactive SVG-based infrastructure diagrams via a Gin web server. The frontend renders zoomable, filterable diagrams in the browser.\n\n**Repository:** `krishnaduttPanchagnula/TerraVis`\n\n## Build / Run / Verify\n\n```bash\ngo build -o cloud-arch-visualizer ./cmd/main.go   # Build (from project root)\ngo vet ./...                                       # Static analysis\n```\n\nWith version info:\n```bash\ngo build -ldflags \"-s -w -X main.version=dev -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \\\n  -o cloud-arch-visualizer ./cmd/main.go\n```\n\nThere are no unit tests yet. Verify changes by building and running `go vet`.\n\n## Project Layout\n\n```\ncmd/main.go                         Cobra CLI entry point (scan, compare, serve)\n                                    Has build-time vars: version, commit, date (set via -ldflags)\ninternal/\n  models/\n    models.go                       Types: Resource, Connection, Diagram, ScanResult, ComparisonResult\n                                    resourceIconMap (50+ types -> /icons/ paths)\n    utils.go                        DiagramBuilder, CompareDiagrams, search/filter, FNV-1a ID generation\n  parsers/\n    terraform.go                    Terraform state parser (auto-detects raw v4 vs terraform-json)\n    connections.go                  Connection inference from Terraform attributes (30+ analyzers)\n  scanners/\n    aws.go                          Live AWS scanner (EC2, S3, RDS, Lambda via aws-sdk-go-v2)\n  server/\n    server.go                       Gin HTTP server, REST API, sync.RWMutex-protected diagram state\nweb/\n  embed.go                          go:embed directive -- embeds templates, static, icons into binary\n  templates/                        Go HTML templates (index.html, index_enhanced.html, error.html)\n  static/js/                        Frontend JS (diagram.js, diagram_enhanced.js)\n  static/fonts/                     Bundled WOFF2 fonts (Inter, JetBrains Mono) -- no CDN at runtime\n  icons/                            Full AWS icon packs (~620 SVGs, served at /icons, used by both UIs)\ndocs/\n  screenshots/                      UI screenshots for README (enhanced-ui, basic-ui, resource-details)\n.goreleaser.yml                     GoReleaser v2 config (linux/darwin/windows x amd64/arm64)\n.github/workflows/release.yml      GitHub Actions -- triggers on v* tags, runs GoReleaser\n.gitignore                          Covers binaries, JSON artifacts, .tfstate, IDE files, node_modules\ngo.mod                              Module: cloud-arch-visualizer, Go 1.25.0\n```\n\nAll static assets (templates, JS, fonts, icons) are embedded into the binary via `go:embed`.\nThe built binary is fully self-contained -- no external files or CDN dependencies needed at runtime.\n\n## Do NOT Modify\n\n- `web/embed.go` -- go:embed directive, no logic to change\n\n## Release Process\n\nReleases are automated. Tag and push to trigger:\n```bash\ngit tag v1.0.0\ngit push origin v1.0.0\n```\n\nThe GitHub Actions workflow (`.github/workflows/release.yml`) will:\n1. Check out the code with full history\n2. Set up Go (version from go.mod)\n3. Run `go vet` and a test build\n4. Run GoReleaser, which builds for 6 platform/arch combos with `-ldflags` for version/commit/date\n5. Create a GitHub release with archives + checksums\n\nGoReleaser config (`.goreleaser.yml`):\n- Binary name: `cloud-arch-visualizer`\n- Platforms: linux/darwin/windows x amd64/arm64\n- CGO_ENABLED=0, stripped (`-s -w`)\n- Archives: tar.gz (zip for Windows)\n- Changelog: excludes docs/test/chore commits\n\n## CLI Commands\n\n| Command | Description |\n|---------|-------------|\n| `scan terraform <file>` | Parse a .tfstate file, output diagram JSON |\n| `scan aws` | Scan live AWS account (flags: `--regions`, `--profile`) |\n| `compare <a.json> <b.json>` | Compare two scan results, output diff JSON |\n| `serve <diagram.json>` | Start Gin server (flags: `--host`, `--port`) |\n\nGlobal flags: `--output` / `-o` (default `diagram.json`), `--verbose` / `-v`, `--version`\n\n## Key Patterns and Conventions\n\n### Go Style\n- Module name: `cloud-arch-visualizer`\n- All errors wrapped with `fmt.Errorf(\"context: %w\", err)` (never `%v`)\n- `os.ReadFile` / `os.WriteFile` (never `io/ioutil`)\n- `hash/fnv` for ID generation (not `crypto/md5`)\n- `log/slog` for structured logging in scanners (not `fmt.Printf`)\n- Import aliases for AWS types: `ec2types`, `s3types`, `rdstypes`, `lambdatypes`\n\n### Architecture\n- `DiagramBuilder` is the central construction API -- all parsers and scanners use it\n- `DiagramBuilder.AddResource` stores resources in a slice and keeps a pointer map (`resourceMap`) pointing into that slice. The pointer is set to `&db.diagram.Resources[len(...)-1]` after append to avoid stale pointers.\n- `DiagramBuilder.AddResource` auto-populates `Resource.IconURL` via `GetResourceIcon()` when empty\n- `Server.diagram` is protected by `sync.RWMutex` -- read handlers use `RLock`, mutation handlers (hide/show, create/delete connection) use `Lock`\n- Connection analyzers in `connections.go` use helper functions: `findByProperty`, `findAllByProperty`, `findAllByType`, `findByPropertyContains`, `connectToSecurityGroups`\n- `terraformTypeMap` and `resourceIconMap` are package-level vars (not rebuilt per call)\n\n### Icon System\n- `resourceIconMap` in `models.go` maps 50+ `ResourceType` constants to `/icons/` paths (matching the embedded `web/icons/` AWS icon packs)\n- `DefaultResourceIcon` = `/icons/General-Icons/Marketplace_Dark.svg`\n- Both JS frontends (`diagram.js`, `diagram_enhanced.js`) prefer `resource.icon_url` from the API, falling back to their own local icon maps\n- Icons are served from the embedded filesystem at `/icons/`\n\n### Types to Know\n- `models.ScanResult` -- Top-level output of any scan (contains `Diagram`, `Stats`, `Errors`, `Warnings`)\n- `models.ComparisonResult` -- Output of `CompareDiagrams()` (contains `Added`, `Removed`, `Modified`, `ConnectionsAdded`, `ConnectionsRemoved`, `Summary`)\n- `models.ComparisonSummary` -- Has `AddedCount`, `RemovedCount`, `ModifiedCount`, `UnchangedCount`\n- `models.ResourceType` -- String type, e.g. `\"aws:ec2:instance\"`, `\"aws:s3:bucket\"`\n- `models.ConnectionType` -- One of: `networking`, `access`, `data`, `trigger`, `dependency`, `reference`\n\n### Server Routes\nEnhanced UI is at `/enhanced` (recommended). Basic UI at `/`.\nAPI routes are under `/api/` -- see `server.go:setupRoutes()` for full list.\n\n## Dependencies\n\n| Package | Purpose |\n|---------|---------|\n| `spf13/cobra` | CLI framework |\n| `gin-gonic/gin` | HTTP server |\n| `hashicorp/terraform-json` | Terraform state types |\n| `aws/aws-sdk-go-v2` | AWS API (EC2, S3, RDS, Lambda) |\n| `charmbracelet/lipgloss` | Terminal styling |\n\n## Common Tasks\n\n### Adding a new Terraform resource type\n1. Add `ResourceType` constant in `models/models.go`\n2. Add mapping in `terraformTypeMap` in `parsers/terraform.go`\n3. Add connection analyzer in `parsers/connections.go` (use existing helpers)\n4. Add icon mapping in `resourceIconMap` in `models/models.go`\n5. Build and vet: `go build -o cloud-arch-visualizer ./cmd/main.go && go vet ./...`\n\n### Adding a new AWS service to the live scanner\n1. Add AWS SDK import in `scanners/aws.go` with consistent alias (e.g., `svcTypes`)\n2. Add scan method (e.g., `scanDynamoDB`) following existing patterns\n3. Call it from `ScanAccount` with proper error collection\n4. Build and vet\n\n### Adding a new API endpoint\n1. Add handler method on `*Server` in `server/server.go`\n2. Register route in `setupRoutes()`\n3. Use `requireDiagram()` helper; use `s.mu.Lock()`/`s.mu.RLock()` appropriately\n4. Build and vet\n\n### Creating a new release\n1. Ensure all changes are committed and pushed\n2. Tag: `git tag v1.x.x`\n3. Push: `git push origin v1.x.x`\n4. GitHub Actions will build and publish automatically\n",
+  "content": "# Cloud Architecture Visualizer -- Agent Guide\n\n## What This Project Does\n\nGo CLI tool that parses Terraform `.tfstate` files (v4 raw or `terraform show -json`) and live AWS accounts, then serves interactive SVG-based infrastructure diagrams via a Gin web server. The frontend renders zoomable, filterable diagrams in the browser.\n\n**Repository:** `krishnaduttPanchagnula/TerraViz`\n\n## Build / Run / Verify\n\n```bash\ngo build -o cloud-arch-visualizer ./cmd/main.go   # Build (from project root)\ngo vet ./...                                       # Static analysis\n```\n\nWith version info:\n```bash\ngo build -ldflags \"-s -w -X main.version=dev -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \\\n  -o cloud-arch-visualizer ./cmd/main.go\n```\n\nThere are no unit tests yet. Verify changes by building and running `go vet`.\n\n## Project Layout\n\n```\ncmd/main.go                         Cobra CLI entry point (scan, compare, serve)\n                                    Has build-time vars: version, commit, date (set via -ldflags)\ninternal/\n  models/\n    models.go                       Types: Resource, Connection, Diagram, ScanResult, ComparisonResult\n                                    resourceIconMap (50+ types -> /icons/ paths)\n    utils.go                        DiagramBuilder, CompareDiagrams, search/filter, FNV-1a ID generation\n  parsers/\n    terraform.go                    Terraform state parser (auto-detects raw v4 vs terraform-json)\n    connections.go                  Connection inference from Terraform attributes (30+ analyzers)\n  scanners/\n    aws.go                          Live AWS scanner (EC2, S3, RDS, Lambda via aws-sdk-go-v2)\n  server/\n    server.go                       Gin HTTP server, REST API, sync.RWMutex-protected diagram state\nweb/\n  embed.go                          go:embed directive -- embeds templates, static, icons into binary\n  templates/                        Go HTML templates (index.html, index_enhanced.html, error.html)\n  static/js/                        Frontend JS (diagram.js, diagram_enhanced.js)\n  static/fonts/                     Bundled WOFF2 fonts (Inter, JetBrains Mono) -- no CDN at runtime\n  icons/                            Full AWS icon packs (~620 SVGs, served at /icons, used by both UIs)\ndocs/\n  screenshots/                      UI screenshots for README (enhanced-ui, basic-ui, resource-details)\n.goreleaser.yml                     GoReleaser v2 config (linux/darwin/windows x amd64/arm64)\n.github/workflows/release.yml      GitHub Actions -- triggers on v* tags, runs GoReleaser\n.gitignore                          Covers binaries, JSON artifacts, .tfstate, IDE files, node_modules\ngo.mod                              Module: cloud-arch-visualizer, Go 1.25.0\n```\n\nAll static assets (templates, JS, fonts, icons) are embedded into the binary via `go:embed`.\nThe built binary is fully self-contained -- no external files or CDN dependencies needed at runtime.\n\n## Do NOT Modify\n\n- `web/embed.go` -- go:embed directive, no logic to change\n\n## Release Process\n\nReleases are automated. Tag and push to trigger:\n```bash\ngit tag v1.0.0\ngit push origin v1.0.0\n```\n\nThe GitHub Actions workflow (`.github/workflows/release.yml`) will:\n1. Check out the code with full history\n2. Set up Go (version from go.mod)\n3. Run `go vet` and a test build\n4. Run GoReleaser, which builds for 6 platform/arch combos with `-ldflags` for version/commit/date\n5. Create a GitHub release with archives + checksums\n\nGoReleaser config (`.goreleaser.yml`):\n- Binary name: `cloud-arch-visualizer`\n- Platforms: linux/darwin/windows x amd64/arm64\n- CGO_ENABLED=0, stripped (`-s -w`)\n- Archives: tar.gz (zip for Windows)\n- Changelog: excludes docs/test/chore commits\n\n## CLI Commands\n\n| Command | Description |\n|---------|-------------|\n| `scan terraform <file>` | Parse a .tfstate file, output diagram JSON |\n| `scan aws` | Scan live AWS account (flags: `--regions`, `--profile`) |\n| `compare <a.json> <b.json>` | Compare two scan results, output diff JSON |\n| `serve <diagram.json>` | Start Gin server (flags: `--host`, `--port`) |\n\nGlobal flags: `--output` / `-o` (default `diagram.json`), `--verbose` / `-v`, `--version`\n\n## Key Patterns and Conventions\n\n### Go Style\n- Module name: `cloud-arch-visualizer`\n- All errors wrapped with `fmt.Errorf(\"context: %w\", err)` (never `%v`)\n- `os.ReadFile` / `os.WriteFile` (never `io/ioutil`)\n- `hash/fnv` for ID generation (not `crypto/md5`)\n- `log/slog` for structured logging in scanners (not `fmt.Printf`)\n- Import aliases for AWS types: `ec2types`, `s3types`, `rdstypes`, `lambdatypes`\n\n### Architecture\n- `DiagramBuilder` is the central construction API -- all parsers and scanners use it\n- `DiagramBuilder.AddResource` stores resources in a slice and keeps a pointer map (`resourceMap`) pointing into that slice. The pointer is set to `&db.diagram.Resources[len(...)-1]` after append to avoid stale pointers.\n- `DiagramBuilder.AddResource` auto-populates `Resource.IconURL` via `GetResourceIcon()` when empty\n- `Server.diagram` is protected by `sync.RWMutex` -- read handlers use `RLock`, mutation handlers (hide/show, create/delete connection) use `Lock`\n- Connection analyzers in `connections.go` use helper functions: `findByProperty`, `findAllByProperty`, `findAllByType`, `findByPropertyContains`, `connectToSecurityGroups`\n- `terraformTypeMap` and `resourceIconMap` are package-level vars (not rebuilt per call)\n\n### Icon System\n- `resourceIconMap` in `models.go` maps 50+ `ResourceType` constants to `/icons/` paths (matching the embedded `web/icons/` AWS icon packs)\n- `DefaultResourceIcon` = `/icons/General-Icons/Marketplace_Dark.svg`\n- Both JS frontends (`diagram.js`, `diagram_enhanced.js`) prefer `resource.icon_url` from the API, falling back to their own local icon maps\n- Icons are served from the embedded filesystem at `/icons/`\n\n### Types to Know\n- `models.ScanResult` -- Top-level output of any scan (contains `Diagram`, `Stats`, `Errors`, `Warnings`)\n- `models.ComparisonResult` -- Output of `CompareDiagrams()` (contains `Added`, `Removed`, `Modified`, `ConnectionsAdded`, `ConnectionsRemoved`, `Summary`)\n- `models.ComparisonSummary` -- Has `AddedCount`, `RemovedCount`, `ModifiedCount`, `UnchangedCount`\n- `models.ResourceType` -- String type, e.g. `\"aws:ec2:instance\"`, `\"aws:s3:bucket\"`\n- `models.ConnectionType` -- One of: `networking`, `access`, `data`, `trigger`, `dependency`, `reference`\n\n### Server Routes\nEnhanced UI is at `/enhanced` (recommended). Basic UI at `/`.\nAPI routes are under `/api/` -- see `server.go:setupRoutes()` for full list.\n\n## Dependencies\n\n| Package | Purpose |\n|---------|---------|\n| `spf13/cobra` | CLI framework |\n| `gin-gonic/gin` | HTTP server |\n| `hashicorp/terraform-json` | Terraform state types |\n| `aws/aws-sdk-go-v2` | AWS API (EC2, S3, RDS, Lambda) |\n| `charmbracelet/lipgloss` | Terminal styling |\n\n## Common Tasks\n\n### Adding a new Terraform resource type\n1. Add `ResourceType` constant in `models/models.go`\n2. Add mapping in `terraformTypeMap` in `parsers/terraform.go`\n3. Add connection analyzer in `parsers/connections.go` (use existing helpers)\n4. Add icon mapping in `resourceIconMap` in `models/models.go`\n5. Build and vet: `go build -o cloud-arch-visualizer ./cmd/main.go && go vet ./...`\n\n### Adding a new AWS service to the live scanner\n1. Add AWS SDK import in `scanners/aws.go` with consistent alias (e.g., `svcTypes`)\n2. Add scan method (e.g., `scanDynamoDB`) following existing patterns\n3. Call it from `ScanAccount` with proper error collection\n4. Build and vet\n\n### Adding a new API endpoint\n1. Add handler method on `*Server` in `server/server.go`\n2. Register route in `setupRoutes()`\n3. Use `requireDiagram()` helper; use `s.mu.Lock()`/`s.mu.RLock()` appropriately\n4. Build and vet\n\n### Creating a new release\n1. Ensure all changes are committed and pushed\n2. Tag: `git tag v1.x.x`\n3. Push: `git push origin v1.x.x`\n4. GitHub Actions will build and publish automatically\n",
   "filePath": "/home/krishna/work/POC/state-diagram-generator/AGENTS.md"
 }
 ```
@@ -2071,7 +2071,7 @@ ERROR [14:29] pattern icons: cannot embed file icons/Analytics/Athena.svg:Zone.I
 **Input:**
 ```json
 {
-  "content": "# Cloud Architecture Visualizer -- Claude Code Guide\n\n## What This Project Does\n\nGo CLI tool that parses Terraform `.tfstate` files (v4 raw or `terraform show -json`) and live AWS accounts, then serves interactive SVG-based infrastructure diagrams via a Gin web server. The frontend renders zoomable, filterable diagrams in the browser.\n\n**Repository:** `krishnaduttPanchagnula/TerraVis`\n\n## Build / Run / Verify\n\n```bash\ngo build -o cloud-arch-visualizer ./cmd/main.go   # Build (from project root)\ngo vet ./...                                       # Static analysis\n```\n\nWith version info:\n```bash\ngo build -ldflags \"-s -w -X main.version=dev -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \\\n  -o cloud-arch-visualizer ./cmd/main.go\n```\n\nThere are no unit tests yet. Verify changes by building and running `go vet`.\n\n## Project Layout\n\n```\ncmd/main.go                         Cobra CLI entry point (scan, compare, serve)\n                                    Has build-time vars: version, commit, date (set via -ldflags)\ninternal/\n  models/\n    models.go                       Types: Resource, Connection, Diagram, ScanResult, ComparisonResult\n                                    resourceIconMap (50+ types -> /icons/ paths)\n    utils.go                        DiagramBuilder, CompareDiagrams, search/filter, FNV-1a ID generation\n  parsers/\n    terraform.go                    Terraform state parser (auto-detects raw v4 vs terraform-json)\n    connections.go                  Connection inference from Terraform attributes (30+ analyzers)\n  scanners/\n    aws.go                          Live AWS scanner (EC2, S3, RDS, Lambda via aws-sdk-go-v2)\n  server/\n    server.go                       Gin HTTP server, REST API, sync.RWMutex-protected diagram state\nweb/\n  embed.go                          go:embed directive -- embeds templates, static, icons into binary\n  templates/                        Go HTML templates (index.html, index_enhanced.html, error.html)\n  static/js/                        Frontend JS (diagram.js, diagram_enhanced.js)\n  static/fonts/                     Bundled WOFF2 fonts (Inter, JetBrains Mono) -- no CDN at runtime\n  icons/                            Full AWS icon packs (~620 SVGs, served at /icons, used by both UIs)\ndocs/\n  screenshots/                      UI screenshots for README (enhanced-ui, basic-ui, resource-details)\n.goreleaser.yml                     GoReleaser v2 config (linux/darwin/windows x amd64/arm64)\n.github/workflows/release.yml      GitHub Actions -- triggers on v* tags, runs GoReleaser\n.gitignore                          Covers binaries, JSON artifacts, .tfstate, IDE files, node_modules\ngo.mod                              Module: cloud-arch-visualizer, Go 1.25.0\n```\n\nAll static assets (templates, JS, fonts, icons) are embedded into the binary via `go:embed`.\nThe built binary is fully self-contained -- no external files or CDN dependencies needed at runtime.\n\n## Do NOT Modify\n\n- `web/embed.go` -- go:embed directive, no logic to change\n\n## Release Process\n\nReleases are automated. Tag and push to trigger:\n```bash\ngit tag v1.0.0\ngit push origin v1.0.0\n```\n\nThe GitHub Actions workflow (`.github/workflows/release.yml`) will:\n1. Check out the code with full history\n2. Set up Go (version from go.mod)\n3. Run `go vet` and a test build\n4. Run GoReleaser, which builds for 6 platform/arch combos with `-ldflags` for version/commit/date\n5. Create a GitHub release with archives + checksums\n\nGoReleaser config (`.goreleaser.yml`):\n- Binary name: `cloud-arch-visualizer`\n- Platforms: linux/darwin/windows x amd64/arm64\n- CGO_ENABLED=0, stripped (`-s -w`)\n- Archives: tar.gz (zip for Windows)\n- Changelog: excludes docs/test/chore commits\n\n## CLI Commands\n\n| Command | Description |\n|---------|-------------|\n| `scan terraform <file>` | Parse a .tfstate file, output diagram JSON |\n| `scan aws` | Scan live AWS account (flags: `--regions`, `--profile`) |\n| `compare <a.json> <b.json>` | Compare two scan results, output diff JSON |\n| `serve <diagram.json>` | Start Gin server (flags: `--host`, `--port`) |\n\nGlobal flags: `--output` / `-o` (default `diagram.json`), `--verbose` / `-v`, `--version`\n\n## Key Patterns and Conventions\n\n### Go Style\n- Module name: `cloud-arch-visualizer`\n- All errors wrapped with `fmt.Errorf(\"context: %w\", err)` (never `%v`)\n- `os.ReadFile` / `os.WriteFile` (never `io/ioutil`)\n- `hash/fnv` for ID generation (not `crypto/md5`)\n- `log/slog` for structured logging in scanners (not `fmt.Printf`)\n- Import aliases for AWS types: `ec2types`, `s3types`, `rdstypes`, `lambdatypes`\n\n### Architecture\n- `DiagramBuilder` is the central construction API -- all parsers and scanners use it\n- `DiagramBuilder.AddResource` stores resources in a slice and keeps a pointer map (`resourceMap`) pointing into that slice. The pointer is set to `&db.diagram.Resources[len(...)-1]` after append to avoid stale pointers.\n- `DiagramBuilder.AddResource` auto-populates `Resource.IconURL` via `GetResourceIcon()` when empty\n- `Server.diagram` is protected by `sync.RWMutex` -- read handlers use `RLock`, mutation handlers (hide/show, create/delete connection) use `Lock`\n- Connection analyzers in `connections.go` use helper functions: `findByProperty`, `findAllByProperty`, `findAllByType`, `findByPropertyContains`, `connectToSecurityGroups`\n- `terraformTypeMap` and `resourceIconMap` are package-level vars (not rebuilt per call)\n\n### Icon System\n- `resourceIconMap` in `models.go` maps 50+ `ResourceType` constants to `/icons/` paths (matching the embedded `web/icons/` AWS icon packs)\n- `DefaultResourceIcon` = `/icons/General-Icons/Marketplace_Dark.svg`\n- Both JS frontends (`diagram.js`, `diagram_enhanced.js`) prefer `resource.icon_url` from the API, falling back to their own local icon maps\n- Icons are served from the embedded filesystem at `/icons/`\n\n### Types to Know\n- `models.ScanResult` -- Top-level output of any scan (contains `Diagram`, `Stats`, `Errors`, `Warnings`)\n- `models.ComparisonResult` -- Output of `CompareDiagrams()` (contains `Added`, `Removed`, `Modified`, `ConnectionsAdded`, `ConnectionsRemoved`, `Summary`)\n- `models.ComparisonSummary` -- Has `AddedCount`, `RemovedCount`, `ModifiedCount`, `UnchangedCount`\n- `models.ResourceType` -- String type, e.g. `\"aws:ec2:instance\"`, `\"aws:s3:bucket\"`\n- `models.ConnectionType` -- One of: `networking`, `access`, `data`, `trigger`, `dependency`, `reference`\n\n### Server Routes\nEnhanced UI is at `/enhanced` (recommended). Basic UI at `/`.\nAPI routes are under `/api/` -- see `server.go:setupRoutes()` for full list.\n\n## Dependencies\n\n| Package | Purpose |\n|---------|---------|\n| `spf13/cobra` | CLI framework |\n| `gin-gonic/gin` | HTTP server |\n| `hashicorp/terraform-json` | Terraform state types |\n| `aws/aws-sdk-go-v2` | AWS API (EC2, S3, RDS, Lambda) |\n| `charmbracelet/lipgloss` | Terminal styling |\n\n## Common Tasks\n\n### Adding a new Terraform resource type\n1. Add `ResourceType` constant in `models/models.go`\n2. Add mapping in `terraformTypeMap` in `parsers/terraform.go`\n3. Add connection analyzer in `parsers/connections.go` (use existing helpers)\n4. Add icon mapping in `resourceIconMap` in `models/models.go`\n5. Build and vet: `go build -o cloud-arch-visualizer ./cmd/main.go && go vet ./...`\n\n### Adding a new AWS service to the live scanner\n1. Add AWS SDK import in `scanners/aws.go` with consistent alias (e.g., `svcTypes`)\n2. Add scan method (e.g., `scanDynamoDB`) following existing patterns\n3. Call it from `ScanAccount` with proper error collection\n4. Build and vet\n\n### Adding a new API endpoint\n1. Add handler method on `*Server` in `server/server.go`\n2. Register route in `setupRoutes()`\n3. Use `requireDiagram()` helper; use `s.mu.Lock()`/`s.mu.RLock()` appropriately\n4. Build and vet\n\n### Creating a new release\n1. Ensure all changes are committed and pushed\n2. Tag: `git tag v1.x.x`\n3. Push: `git push origin v1.x.x`\n4. GitHub Actions will build and publish automatically\n",
+  "content": "# Cloud Architecture Visualizer -- Claude Code Guide\n\n## What This Project Does\n\nGo CLI tool that parses Terraform `.tfstate` files (v4 raw or `terraform show -json`) and live AWS accounts, then serves interactive SVG-based infrastructure diagrams via a Gin web server. The frontend renders zoomable, filterable diagrams in the browser.\n\n**Repository:** `krishnaduttPanchagnula/TerraViz`\n\n## Build / Run / Verify\n\n```bash\ngo build -o cloud-arch-visualizer ./cmd/main.go   # Build (from project root)\ngo vet ./...                                       # Static analysis\n```\n\nWith version info:\n```bash\ngo build -ldflags \"-s -w -X main.version=dev -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \\\n  -o cloud-arch-visualizer ./cmd/main.go\n```\n\nThere are no unit tests yet. Verify changes by building and running `go vet`.\n\n## Project Layout\n\n```\ncmd/main.go                         Cobra CLI entry point (scan, compare, serve)\n                                    Has build-time vars: version, commit, date (set via -ldflags)\ninternal/\n  models/\n    models.go                       Types: Resource, Connection, Diagram, ScanResult, ComparisonResult\n                                    resourceIconMap (50+ types -> /icons/ paths)\n    utils.go                        DiagramBuilder, CompareDiagrams, search/filter, FNV-1a ID generation\n  parsers/\n    terraform.go                    Terraform state parser (auto-detects raw v4 vs terraform-json)\n    connections.go                  Connection inference from Terraform attributes (30+ analyzers)\n  scanners/\n    aws.go                          Live AWS scanner (EC2, S3, RDS, Lambda via aws-sdk-go-v2)\n  server/\n    server.go                       Gin HTTP server, REST API, sync.RWMutex-protected diagram state\nweb/\n  embed.go                          go:embed directive -- embeds templates, static, icons into binary\n  templates/                        Go HTML templates (index.html, index_enhanced.html, error.html)\n  static/js/                        Frontend JS (diagram.js, diagram_enhanced.js)\n  static/fonts/                     Bundled WOFF2 fonts (Inter, JetBrains Mono) -- no CDN at runtime\n  icons/                            Full AWS icon packs (~620 SVGs, served at /icons, used by both UIs)\ndocs/\n  screenshots/                      UI screenshots for README (enhanced-ui, basic-ui, resource-details)\n.goreleaser.yml                     GoReleaser v2 config (linux/darwin/windows x amd64/arm64)\n.github/workflows/release.yml      GitHub Actions -- triggers on v* tags, runs GoReleaser\n.gitignore                          Covers binaries, JSON artifacts, .tfstate, IDE files, node_modules\ngo.mod                              Module: cloud-arch-visualizer, Go 1.25.0\n```\n\nAll static assets (templates, JS, fonts, icons) are embedded into the binary via `go:embed`.\nThe built binary is fully self-contained -- no external files or CDN dependencies needed at runtime.\n\n## Do NOT Modify\n\n- `web/embed.go` -- go:embed directive, no logic to change\n\n## Release Process\n\nReleases are automated. Tag and push to trigger:\n```bash\ngit tag v1.0.0\ngit push origin v1.0.0\n```\n\nThe GitHub Actions workflow (`.github/workflows/release.yml`) will:\n1. Check out the code with full history\n2. Set up Go (version from go.mod)\n3. Run `go vet` and a test build\n4. Run GoReleaser, which builds for 6 platform/arch combos with `-ldflags` for version/commit/date\n5. Create a GitHub release with archives + checksums\n\nGoReleaser config (`.goreleaser.yml`):\n- Binary name: `cloud-arch-visualizer`\n- Platforms: linux/darwin/windows x amd64/arm64\n- CGO_ENABLED=0, stripped (`-s -w`)\n- Archives: tar.gz (zip for Windows)\n- Changelog: excludes docs/test/chore commits\n\n## CLI Commands\n\n| Command | Description |\n|---------|-------------|\n| `scan terraform <file>` | Parse a .tfstate file, output diagram JSON |\n| `scan aws` | Scan live AWS account (flags: `--regions`, `--profile`) |\n| `compare <a.json> <b.json>` | Compare two scan results, output diff JSON |\n| `serve <diagram.json>` | Start Gin server (flags: `--host`, `--port`) |\n\nGlobal flags: `--output` / `-o` (default `diagram.json`), `--verbose` / `-v`, `--version`\n\n## Key Patterns and Conventions\n\n### Go Style\n- Module name: `cloud-arch-visualizer`\n- All errors wrapped with `fmt.Errorf(\"context: %w\", err)` (never `%v`)\n- `os.ReadFile` / `os.WriteFile` (never `io/ioutil`)\n- `hash/fnv` for ID generation (not `crypto/md5`)\n- `log/slog` for structured logging in scanners (not `fmt.Printf`)\n- Import aliases for AWS types: `ec2types`, `s3types`, `rdstypes`, `lambdatypes`\n\n### Architecture\n- `DiagramBuilder` is the central construction API -- all parsers and scanners use it\n- `DiagramBuilder.AddResource` stores resources in a slice and keeps a pointer map (`resourceMap`) pointing into that slice. The pointer is set to `&db.diagram.Resources[len(...)-1]` after append to avoid stale pointers.\n- `DiagramBuilder.AddResource` auto-populates `Resource.IconURL` via `GetResourceIcon()` when empty\n- `Server.diagram` is protected by `sync.RWMutex` -- read handlers use `RLock`, mutation handlers (hide/show, create/delete connection) use `Lock`\n- Connection analyzers in `connections.go` use helper functions: `findByProperty`, `findAllByProperty`, `findAllByType`, `findByPropertyContains`, `connectToSecurityGroups`\n- `terraformTypeMap` and `resourceIconMap` are package-level vars (not rebuilt per call)\n\n### Icon System\n- `resourceIconMap` in `models.go` maps 50+ `ResourceType` constants to `/icons/` paths (matching the embedded `web/icons/` AWS icon packs)\n- `DefaultResourceIcon` = `/icons/General-Icons/Marketplace_Dark.svg`\n- Both JS frontends (`diagram.js`, `diagram_enhanced.js`) prefer `resource.icon_url` from the API, falling back to their own local icon maps\n- Icons are served from the embedded filesystem at `/icons/`\n\n### Types to Know\n- `models.ScanResult` -- Top-level output of any scan (contains `Diagram`, `Stats`, `Errors`, `Warnings`)\n- `models.ComparisonResult` -- Output of `CompareDiagrams()` (contains `Added`, `Removed`, `Modified`, `ConnectionsAdded`, `ConnectionsRemoved`, `Summary`)\n- `models.ComparisonSummary` -- Has `AddedCount`, `RemovedCount`, `ModifiedCount`, `UnchangedCount`\n- `models.ResourceType` -- String type, e.g. `\"aws:ec2:instance\"`, `\"aws:s3:bucket\"`\n- `models.ConnectionType` -- One of: `networking`, `access`, `data`, `trigger`, `dependency`, `reference`\n\n### Server Routes\nEnhanced UI is at `/enhanced` (recommended). Basic UI at `/`.\nAPI routes are under `/api/` -- see `server.go:setupRoutes()` for full list.\n\n## Dependencies\n\n| Package | Purpose |\n|---------|---------|\n| `spf13/cobra` | CLI framework |\n| `gin-gonic/gin` | HTTP server |\n| `hashicorp/terraform-json` | Terraform state types |\n| `aws/aws-sdk-go-v2` | AWS API (EC2, S3, RDS, Lambda) |\n| `charmbracelet/lipgloss` | Terminal styling |\n\n## Common Tasks\n\n### Adding a new Terraform resource type\n1. Add `ResourceType` constant in `models/models.go`\n2. Add mapping in `terraformTypeMap` in `parsers/terraform.go`\n3. Add connection analyzer in `parsers/connections.go` (use existing helpers)\n4. Add icon mapping in `resourceIconMap` in `models/models.go`\n5. Build and vet: `go build -o cloud-arch-visualizer ./cmd/main.go && go vet ./...`\n\n### Adding a new AWS service to the live scanner\n1. Add AWS SDK import in `scanners/aws.go` with consistent alias (e.g., `svcTypes`)\n2. Add scan method (e.g., `scanDynamoDB`) following existing patterns\n3. Call it from `ScanAccount` with proper error collection\n4. Build and vet\n\n### Adding a new API endpoint\n1. Add handler method on `*Server` in `server/server.go`\n2. Register route in `setupRoutes()`\n3. Use `requireDiagram()` helper; use `s.mu.Lock()`/`s.mu.RLock()` appropriately\n4. Build and vet\n\n### Creating a new release\n1. Ensure all changes are committed and pushed\n2. Tag: `git tag v1.x.x`\n3. Push: `git push origin v1.x.x`\n4. GitHub Actions will build and publish automatically\n",
   "filePath": "/home/krishna/work/POC/state-diagram-generator/CLAUDE.md"
 }
 ```
@@ -2210,7 +2210,7 @@ Edit applied successfully.
 {
   "filePath": "/home/krishna/work/POC/state-diagram-generator/.goreleaser.yml",
   "oldString": "release:\n  github:\n    owner: \"{{ .Env.GITHUB_REPOSITORY_OWNER }}\"\n    name: \"{{ .Env.GITHUB_REPOSITORY_NAME }}\"\n  prerelease: auto\n  name_template: \"v{{ .Version }}\"",
-  "newString": "release:\n  github:\n    owner: krishnaduttPanchagnula\n    name: TerraVis\n  prerelease: auto\n  name_template: \"v{{ .Version }}\""
+  "newString": "release:\n  github:\n    owner: krishnaduttPanchagnula\n    name: TerraViz\n  prerelease: auto\n  name_template: \"v{{ .Version }}\""
 }
 ```
 
@@ -2669,7 +2669,7 @@ All tasks complete. Here's a summary of everything done in this session:
 ## Changes Made
 
 ### README.md — Complete rewrite
-- Added GitHub release badge, Go version badge, MIT license badge (all pointing to `krishnaduttPanchagnula/TerraVis`)
+- Added GitHub release badge, Go version badge, MIT license badge (all pointing to `krishnaduttPanchagnula/TerraViz`)
 - Added hero screenshot at the top
 - Added **Installation** section with download-from-releases instructions (Linux amd64, macOS arm64) and build-from-source with ldflags
 - Added **Screenshots** section with all 3 captured images (enhanced UI, resource details, basic UI)
@@ -2693,7 +2693,7 @@ All tasks complete. Here's a summary of everything done in this session:
 - Now matches AGENTS.md content exactly
 
 ### .goreleaser.yml — Hardcoded repo info
-- Changed `owner`/`name` from environment variable templates to `krishnaduttPanchagnula`/`TerraVis`
+- Changed `owner`/`name` from environment variable templates to `krishnaduttPanchagnula`/`TerraViz`
 
 ### .github/workflows/release.yml — Simplified env
 - Removed `GITHUB_REPOSITORY_OWNER` and `GITHUB_REPOSITORY_NAME` env vars (no longer needed)
@@ -2915,7 +2915,7 @@ Got it — same repo, GoReleaser built-in. Let me check how GoReleaser's brew ta
 54: release:
 55:   github:
 56:     owner: krishnaduttPanchagnula
-57:     name: TerraVis
+57:     name: TerraViz
 58:   prerelease: auto
 59:   name_template: "v{{ .Version }}"
 
@@ -2991,10 +2991,10 @@ Got it — same repo, GoReleaser built-in. Let me check how GoReleaser's brew ta
 ```
 <path>/home/krishna/work/POC/state-diagram-generator/README.md</path>
 <type>file</type>
-<content>1: # TerraVis — Cloud Architecture Visualizer
+<content>1: # TerraViz — Cloud Architecture Visualizer
 2: 
-3: [![Release](https://img.shields.io/github/v/release/krishnaduttPanchagnula/TerraVis?style=flat-square)](https://github.com/krishnaduttPanchagnula/TerraVis/releases/latest)
-4: [![Go](https://img.shields.io/github/go-mod/go-version/krishnaduttPanchagnula/TerraVis?style=flat-square)](https://go.dev/)
+3: [![Release](https://img.shields.io/github/v/release/krishnaduttPanchagnula/TerraViz?style=flat-square)](https://github.com/krishnaduttPanchagnula/TerraViz/releases/latest)
+4: [![Go](https://img.shields.io/github/go-mod/go-version/krishnaduttPanchagnula/TerraViz?style=flat-square)](https://go.dev/)
 5: [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 6: 
 7: Generate interactive architecture diagrams from Terraform state files or live AWS accounts. A single self-contained binary — no external dependencies, no CDN, no runtime assets.
@@ -3005,19 +3005,19 @@ Got it — same repo, GoReleaser built-in. Let me check how GoReleaser's brew ta
 12: 
 13: ### Download a Release (Recommended)
 14: 
-15: Download the latest binary for your platform from the [Releases page](https://github.com/krishnaduttPanchagnula/TerraVis/releases/latest).
+15: Download the latest binary for your platform from the [Releases page](https://github.com/krishnaduttPanchagnula/TerraViz/releases/latest).
 16: 
 17: ```bash
 18: # Linux (amd64)
 19: curl -Lo cloud-arch-visualizer.tar.gz \
-20:   https://github.com/krishnaduttPanchagnula/TerraVis/releases/latest/download/cloud-arch-visualizer_$(curl -s https://api.github.com/repos/krishnaduttPanchagnula/TerraVis/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')_linux_amd64.tar.gz
+20:   https://github.com/krishnaduttPanchagnula/TerraViz/releases/latest/download/cloud-arch-visualizer_$(curl -s https://api.github.com/repos/krishnaduttPanchagnula/TerraViz/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')_linux_amd64.tar.gz
 21: tar xzf cloud-arch-visualizer.tar.gz
 22: chmod +x cloud-arch-visualizer
 23: sudo mv cloud-arch-visualizer /usr/local/bin/
 24: 
 25: # macOS (Apple Silicon)
 26: curl -Lo cloud-arch-visualizer.tar.gz \
-27:   https://github.com/krishnaduttPanchagnula/TerraVis/releases/latest/download/cloud-arch-visualizer_$(curl -s https://api.github.com/repos/krishnaduttPanchagnula/TerraVis/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')_darwin_arm64.tar.gz
+27:   https://github.com/krishnaduttPanchagnula/TerraViz/releases/latest/download/cloud-arch-visualizer_$(curl -s https://api.github.com/repos/krishnaduttPanchagnula/TerraViz/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')_darwin_arm64.tar.gz
 28: tar xzf cloud-arch-visualizer.tar.gz
 29: chmod +x cloud-arch-visualizer
 30: sudo mv cloud-arch-visualizer /usr/local/bin/
@@ -3026,8 +3026,8 @@ Got it — same repo, GoReleaser built-in. Let me check how GoReleaser's brew ta
 33: ### Build from Source
 34: 
 35: ```bash
-36: git clone https://github.com/krishnaduttPanchagnula/TerraVis.git
-37: cd TerraVis
+36: git clone https://github.com/krishnaduttPanchagnula/TerraViz.git
+37: cd TerraViz
 38: go build -o cloud-arch-visualizer ./cmd/main.go
 39: ```
 40: 
@@ -3250,7 +3250,7 @@ Good. Now I have a clear picture. Here's the plan:
 
 **For a same-repo Homebrew tap**, the convention is:
 - The formula lives at `HomebrewFormula/cloud-arch-visualizer.rb` in the same repo
-- Users install via: `brew install krishnaduttPanchagnula/TerraVis/cloud-arch-visualizer`
+- Users install via: `brew install krishnaduttPanchagnula/TerraViz/cloud-arch-visualizer`
 - GoReleaser v2 has native `brews` support that auto-generates the formula and commits it back to the repo on each release
 
 However, there's an important detail: GoReleaser's `brews` section needs to push to a repo, and when pushing back to the *same* repo during a release, the default `GITHUB_TOKEN` works but needs the right permissions. Let me set this up.
@@ -3376,7 +3376,7 @@ Now I'll create the initial formula. GoReleaser will overwrite this on each rele
 **Input:**
 ```json
 {
-  "content": "# typed: false\n# frozen_string_literal: true\n\n# This formula is auto-generated by GoReleaser on each release.\n# Do not edit manually — changes will be overwritten.\nclass CloudArchVisualizer < Formula\n  desc \"Generate interactive architecture diagrams from Terraform state files or live AWS accounts\"\n  homepage \"https://github.com/krishnaduttPanchagnula/TerraVis\"\n  license \"MIT\"\n\n  on_macos do\n    on_intel do\n      url \"https://github.com/krishnaduttPanchagnula/TerraVis/releases/download/v#{version}/cloud-arch-visualizer_#{version}_darwin_amd64.tar.gz\"\n      sha256 \"placeholder\"\n    end\n\n    on_arm do\n      url \"https://github.com/krishnaduttPanchagnula/TerraVis/releases/download/v#{version}/cloud-arch-visualizer_#{version}_darwin_arm64.tar.gz\"\n      sha256 \"placeholder\"\n    end\n  end\n\n  on_linux do\n    on_intel do\n      url \"https://github.com/krishnaduttPanchagnula/TerraVis/releases/download/v#{version}/cloud-arch-visualizer_#{version}_linux_amd64.tar.gz\"\n      sha256 \"placeholder\"\n    end\n\n    on_arm do\n      url \"https://github.com/krishnaduttPanchagnula/TerraVis/releases/download/v#{version}/cloud-arch-visualizer_#{version}_linux_arm64.tar.gz\"\n      sha256 \"placeholder\"\n    end\n  end\n\n  def install\n    bin.install \"cloud-arch-visualizer\"\n  end\n\n  test do\n    assert_match version.to_s, shell_output(\"#{bin}/cloud-arch-visualizer --version\")\n  end\nend\n",
+  "content": "# typed: false\n# frozen_string_literal: true\n\n# This formula is auto-generated by GoReleaser on each release.\n# Do not edit manually — changes will be overwritten.\nclass CloudArchVisualizer < Formula\n  desc \"Generate interactive architecture diagrams from Terraform state files or live AWS accounts\"\n  homepage \"https://github.com/krishnaduttPanchagnula/TerraViz\"\n  license \"MIT\"\n\n  on_macos do\n    on_intel do\n      url \"https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v#{version}/cloud-arch-visualizer_#{version}_darwin_amd64.tar.gz\"\n      sha256 \"placeholder\"\n    end\n\n    on_arm do\n      url \"https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v#{version}/cloud-arch-visualizer_#{version}_darwin_arm64.tar.gz\"\n      sha256 \"placeholder\"\n    end\n  end\n\n  on_linux do\n    on_intel do\n      url \"https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v#{version}/cloud-arch-visualizer_#{version}_linux_amd64.tar.gz\"\n      sha256 \"placeholder\"\n    end\n\n    on_arm do\n      url \"https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v#{version}/cloud-arch-visualizer_#{version}_linux_arm64.tar.gz\"\n      sha256 \"placeholder\"\n    end\n  end\n\n  def install\n    bin.install \"cloud-arch-visualizer\"\n  end\n\n  test do\n    assert_match version.to_s, shell_output(\"#{bin}/cloud-arch-visualizer --version\")\n  end\nend\n",
   "filePath": "/home/krishna/work/POC/state-diagram-generator/HomebrewFormula/cloud-arch-visualizer.rb"
 }
 ```
@@ -3488,8 +3488,8 @@ Now add the `brews` section to `.goreleaser.yml`. GoReleaser v2 uses `brews` (no
 ```json
 {
   "filePath": "/home/krishna/work/POC/state-diagram-generator/.goreleaser.yml",
-  "newString": "release:\n  github:\n    owner: krishnaduttPanchagnula\n    name: TerraVis\n  prerelease: auto\n  name_template: \"v{{ .Version }}\"\n\nbrews:\n  - name: cloud-arch-visualizer\n    repository:\n      owner: krishnaduttPanchagnula\n      name: TerraVis\n      branch: main\n      token: \"{{ .Env.HOMEBREW_TAP_TOKEN }}\"\n    directory: HomebrewFormula\n    homepage: \"https://github.com/krishnaduttPanchagnula/TerraVis\"\n    description: \"Generate interactive architecture diagrams from Terraform state files or live AWS accounts\"\n    license: \"MIT\"\n    install: |\n      bin.install \"cloud-arch-visualizer\"\n    test: |\n      assert_match version.to_s, shell_output(\"#{bin}/cloud-arch-visualizer --version\")\n    commit_author:\n      name: \"github-actions[bot]\"\n      email: \"github-actions[bot]@users.noreply.github.com\"\n    commit_msg_template: \"chore(brew): update formula to {{ .Tag }}\"\n    skip_upload: auto",
-  "oldString": "release:\n  github:\n    owner: krishnaduttPanchagnula\n    name: TerraVis\n  prerelease: auto\n  name_template: \"v{{ .Version }}\""
+  "newString": "release:\n  github:\n    owner: krishnaduttPanchagnula\n    name: TerraViz\n  prerelease: auto\n  name_template: \"v{{ .Version }}\"\n\nbrews:\n  - name: cloud-arch-visualizer\n    repository:\n      owner: krishnaduttPanchagnula\n      name: TerraViz\n      branch: main\n      token: \"{{ .Env.HOMEBREW_TAP_TOKEN }}\"\n    directory: HomebrewFormula\n    homepage: \"https://github.com/krishnaduttPanchagnula/TerraViz\"\n    description: \"Generate interactive architecture diagrams from Terraform state files or live AWS accounts\"\n    license: \"MIT\"\n    install: |\n      bin.install \"cloud-arch-visualizer\"\n    test: |\n      assert_match version.to_s, shell_output(\"#{bin}/cloud-arch-visualizer --version\")\n    commit_author:\n      name: \"github-actions[bot]\"\n      email: \"github-actions[bot]@users.noreply.github.com\"\n    commit_msg_template: \"chore(brew): update formula to {{ .Tag }}\"\n    skip_upload: auto",
+  "oldString": "release:\n  github:\n    owner: krishnaduttPanchagnula\n    name: TerraViz\n  prerelease: auto\n  name_template: \"v{{ .Version }}\""
 }
 ```
 
@@ -3732,7 +3732,7 @@ Now update the README to add Homebrew install instructions, and update AGENTS.md
 ```json
 {
   "filePath": "/home/krishna/work/POC/state-diagram-generator/README.md",
-  "newString": "## Installation\n\n### Homebrew (macOS / Linux)\n\n```bash\nbrew install krishnaduttPanchagnula/TerraVis/cloud-arch-visualizer\n```\n\nThe formula is automatically updated on every release.\n\n### Download a Release",
+  "newString": "## Installation\n\n### Homebrew (macOS / Linux)\n\n```bash\nbrew install krishnaduttPanchagnula/TerraViz/cloud-arch-visualizer\n```\n\nThe formula is automatically updated on every release.\n\n### Download a Release",
   "oldString": "## Installation\n\n### Download a Release (Recommended)"
 }
 ```
@@ -3774,7 +3774,7 @@ Now update AGENTS.md and CLAUDE.md with the brew tap info:
 ```json
 {
   "filePath": "/home/krishna/work/POC/state-diagram-generator/AGENTS.md",
-  "newString": "GoReleaser config (`.goreleaser.yml`):\n- Binary name: `cloud-arch-visualizer`\n- Platforms: linux/darwin/windows x amd64/arm64\n- CGO_ENABLED=0, stripped (`-s -w`)\n- Archives: tar.gz (zip for Windows)\n- Changelog: excludes docs/test/chore commits\n- Homebrew formula: auto-updated in `HomebrewFormula/` on each release\n\n### Homebrew Tap\n\nThe formula lives in `HomebrewFormula/cloud-arch-visualizer.rb` (same repo).\nUsers install via: `brew install krishnaduttPanchagnula/TerraVis/cloud-arch-visualizer`\n\nGoReleaser auto-generates and commits the formula on every non-prerelease tag.\nRequires a `HOMEBREW_TAP_TOKEN` secret (PAT with `repo` scope) in GitHub repo settings.",
+  "newString": "GoReleaser config (`.goreleaser.yml`):\n- Binary name: `cloud-arch-visualizer`\n- Platforms: linux/darwin/windows x amd64/arm64\n- CGO_ENABLED=0, stripped (`-s -w`)\n- Archives: tar.gz (zip for Windows)\n- Changelog: excludes docs/test/chore commits\n- Homebrew formula: auto-updated in `HomebrewFormula/` on each release\n\n### Homebrew Tap\n\nThe formula lives in `HomebrewFormula/cloud-arch-visualizer.rb` (same repo).\nUsers install via: `brew install krishnaduttPanchagnula/TerraViz/cloud-arch-visualizer`\n\nGoReleaser auto-generates and commits the formula on every non-prerelease tag.\nRequires a `HOMEBREW_TAP_TOKEN` secret (PAT with `repo` scope) in GitHub repo settings.",
   "oldString": "GoReleaser config (`.goreleaser.yml`):\n- Binary name: `cloud-arch-visualizer`\n- Platforms: linux/darwin/windows x amd64/arm64\n- CGO_ENABLED=0, stripped (`-s -w`)\n- Archives: tar.gz (zip for Windows)\n- Changelog: excludes docs/test/chore commits"
 }
 ```
@@ -3794,7 +3794,7 @@ Edit applied successfully.
 ```json
 {
   "filePath": "/home/krishna/work/POC/state-diagram-generator/CLAUDE.md",
-  "newString": "GoReleaser config (`.goreleaser.yml`):\n- Binary name: `cloud-arch-visualizer`\n- Platforms: linux/darwin/windows x amd64/arm64\n- CGO_ENABLED=0, stripped (`-s -w`)\n- Archives: tar.gz (zip for Windows)\n- Changelog: excludes docs/test/chore commits\n- Homebrew formula: auto-updated in `HomebrewFormula/` on each release\n\n### Homebrew Tap\n\nThe formula lives in `HomebrewFormula/cloud-arch-visualizer.rb` (same repo).\nUsers install via: `brew install krishnaduttPanchagnula/TerraVis/cloud-arch-visualizer`\n\nGoReleaser auto-generates and commits the formula on every non-prerelease tag.\nRequires a `HOMEBREW_TAP_TOKEN` secret (PAT with `repo` scope) in GitHub repo settings.",
+  "newString": "GoReleaser config (`.goreleaser.yml`):\n- Binary name: `cloud-arch-visualizer`\n- Platforms: linux/darwin/windows x amd64/arm64\n- CGO_ENABLED=0, stripped (`-s -w`)\n- Archives: tar.gz (zip for Windows)\n- Changelog: excludes docs/test/chore commits\n- Homebrew formula: auto-updated in `HomebrewFormula/` on each release\n\n### Homebrew Tap\n\nThe formula lives in `HomebrewFormula/cloud-arch-visualizer.rb` (same repo).\nUsers install via: `brew install krishnaduttPanchagnula/TerraViz/cloud-arch-visualizer`\n\nGoReleaser auto-generates and commits the formula on every non-prerelease tag.\nRequires a `HOMEBREW_TAP_TOKEN` secret (PAT with `repo` scope) in GitHub repo settings.",
   "oldString": "GoReleaser config (`.goreleaser.yml`):\n- Binary name: `cloud-arch-visualizer`\n- Platforms: linux/darwin/windows x amd64/arm64\n- CGO_ENABLED=0, stripped (`-s -w`)\n- Archives: tar.gz (zip for Windows)\n- Changelog: excludes docs/test/chore commits"
 }
 ```
@@ -3979,7 +3979,7 @@ Let me do a final review of all the changed files to make sure everything is con
 54: release:
 55:   github:
 56:     owner: krishnaduttPanchagnula
-57:     name: TerraVis
+57:     name: TerraViz
 58:   prerelease: auto
 59:   name_template: "v{{ .Version }}"
 60: 
@@ -3987,11 +3987,11 @@ Let me do a final review of all the changed files to make sure everything is con
 62:   - name: cloud-arch-visualizer
 63:     repository:
 64:       owner: krishnaduttPanchagnula
-65:       name: TerraVis
+65:       name: TerraViz
 66:       branch: main
 67:       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
 68:     directory: HomebrewFormula
-69:     homepage: "https://github.com/krishnaduttPanchagnula/TerraVis"
+69:     homepage: "https://github.com/krishnaduttPanchagnula/TerraViz"
 70:     description: "Generate interactive architecture diagrams from Terraform state files or live AWS accounts"
 71:     license: "MIT"
 72:     install: |
@@ -4084,29 +4084,29 @@ Let me do a final review of all the changed files to make sure everything is con
 5: # Do not edit manually — changes will be overwritten.
 6: class CloudArchVisualizer < Formula
 7:   desc "Generate interactive architecture diagrams from Terraform state files or live AWS accounts"
-8:   homepage "https://github.com/krishnaduttPanchagnula/TerraVis"
+8:   homepage "https://github.com/krishnaduttPanchagnula/TerraViz"
 9:   license "MIT"
 10: 
 11:   on_macos do
 12:     on_intel do
-13:       url "https://github.com/krishnaduttPanchagnula/TerraVis/releases/download/v#{version}/cloud-arch-visualizer_#{version}_darwin_amd64.tar.gz"
+13:       url "https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v#{version}/cloud-arch-visualizer_#{version}_darwin_amd64.tar.gz"
 14:       sha256 "placeholder"
 15:     end
 16: 
 17:     on_arm do
-18:       url "https://github.com/krishnaduttPanchagnula/TerraVis/releases/download/v#{version}/cloud-arch-visualizer_#{version}_darwin_arm64.tar.gz"
+18:       url "https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v#{version}/cloud-arch-visualizer_#{version}_darwin_arm64.tar.gz"
 19:       sha256 "placeholder"
 20:     end
 21:   end
 22: 
 23:   on_linux do
 24:     on_intel do
-25:       url "https://github.com/krishnaduttPanchagnula/TerraVis/releases/download/v#{version}/cloud-arch-visualizer_#{version}_linux_amd64.tar.gz"
+25:       url "https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v#{version}/cloud-arch-visualizer_#{version}_linux_amd64.tar.gz"
 26:       sha256 "placeholder"
 27:     end
 28: 
 29:     on_arm do
-30:       url "https://github.com/krishnaduttPanchagnula/TerraVis/releases/download/v#{version}/cloud-arch-visualizer_#{version}_linux_arm64.tar.gz"
+30:       url "https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v#{version}/cloud-arch-visualizer_#{version}_linux_arm64.tar.gz"
 31:       sha256 "placeholder"
 32:     end
 33:   end
@@ -4151,14 +4151,14 @@ Everything looks good. Let me verify the README brew section too:
 13: ### Homebrew (macOS / Linux)
 14: 
 15: ```bash
-16: brew install krishnaduttPanchagnula/TerraVis/cloud-arch-visualizer
+16: brew install krishnaduttPanchagnula/TerraViz/cloud-arch-visualizer
 17: ```
 18: 
 19: The formula is automatically updated on every release.
 20: 
 21: ### Download a Release
 22: 
-23: Download the latest binary for your platform from the [Releases page](https://github.com/krishnaduttPanchagnula/TerraVis/releases/latest).
+23: Download the latest binary for your platform from the [Releases page](https://github.com/krishnaduttPanchagnula/TerraViz/releases/latest).
 24: 
 
 (Showing lines 10-24 of 254. Use offset=25 to continue.)
@@ -4260,7 +4260,7 @@ Placeholder Homebrew formula. GoReleaser will **overwrite this automatically** o
 
 ### `.goreleaser.yml` — Added `brews` section
 GoReleaser's built-in brew tap support:
-- Commits the generated formula to `HomebrewFormula/` in the **same repo** (`krishnaduttPanchagnula/TerraVis`)
+- Commits the generated formula to `HomebrewFormula/` in the **same repo** (`krishnaduttPanchagnula/TerraViz`)
 - Pushes to `main` branch with commit message `chore(brew): update formula to vX.Y.Z`
 - Commit author: `github-actions[bot]`
 - `skip_upload: auto` — skips for prereleases, publishes for stable tags
@@ -4271,7 +4271,7 @@ Passes the secret to GoReleaser so it can push the formula commit.
 
 ### `README.md` — Added Homebrew install section
 ```
-brew install krishnaduttPanchagnula/TerraVis/cloud-arch-visualizer
+brew install krishnaduttPanchagnula/TerraViz/cloud-arch-visualizer
 ```
 
 ### `AGENTS.md` + `CLAUDE.md` — Documented the tap
@@ -4283,7 +4283,7 @@ brew install krishnaduttPanchagnula/TerraVis/cloud-arch-visualizer
 You need to create a **`HOMEBREW_TAP_TOKEN`** secret in your GitHub repo settings:
 
 1. Go to https://github.com/settings/tokens and create a **Personal Access Token** (classic) with `repo` scope
-2. Go to https://github.com/krishnaduttPanchagnula/TerraVis/settings/secrets/actions
+2. Go to https://github.com/krishnaduttPanchagnula/TerraViz/settings/secrets/actions
 3. Add a new secret named `HOMEBREW_TAP_TOKEN` with the PAT value
 
 ---
@@ -4295,7 +4295,7 @@ You need to create a **`HOMEBREW_TAP_TOKEN`** secret in your GitHub repo setting
 3. GoReleaser builds 6 binaries (linux/darwin/windows x amd64/arm64), creates the GitHub release
 4. GoReleaser auto-generates the Homebrew formula with correct URLs + SHA256 hashes
 5. GoReleaser commits the formula to `HomebrewFormula/cloud-arch-visualizer.rb` on `main`
-6. Users can then run `brew install krishnaduttPanchagnula/TerraVis/cloud-arch-visualizer`
+6. Users can then run `brew install krishnaduttPanchagnula/TerraViz/cloud-arch-visualizer`
 
 ---
 
@@ -4341,7 +4341,7 @@ Here is the complete list of every occurrence of both search strings across the 
 | 52 | `go.mod  Module: cloud-arch-visualizer, Go 1.25.0` |
 | 78 | `Binary name: cloud-arch-visualizer` |
 | 87 | `HomebrewFormula/cloud-arch-visualizer.rb` |
-| 88 | `brew install krishnaduttPanchagnula/TerraVis/cloud-arch-visualizer` |
+| 88 | `brew install krishnaduttPanchagnula/TerraViz/cloud-arch-visualizer` |
 | 107 | `Module name: cloud-arch-visualizer` |
 | 156 | `go build -o cloud-arch-visualizer ./cmd/main.go && go vet ./...` |
 
@@ -4353,14 +4353,14 @@ Here is the complete list of every occurrence of both search strings across the 
 | 52 | `go.mod  Module: cloud-arch-visualizer, Go 1.25.0` |
 | 78 | `Binary name: cloud-arch-visualizer` |
 | 87 | `HomebrewFormula/cloud-arch-visualizer.rb` |
-| 88 | `brew install krishnaduttPanchagnula/TerraVis/cloud-arch-visualizer` |
+| 88 | `brew install krishnaduttPanchagnula/TerraViz/cloud-arch-visualizer` |
 | 107 | `Module name: cloud-arch-visualizer` |
 | 156 | `go build -o cloud-arch-visualizer ./cmd/main.go && go vet ./...` |
 
 ### 3. `/home/krishna/work/POC/state-diagram-generator/README.md`
 | Line | Context |
 |------|---------|
-| 16 | `brew install krishnaduttPanchagnula/TerraVis/cloud-arch-visualizer` |
+| 16 | `brew install krishnaduttPanchagnula/TerraViz/cloud-arch-visualizer` |
 | 27 | `curl -Lo cloud-arch-visualizer.tar.gz \` |
 | 28 | Download URL containing `cloud-arch-visualizer_...linux_amd64.tar.gz` |
 | 29 | `tar xzf cloud-arch-visualizer.tar.gz` |
@@ -5441,29 +5441,29 @@ Now rename the Homebrew formula file and update its contents:
 5: # Do not edit manually — changes will be overwritten.
 6: class CloudArchVisualizer < Formula
 7:   desc "Generate interactive architecture diagrams from Terraform state files or live AWS accounts"
-8:   homepage "https://github.com/krishnaduttPanchagnula/TerraVis"
+8:   homepage "https://github.com/krishnaduttPanchagnula/TerraViz"
 9:   license "MIT"
 10: 
 11:   on_macos do
 12:     on_intel do
-13:       url "https://github.com/krishnaduttPanchagnula/TerraVis/releases/download/v#{version}/cloud-arch-visualizer_#{version}_darwin_amd64.tar.gz"
+13:       url "https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v#{version}/cloud-arch-visualizer_#{version}_darwin_amd64.tar.gz"
 14:       sha256 "placeholder"
 15:     end
 16: 
 17:     on_arm do
-18:       url "https://github.com/krishnaduttPanchagnula/TerraVis/releases/download/v#{version}/cloud-arch-visualizer_#{version}_darwin_arm64.tar.gz"
+18:       url "https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v#{version}/cloud-arch-visualizer_#{version}_darwin_arm64.tar.gz"
 19:       sha256 "placeholder"
 20:     end
 21:   end
 22: 
 23:   on_linux do
 24:     on_intel do
-25:       url "https://github.com/krishnaduttPanchagnula/TerraVis/releases/download/v#{version}/cloud-arch-visualizer_#{version}_linux_amd64.tar.gz"
+25:       url "https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v#{version}/cloud-arch-visualizer_#{version}_linux_amd64.tar.gz"
 26:       sha256 "placeholder"
 27:     end
 28: 
 29:     on_arm do
-30:       url "https://github.com/krishnaduttPanchagnula/TerraVis/releases/download/v#{version}/cloud-arch-visualizer_#{version}_linux_arm64.tar.gz"
+30:       url "https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v#{version}/cloud-arch-visualizer_#{version}_linux_arm64.tar.gz"
 31:       sha256 "placeholder"
 32:     end
 33:   end
@@ -5551,7 +5551,7 @@ Zero remaining occurrences. Now let me also update the banner text in `cmd/main.
 ```json
 {
   "filePath": "/home/krishna/work/POC/state-diagram-generator/cmd/main.go",
-  "newString": "\tfmt.Println(titleStyle.Render(\"TerraVis \" + version))",
+  "newString": "\tfmt.Println(titleStyle.Render(\"TerraViz \" + version))",
   "oldString": "\tfmt.Println(titleStyle.Render(\"Cloud Architecture Visualizer \" + version))"
 }
 ```
@@ -5966,7 +5966,7 @@ Let me check the GoReleaser config — this is likely a permission issue with th
 54: release:
 55:   github:
 56:     owner: krishnaduttPanchagnula
-57:     name: TerraVis
+57:     name: TerraViz
 58:   prerelease: auto
 59:   name_template: "v{{ .Version }}"
 60: 
@@ -5974,11 +5974,11 @@ Let me check the GoReleaser config — this is likely a permission issue with th
 62:   - name: terraviz
 63:     repository:
 64:       owner: krishnaduttPanchagnula
-65:       name: TerraVis
+65:       name: TerraViz
 66:       branch: main
 67:       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
 68:     directory: HomebrewFormula
-69:     homepage: "https://github.com/krishnaduttPanchagnula/TerraVis"
+69:     homepage: "https://github.com/krishnaduttPanchagnula/TerraViz"
 70:     description: "Generate interactive architecture diagrams from Terraform state files or live AWS accounts"
 71:     license: "MIT"
 72:     install: |
@@ -6136,7 +6136,7 @@ Can you paste the error message or the failed workflow log? I want to make sure 
 
 ## User
 
-**⨯** release failed after 6m47s                       **error**=scm releases: failed to publish artifacts: could not release: POST https://api.github.com/repos/krishnaduttPanchagnula/TerraVis/releases: 404 Not Found []
+**⨯** release failed after 6m47s                       **error**=scm releases: failed to publish artifacts: could not release: POST https://api.github.com/repos/krishnaduttPanchagnula/TerraViz/releases: 404 Not Found []
 
 **Error:** The process '/opt/hostedtoolcache/goreleaser-action/2.15.2/x64/goreleaser' failed with exit code 1 
 
@@ -6146,12 +6146,12 @@ Can you paste the error message or the failed workflow log? I want to make sure 
 
 
 
-The error is clear: `POST https://api.github.com/repos/krishnaduttPanchagnula/TerraVis/releases: 404 Not Found`. This means the GitHub API can't find the repo at that owner/name combination. Either:
+The error is clear: `POST https://api.github.com/repos/krishnaduttPanchagnula/TerraViz/releases: 404 Not Found`. This means the GitHub API can't find the repo at that owner/name combination. Either:
 
-1. The repo name on GitHub doesn't match `TerraVis` exactly (case-sensitive), or
+1. The repo name on GitHub doesn't match `TerraViz` exactly (case-sensitive), or
 2. The repo is actually under a different name (e.g., `state-diagram-generator`, or the repo hasn't been renamed yet on GitHub)
 
-Let me check — the hardcoded `release.github` block in `.goreleaser.yml` is forcing GoReleaser to look for `krishnaduttPanchagnula/TerraVis`, but the actual GitHub repo might have a different name.
+Let me check — the hardcoded `release.github` block in `.goreleaser.yml` is forcing GoReleaser to look for `krishnaduttPanchagnula/TerraViz`, but the actual GitHub repo might have a different name.
 
 The fix is to **not hardcode** the repo owner/name and instead let GoReleaser infer it from the git remote (which is what it does by default when the `release.github` section is omitted).
 
@@ -6224,7 +6224,7 @@ The fix is to **not hardcode** the repo owner/name and instead let GoReleaser in
 54: release:
 55:   github:
 56:     owner: krishnaduttPanchagnula
-57:     name: TerraVis
+57:     name: TerraViz
 58:   prerelease: auto
 59:   name_template: "v{{ .Version }}"
 60: 
@@ -6232,11 +6232,11 @@ The fix is to **not hardcode** the repo owner/name and instead let GoReleaser in
 62:   - name: terraviz
 63:     repository:
 64:       owner: krishnaduttPanchagnula
-65:       name: TerraVis
+65:       name: TerraViz
 66:       branch: main
 67:       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
 68:     directory: HomebrewFormula
-69:     homepage: "https://github.com/krishnaduttPanchagnula/TerraVis"
+69:     homepage: "https://github.com/krishnaduttPanchagnula/TerraViz"
 70:     description: "Generate interactive architecture diagrams from Terraform state files or live AWS accounts"
 71:     license: "MIT"
 72:     install: |
@@ -6264,7 +6264,7 @@ The fix: remove the hardcoded `release.github` block so GoReleaser auto-detects 
 **Input:**
 ```json
 {
-  "content": "version: 2\n\nproject_name: terraviz\n\nbefore:\n  hooks:\n    - go mod tidy\n    - go vet ./...\n\nbuilds:\n  - id: terraviz\n    main: ./cmd/main.go\n    binary: terraviz\n    env:\n      - CGO_ENABLED=0\n    goos:\n      - linux\n      - darwin\n      - windows\n    goarch:\n      - amd64\n      - arm64\n    ldflags:\n      - -s -w\n      - -X main.version={{.Version}}\n      - -X main.commit={{.Commit}}\n      - -X main.date={{.Date}}\n\narchives:\n  - id: default\n    format: tar.gz\n    name_template: >-\n      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}\n    format_overrides:\n      - goos: windows\n        format: zip\n\nchecksum:\n  name_template: \"checksums.txt\"\n\nsnapshot:\n  version_template: \"{{ incpatch .Version }}-next\"\n\nchangelog:\n  sort: asc\n  filters:\n    exclude:\n      - \"^docs:\"\n      - \"^test:\"\n      - \"^chore:\"\n      - \"Merge pull request\"\n      - \"Merge branch\"\n\nrelease:\n  prerelease: auto\n  name_template: \"v{{ .Version }}\"\n\nbrews:\n  - name: terraviz\n    repository:\n      owner: krishnaduttPanchagnula\n      name: TerraVis\n      branch: main\n      token: \"{{ .Env.HOMEBREW_TAP_TOKEN }}\"\n    directory: HomebrewFormula\n    homepage: \"https://github.com/krishnaduttPanchagnula/TerraVis\"\n    description: \"Generate interactive architecture diagrams from Terraform state files or live AWS accounts\"\n    license: \"MIT\"\n    install: |\n      bin.install \"terraviz\"\n    test: |\n      assert_match version.to_s, shell_output(\"#{bin}/terraviz --version\")\n    commit_author:\n      name: \"github-actions[bot]\"\n      email: \"github-actions[bot]@users.noreply.github.com\"\n    commit_msg_template: \"chore(brew): update formula to {{ .Tag }}\"\n    skip_upload: auto\n",
+  "content": "version: 2\n\nproject_name: terraviz\n\nbefore:\n  hooks:\n    - go mod tidy\n    - go vet ./...\n\nbuilds:\n  - id: terraviz\n    main: ./cmd/main.go\n    binary: terraviz\n    env:\n      - CGO_ENABLED=0\n    goos:\n      - linux\n      - darwin\n      - windows\n    goarch:\n      - amd64\n      - arm64\n    ldflags:\n      - -s -w\n      - -X main.version={{.Version}}\n      - -X main.commit={{.Commit}}\n      - -X main.date={{.Date}}\n\narchives:\n  - id: default\n    format: tar.gz\n    name_template: >-\n      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}\n    format_overrides:\n      - goos: windows\n        format: zip\n\nchecksum:\n  name_template: \"checksums.txt\"\n\nsnapshot:\n  version_template: \"{{ incpatch .Version }}-next\"\n\nchangelog:\n  sort: asc\n  filters:\n    exclude:\n      - \"^docs:\"\n      - \"^test:\"\n      - \"^chore:\"\n      - \"Merge pull request\"\n      - \"Merge branch\"\n\nrelease:\n  prerelease: auto\n  name_template: \"v{{ .Version }}\"\n\nbrews:\n  - name: terraviz\n    repository:\n      owner: krishnaduttPanchagnula\n      name: TerraViz\n      branch: main\n      token: \"{{ .Env.HOMEBREW_TAP_TOKEN }}\"\n    directory: HomebrewFormula\n    homepage: \"https://github.com/krishnaduttPanchagnula/TerraViz\"\n    description: \"Generate interactive architecture diagrams from Terraform state files or live AWS accounts\"\n    license: \"MIT\"\n    install: |\n      bin.install \"terraviz\"\n    test: |\n      assert_match version.to_s, shell_output(\"#{bin}/terraviz --version\")\n    commit_author:\n      name: \"github-actions[bot]\"\n      email: \"github-actions[bot]@users.noreply.github.com\"\n    commit_msg_template: \"chore(brew): update formula to {{ .Tag }}\"\n    skip_upload: auto\n",
   "filePath": "/home/krishna/work/POC/state-diagram-generator/.goreleaser.yml"
 }
 ```
@@ -6325,7 +6325,7 @@ BUILD + VET OK
 
 ## Assistant (Build · claude-opus-4.6 · 15.3s)
 
-The key change: **removed the `release.github` block** with the hardcoded `owner`/`name`. That was the cause — GoReleaser was trying to POST to `krishnaduttPanchagnula/TerraVis` but the actual GitHub repo name is probably different (e.g., still `state-diagram-generator` on GitHub, or different casing).
+The key change: **removed the `release.github` block** with the hardcoded `owner`/`name`. That was the cause — GoReleaser was trying to POST to `krishnaduttPanchagnula/TerraViz` but the actual GitHub repo name is probably different (e.g., still `state-diagram-generator` on GitHub, or different casing).
 
 Without the `release.github` block, GoReleaser auto-detects the repo from the `origin` git remote URL, which is always correct since the workflow checks out that exact repo.
 
@@ -6333,7 +6333,7 @@ Without the `release.github` block, GoReleaser auto-detects the repo from the `o
 
 ## What was wrong
 
-The `release.github` section hardcoded `owner: krishnaduttPanchagnula` / `name: TerraVis`, but the GitHub API returned **404** — meaning the actual repo name on GitHub doesn't match `TerraVis` exactly. GoReleaser tried to `POST /repos/krishnaduttPanchagnula/TerraVis/releases` and GitHub said "not found."
+The `release.github` section hardcoded `owner: krishnaduttPanchagnula` / `name: TerraViz`, but the GitHub API returned **404** — meaning the actual repo name on GitHub doesn't match `TerraViz` exactly. GoReleaser tried to `POST /repos/krishnaduttPanchagnula/TerraViz/releases` and GitHub said "not found."
 
 ## What was fixed
 
@@ -6352,4 +6352,3 @@ git push origin v1.0.0
 Or just tag a new version (`v1.0.1`) to trigger a fresh release.
 
 ---
-
