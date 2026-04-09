@@ -5,29 +5,29 @@
 # Do not edit manually — changes will be overwritten.
 class Terraviz < Formula
   desc "Generate interactive architecture diagrams from Terraform state files or live AWS accounts"
-  homepage "https://github.com/krishnaduttPanchagnula/TerraVis"
+  homepage "https://github.com/krishnaduttPanchagnula/TerraViz"
   license "MIT"
 
   on_macos do
     on_intel do
-      url "https://github.com/krishnaduttPanchagnula/TerraVis/releases/download/v#{version}/terraviz_#{version}_darwin_amd64.tar.gz"
+      url "https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v#{version}/terraviz_#{version}_darwin_amd64.tar.gz"
       sha256 "placeholder"
     end
 
     on_arm do
-      url "https://github.com/krishnaduttPanchagnula/TerraVis/releases/download/v#{version}/terraviz_#{version}_darwin_arm64.tar.gz"
+      url "https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v#{version}/terraviz_#{version}_darwin_arm64.tar.gz"
       sha256 "placeholder"
     end
   end
 
   on_linux do
     on_intel do
-      url "https://github.com/krishnaduttPanchagnula/TerraVis/releases/download/v#{version}/terraviz_#{version}_linux_amd64.tar.gz"
+      url "https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v#{version}/terraviz_#{version}_linux_amd64.tar.gz"
       sha256 "placeholder"
     end
 
     on_arm do
-      url "https://github.com/krishnaduttPanchagnula/TerraVis/releases/download/v#{version}/terraviz_#{version}_linux_arm64.tar.gz"
+      url "https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v#{version}/terraviz_#{version}_linux_arm64.tar.gz"
       sha256 "placeholder"
     end
   end
