@@ -1,0 +1,47 @@
+# Build artifacts
+main
+terraviz
+bin/
+dist/
+
+# Scan / comparison output
+diagram.json
+diagram_comparison.json
+diagram-v2.json
+enhanced-v2.json
+payments.json
+test.json
+test-diagram-1.json
+test-diagram-2.json
+sample-state.json
+sample-state-v2.json
+
+# Test scripts
+test_*.sh
+
+# Terraform state (may contain secrets)
+*.tfstate
+*.tfstate.backup
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+*:Zone.Identifier
+
+# Node (used for screenshot tooling only)
+node_modules/
+package.json
+package-lock.json
+
+# Screenshot script (utility, not needed in repo)
+docs/screenshot.js
+
+# Old prompt notes
+prompt.md

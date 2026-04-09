@@ -1,0 +1,77 @@
+version: 2
+
+project_name: terraviz
+
+before:
+  hooks:
+    - go mod tidy
+    - go vet ./...
+
+builds:
+  - id: terraviz
+    main: ./cmd/main.go
+    binary: terraviz
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: default
+    format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "Merge pull request"
+      - "Merge branch"
+
+release:
+  prerelease: auto
+  name_template: "v{{ .Version }}"
+
+brews:
+  - name: terraviz
+    repository:
+      owner: krishnaduttPanchagnula
+      name: TerraVis
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: HomebrewFormula
+    homepage: "https://github.com/krishnaduttPanchagnula/TerraVis"
+    description: "Generate interactive architecture diagrams from Terraform state files or live AWS accounts"
+    license: "MIT"
+    install: |
+      bin.install "terraviz"
+    test: |
+      assert_match version.to_s, shell_output("#{bin}/terraviz --version")
+    commit_author:
+      name: "github-actions[bot]"
+      email: "github-actions[bot]@users.noreply.github.com"
+    commit_msg_template: "chore(brew): update formula to {{ .Tag }}"
+    skip_upload: auto
