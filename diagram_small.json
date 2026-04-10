@@ -1,0 +1,277 @@
+{
+  "diagram": {
+    "id": "small-diagram-123",
+    "name": "Terraform State Diagram",
+    "description": "Updated diagram with ECS reading from RDS and sending emails via SQS/Lambda/SES",
+    "resources": [
+      {
+        "id": "aws_s3_bucket.trigger_bucket",
+        "name": "upload-trigger-bucket",
+        "type": "aws:s3:bucket",
+        "provider": "aws",
+        "region": "us-east-1",
+        "state": "active",
+        "properties": {
+          "bucket": "upload-trigger-bucket",
+          "region": "us-east-1"
+        },
+        "source": "terraform",
+        "icon_url": "/icons/Storage/Simple-Storage-Service.svg",
+        "x": 100,
+        "y": 100,
+        "hidden": false
+      },
+      {
+        "id": "aws_lambda_function.processor",
+        "name": "s3-processor-function",
+        "type": "aws:lambda:function",
+        "provider": "aws",
+        "region": "us-east-1",
+        "state": "active",
+        "properties": {
+          "handler": "index.handler",
+          "runtime": "nodejs18.x"
+        },
+        "source": "terraform",
+        "icon_url": "/icons/Compute/Lambda.svg",
+        "x": 300,
+        "y": 100,
+        "hidden": false
+      },
+      {
+        "id": "aws_iam_role.lambda_exec_role",
+        "name": "lambda-exec-role",
+        "type": "aws:iam:role",
+        "provider": "aws",
+        "region": "global",
+        "state": "active",
+        "properties": {
+          "path": "/"
+        },
+        "source": "terraform",
+        "icon_url": "/icons/Security-Identity-Compliance/Identity-and-Access-Management.svg",
+        "x": 300,
+        "y": 250,
+        "hidden": false
+      },
+      {
+        "id": "aws_ecs_service.web_app",
+        "name": "web-app-service",
+        "type": "aws:ecs:service",
+        "provider": "aws",
+        "region": "us-east-1",
+        "state": "active",
+        "properties": {
+          "desired_count": 2,
+          "launch_type": "FARGATE"
+        },
+        "source": "terraform",
+        "icon_url": "/icons/Containers/Elastic-Container-Service.svg",
+        "x": 500,
+        "y": 100,
+        "hidden": false
+      },
+      {
+        "id": "aws_ecs_task_definition.web_app_task_def",
+        "name": "web-app-task-def",
+        "type": "aws:ecs:taskdefinition",
+        "provider": "aws",
+        "region": "us-east-1",
+        "state": "active",
+        "properties": {
+          "family": "web-app",
+          "network_mode": "awsvpc"
+        },
+        "source": "terraform",
+        "icon_url": "/icons/Containers/Elastic-Container-Service.svg",
+        "x": 700,
+        "y": 100,
+        "hidden": false
+      },
+      {
+        "id": "aws_ecs_task.web_app_task",
+        "name": "web-app-task-instance",
+        "type": "aws:ecs:task",
+        "provider": "aws",
+        "region": "us-east-1",
+        "state": "active",
+        "properties": {
+          "task_arn": "arn:aws:ecs:us-east-1:123456789012:task/cluster/task-id"
+        },
+        "source": "terraform",
+        "icon_url": "/icons/Containers/Elastic-Container-Service.svg",
+        "x": 700,
+        "y": 250,
+        "hidden": false
+      },
+      {
+        "id": "aws_db_instance.database",
+        "name": "app-db-instance",
+        "type": "aws:rds:instance",
+        "provider": "aws",
+        "region": "us-east-1",
+        "state": "active",
+        "properties": {
+          "engine": "postgres",
+          "instance_class": "db.t3.micro"
+        },
+        "source": "terraform",
+        "icon_url": "/icons/Database/RDS.svg",
+        "x": 900,
+        "y": 250,
+        "hidden": false
+      },
+      {
+        "id": "aws_sqs_queue.events",
+        "name": "app-events-queue",
+        "type": "aws:sqs:queue",
+        "provider": "aws",
+        "region": "us-east-1",
+        "state": "active",
+        "properties": {
+          "delay_seconds": 0
+        },
+        "source": "terraform",
+        "icon_url": "/icons/App-Integration/Simple-Queue-Service.svg",
+        "x": 700,
+        "y": 400,
+        "hidden": false
+      },
+      {
+        "id": "aws_lambda_function.emailer",
+        "name": "email-notification-function",
+        "type": "aws:lambda:function",
+        "provider": "aws",
+        "region": "us-east-1",
+        "state": "active",
+        "properties": {
+          "handler": "email.handler",
+          "runtime": "python3.9"
+        },
+        "source": "terraform",
+        "icon_url": "/icons/Compute/Lambda.svg",
+        "x": 500,
+        "y": 400,
+        "hidden": false
+      },
+      {
+        "id": "aws_ses_email_identity.notifier",
+        "name": "admin-email-identity",
+        "type": "aws:ses:emailidentity",
+        "provider": "aws",
+        "region": "us-east-1",
+        "state": "active",
+        "properties": {
+          "email": "admin@example.com"
+        },
+        "source": "terraform",
+        "icon_url": "/icons/Business-Applications/Simple-Email-Service.svg",
+        "x": 300,
+        "y": 400,
+        "hidden": false
+      }
+    ],
+    "connections": [
+      {
+        "id": "conn-s3-lambda",
+        "source_id": "aws_s3_bucket.trigger_bucket",
+        "target_id": "aws_lambda_function.processor",
+        "type": "trigger",
+        "description": "S3 object created triggers Lambda",
+        "properties": {},
+        "bidirectional": false,
+        "hidden": false
+      },
+      {
+        "id": "conn-lambda-iam",
+        "source_id": "aws_lambda_function.processor",
+        "target_id": "aws_iam_role.lambda_exec_role",
+        "type": "access",
+        "description": "Lambda assumes IAM role",
+        "properties": {},
+        "bidirectional": false,
+        "hidden": false
+      },
+      {
+        "id": "conn-ecs-service-taskdef",
+        "source_id": "aws_ecs_service.web_app",
+        "target_id": "aws_ecs_task_definition.web_app_task_def",
+        "type": "dependency",
+        "description": "Service uses task definition",
+        "properties": {},
+        "bidirectional": false,
+        "hidden": false
+      },
+      {
+        "id": "conn-ecs-taskdef-task",
+        "source_id": "aws_ecs_task_definition.web_app_task_def",
+        "target_id": "aws_ecs_task.web_app_task",
+        "type": "reference",
+        "description": "Task definition defines task",
+        "properties": {},
+        "bidirectional": false,
+        "hidden": false
+      },
+      {
+        "id": "conn-ecs-rds",
+        "source_id": "aws_ecs_task.web_app_task",
+        "target_id": "aws_db_instance.database",
+        "type": "data",
+        "description": "ECS Task reads from RDS",
+        "properties": {},
+        "bidirectional": false,
+        "hidden": false
+      },
+      {
+        "id": "conn-ecs-sqs",
+        "source_id": "aws_ecs_task.web_app_task",
+        "target_id": "aws_sqs_queue.events",
+        "type": "data",
+        "description": "ECS Task sends events to SQS",
+        "properties": {},
+        "bidirectional": false,
+        "hidden": false
+      },
+      {
+        "id": "conn-sqs-lambda",
+        "source_id": "aws_sqs_queue.events",
+        "target_id": "aws_lambda_function.emailer",
+        "type": "trigger",
+        "description": "SQS triggers emailer Lambda",
+        "properties": {},
+        "bidirectional": false,
+        "hidden": false
+      },
+      {
+        "id": "conn-lambda-ses",
+        "source_id": "aws_lambda_function.emailer",
+        "target_id": "aws_ses_email_identity.notifier",
+        "type": "access",
+        "description": "Lambda sends email via SES",
+        "properties": {},
+        "bidirectional": false,
+        "hidden": false
+      }
+    ],
+    "metadata": {
+      "version": "1.1"
+    },
+    "created_at": "2026-04-10T12:00:00Z",
+    "updated_at": "2026-04-10T12:15:00Z",
+    "source": "manual",
+    "version": "1.1"
+  },
+  "stats": {
+    "resource_count": 10,
+    "connection_count": 8,
+    "error_count": 0,
+    "warning_count": 0,
+    "scan_duration_ms": 15
+  },
+  "scan_time": "2026-04-10T12:15:00Z",
+  "scan_config": {
+    "source": "manual",
+    "input_path": "manual",
+    "include_all": true
+  }
+}
