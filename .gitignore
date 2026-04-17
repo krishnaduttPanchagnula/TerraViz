@@ -5,17 +5,8 @@ bin/
 dist/
 
 # Scan / comparison output
-diagram.json
-diagram_comparison.json
-diagram-v2.json
-enhanced-v2.json
-payments.json
-test.json
-test-diagram-1.json
-test-diagram-2.json
-sample-state.json
-sample-state-v2.json
-
+!diagram_small.json
+*.json
 # Test scripts
 test_*.sh
 
