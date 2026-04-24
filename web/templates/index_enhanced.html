@@ -315,6 +315,92 @@
             box-shadow: 0 0 0 2px var(--sm-primary-glow);
         }
 
+        /* Searchable Dropdown */
+        .searchable-dropdown {
+            position: relative;
+        }
+
+        .searchable-dropdown-input {
+            width: 100%;
+            padding: 8px 28px 8px 12px;
+            background: var(--sm-terminal-bg);
+            border: 1px solid var(--sm-border);
+            border-radius: var(--sm-radius-sm);
+            color: var(--sm-text);
+            font-size: 13px;
+            transition: border-color var(--sm-transition-fast);
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+
+        .searchable-dropdown-input:focus {
+            outline: none;
+            border-color: var(--sm-primary);
+            box-shadow: 0 0 0 2px var(--sm-primary-glow);
+            cursor: text;
+        }
+
+        .searchable-dropdown-arrow {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 10px;
+            color: var(--sm-text-muted);
+            pointer-events: none;
+            transition: transform 0.15s ease;
+        }
+
+        .searchable-dropdown.open .searchable-dropdown-arrow {
+            transform: translateY(-50%) rotate(180deg);
+        }
+
+        .searchable-dropdown-list {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 200px;
+            overflow-y: auto;
+            background: var(--sm-terminal-bg);
+            border: 1px solid var(--sm-primary);
+            border-top: none;
+            border-radius: 0 0 var(--sm-radius-sm) var(--sm-radius-sm);
+            z-index: 100;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .searchable-dropdown.open .searchable-dropdown-list {
+            display: block;
+        }
+
+        .searchable-dropdown-item {
+            padding: 6px 12px;
+            font-size: 13px;
+            color: var(--sm-text);
+            cursor: pointer;
+        }
+
+        .searchable-dropdown-item:hover,
+        .searchable-dropdown-item.highlighted {
+            background: var(--sm-primary);
+            color: #fff;
+        }
+
+        .searchable-dropdown-item.no-results {
+            color: var(--sm-text-muted);
+            font-style: italic;
+            cursor: default;
+        }
+
+        .searchable-dropdown-item.no-results:hover {
+            background: transparent;
+            color: var(--sm-text-muted);
+        }
+
         /* Resource List */
         .resource-list {
             flex: 1;
@@ -888,33 +974,36 @@
 
                 <div class="filter-section">
                     <div class="filter-group">
-                        <label class="filter-label" for="type-filter">Resource Type</label>
-                        <select id="type-filter" class="filter-select">
-                            <option value="">All Types</option>
-                        </select>
+                        <label class="filter-label">Resource Type</label>
+                        <div class="searchable-dropdown" id="type-filter-dropdown">
+                            <input type="text" class="searchable-dropdown-input" placeholder="All Types" autocomplete="off">
+                            <span class="searchable-dropdown-arrow">▼</span>
+                            <ul class="searchable-dropdown-list"></ul>
+                        </div>
                     </div>
                     <div class="filter-group">
-                        <label class="filter-label" for="provider-filter">Provider</label>
-                        <select id="provider-filter" class="filter-select">
-                            <option value="">All Providers</option>
-                        </select>
+                        <label class="filter-label">Provider</label>
+                        <div class="searchable-dropdown" id="provider-filter-dropdown">
+                            <input type="text" class="searchable-dropdown-input" placeholder="All Providers" autocomplete="off">
+                            <span class="searchable-dropdown-arrow">▼</span>
+                            <ul class="searchable-dropdown-list"></ul>
+                        </div>
                     </div>
                     <div class="filter-group">
-                        <label class="filter-label" for="region-filter">Region</label>
-                        <select id="region-filter" class="filter-select">
-                            <option value="">All Regions</option>
-                        </select>
+                        <label class="filter-label">Region</label>
+                        <div class="searchable-dropdown" id="region-filter-dropdown">
+                            <input type="text" class="searchable-dropdown-input" placeholder="All Regions" autocomplete="off">
+                            <span class="searchable-dropdown-arrow">▼</span>
+                            <ul class="searchable-dropdown-list"></ul>
+                        </div>
                     </div>
                     <div class="filter-group">
-                        <label class="filter-label" for="state-filter">State</label>
-                        <select id="state-filter" class="filter-select">
-                            <option value="">All States</option>
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                            <option value="pending">Pending</option>
-                            <option value="failed">Failed</option>
-                            <option value="terminated">Terminated</option>
-                        </select>
+                        <label class="filter-label">State</label>
+                        <div class="searchable-dropdown" id="state-filter-dropdown">
+                            <input type="text" class="searchable-dropdown-input" placeholder="All States" autocomplete="off">
+                            <span class="searchable-dropdown-arrow">▼</span>
+                            <ul class="searchable-dropdown-list"></ul>
+                        </div>
                     </div>
                 </div>
 

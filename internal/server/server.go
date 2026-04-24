@@ -92,8 +92,7 @@ func (s *Server) setupRoutes() {
 	}
 	s.router.StaticFS("/icons", http.FS(iconsFS))
 
-	s.router.GET("/", s.handleIndex)
-	s.router.GET("/enhanced", s.handleEnhancedIndex)
+	s.router.GET("/", s.handleEnhancedIndex)
 
 	api := s.router.Group("/api")
 	{
@@ -125,28 +124,7 @@ func (s *Server) requireDiagram(c *gin.Context) *models.ScanResult {
 	return d
 }
 
-// handleIndex serves the main diagram page.
-func (s *Server) handleIndex(c *gin.Context) {
-	s.mu.RLock()
-	d := s.diagram
-	s.mu.RUnlock()
-
-	if d == nil {
-		c.HTML(http.StatusOK, "error.html", gin.H{
-			"error": "No diagram loaded. Please load a diagram file first.",
-		})
-		return
-	}
-
-	c.HTML(http.StatusOK, "index.html", gin.H{
-		"title":            "Cloud Architecture Visualizer",
-		"diagram_name":     d.Diagram.Name,
-		"resource_count":   len(d.Diagram.Resources),
-		"connection_count": len(d.Diagram.Connections),
-	})
-}
-
-// handleEnhancedIndex serves the enhanced diagram page with modern UI.
+// handleEnhancedIndex serves the main diagram page.
 func (s *Server) handleEnhancedIndex(c *gin.Context) {
 	s.mu.RLock()
 	d := s.diagram
@@ -160,7 +138,7 @@ func (s *Server) handleEnhancedIndex(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "index_enhanced.html", gin.H{
-		"title":            "Cloud Architecture Visualizer - Enhanced",
+		"title":            "Cloud Architecture Visualizer",
 		"diagram_name":     d.Diagram.Name,
 		"resource_count":   len(d.Diagram.Resources),
 		"connection_count": len(d.Diagram.Connections),

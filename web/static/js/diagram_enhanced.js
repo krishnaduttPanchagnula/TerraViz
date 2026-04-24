@@ -120,6 +120,135 @@ function debounce(fn, ms) {
   };
 }
 
+// ─── Searchable Dropdown ───────────────────────────────────────────────────────
+
+class SearchableDropdown {
+  constructor(containerId, onChange) {
+    this.container = document.getElementById(containerId);
+    this.input = this.container.querySelector('.searchable-dropdown-input');
+    this.list = this.container.querySelector('.searchable-dropdown-list');
+    this.onChange = onChange;
+    this.options = []; // [{value, label}]
+    this.selectedValue = '';
+    this.highlightIndex = -1;
+
+    this.input.addEventListener('focus', () => this.open());
+    this.input.addEventListener('input', () => this.filter());
+    this.input.addEventListener('keydown', (e) => this.onKey(e));
+    document.addEventListener('click', (e) => {
+      if (!this.container.contains(e.target)) this.close();
+    });
+  }
+
+  setOptions(options) {
+    this.options = options; // [{value:'', label:'All Types'}, ...]
+    this.selectedValue = '';
+    this.input.value = '';
+    this.render(this.options);
+  }
+
+  get value() {
+    return this.selectedValue;
+  }
+
+  open() {
+    this.container.classList.add('open');
+    this.input.value = '';
+    this.render(this.options);
+  }
+
+  close() {
+    this.container.classList.remove('open');
+    this.highlightIndex = -1;
+    // Restore display text to selected label
+    const sel = this.options.find(o => o.value === this.selectedValue);
+    this.input.value = sel && sel.value ? sel.label : '';
+  }
+
+  filter() {
+    const term = this.input.value.toLowerCase();
+    const filtered = this.options.filter(o =>
+      o.label.toLowerCase().includes(term)
+    );
+    this.highlightIndex = -1;
+    this.render(filtered);
+  }
+
+  render(items) {
+    while (this.list.firstChild) this.list.removeChild(this.list.firstChild);
+    if (items.length === 0) {
+      const li = document.createElement('li');
+      li.className = 'searchable-dropdown-item no-results';
+      li.textContent = 'No matches';
+      this.list.appendChild(li);
+      return;
+    }
+    items.forEach((opt, i) => {
+      const li = document.createElement('li');
+      li.className = 'searchable-dropdown-item';
+      if (i === this.highlightIndex) li.classList.add('highlighted');
+      li.textContent = opt.label;
+      li.addEventListener('mousedown', (e) => {
+        e.preventDefault(); // prevent blur before click registers
+        this.select(opt);
+      });
+      this.list.appendChild(li);
+    });
+  }
+
+  select(opt) {
+    this.selectedValue = opt.value;
+    this.input.value = opt.value ? opt.label : '';
+    this.close();
+    this.input.blur();
+    this.onChange();
+  }
+
+  onKey(e) {
+    const items = this.list.querySelectorAll('.searchable-dropdown-item:not(.no-results)');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      this.highlightIndex = Math.min(this.highlightIndex + 1, items.length - 1);
+      this.updateHighlight(items);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      this.highlightIndex = Math.max(this.highlightIndex - 1, 0);
+      this.updateHighlight(items);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (this.highlightIndex >= 0 && items[this.highlightIndex]) {
+        // Find the matching option from currently filtered list
+        const term = this.input.value.toLowerCase();
+        const filtered = this.options.filter(o => o.label.toLowerCase().includes(term));
+        if (filtered[this.highlightIndex]) {
+          this.select(filtered[this.highlightIndex]);
+        }
+      } else {
+        // If typed text matches exactly one option, select it
+        const term = this.input.value.toLowerCase();
+        const filtered = this.options.filter(o => o.label.toLowerCase().includes(term));
+        if (filtered.length === 1) {
+          this.select(filtered[0]);
+        } else {
+          this.close();
+        }
+      }
+    } else if (e.key === 'Escape') {
+      this.close();
+      this.input.blur();
+    }
+  }
+
+  updateHighlight(items) {
+    items.forEach((li, i) => {
+      li.classList.toggle('highlighted', i === this.highlightIndex);
+    });
+    if (items[this.highlightIndex]) {
+      items[this.highlightIndex].scrollIntoView({ block: 'nearest' });
+    }
+  }
+}
+
 // ─── Main Class ────────────────────────────────────────────────────────────────
 
 class EnhancedDiagramViewer {
@@ -467,17 +596,23 @@ class EnhancedDiagramViewer {
   }
 
   setupFilters() {
-    const filters = [
-      "type-filter",
-      "provider-filter",
-      "region-filter",
-      "state-filter",
-    ];
-    filters.forEach((filterId) => {
-      document
-        .getElementById(filterId)
-        .addEventListener("change", () => this.applyFilters());
-    });
+    this.dropdowns = {
+      type: new SearchableDropdown('type-filter-dropdown', () => this.applyFilters()),
+      provider: new SearchableDropdown('provider-filter-dropdown', () => this.applyFilters()),
+      region: new SearchableDropdown('region-filter-dropdown', () => this.applyFilters()),
+      state: new SearchableDropdown('state-filter-dropdown', () => this.applyFilters()),
+    };
+    // State has fixed options
+    this.dropdowns.state.setOptions([
+      { value: '', label: 'All States' },
+      { value: 'active', label: 'Active' },
+      { value: 'inactive', label: 'Inactive' },
+      { value: 'pending', label: 'Pending' },
+      { value: 'failed', label: 'Failed' },
+      { value: 'terminated', label: 'Terminated' },
+    ]);
+    // Populate type/provider/region from already-loaded resources
+    this.updateFilters();
   }
 
   setupSearch() {
@@ -1483,10 +1618,7 @@ class EnhancedDiagramViewer {
   // ─── Filters & Search ──────────────────────────────────────────────
 
   updateFilters() {
-    const typeFilter = document.getElementById("type-filter");
-    const providerFilter = document.getElementById("provider-filter");
-    const regionFilter = document.getElementById("region-filter");
-
+    if (!this.dropdowns) return;
     const types = [...new Set(this.resources.map((r) => r.type))].sort();
     const providers = [
       ...new Set(this.resources.map((r) => r.provider || "Unknown")),
@@ -1495,53 +1627,25 @@ class EnhancedDiagramViewer {
       ...new Set(this.resources.map((r) => r.region || "Unknown")),
     ].sort();
 
-    // Clear and rebuild type filter
-    while (typeFilter.firstChild) typeFilter.removeChild(typeFilter.firstChild);
-    const typeDefault = document.createElement("option");
-    typeDefault.value = "";
-    typeDefault.textContent = "All Types";
-    typeFilter.appendChild(typeDefault);
-    types.forEach((type) => {
-      const option = document.createElement("option");
-      option.value = type;
-      option.textContent = type;
-      typeFilter.appendChild(option);
-    });
-
-    // Clear and rebuild provider filter
-    while (providerFilter.firstChild)
-      providerFilter.removeChild(providerFilter.firstChild);
-    const provDefault = document.createElement("option");
-    provDefault.value = "";
-    provDefault.textContent = "All Providers";
-    providerFilter.appendChild(provDefault);
-    providers.forEach((provider) => {
-      const option = document.createElement("option");
-      option.value = provider;
-      option.textContent = provider;
-      providerFilter.appendChild(option);
-    });
-
-    // Clear and rebuild region filter
-    while (regionFilter.firstChild)
-      regionFilter.removeChild(regionFilter.firstChild);
-    const regDefault = document.createElement("option");
-    regDefault.value = "";
-    regDefault.textContent = "All Regions";
-    regionFilter.appendChild(regDefault);
-    regions.forEach((region) => {
-      const option = document.createElement("option");
-      option.value = region;
-      option.textContent = region;
-      regionFilter.appendChild(option);
-    });
+    this.dropdowns.type.setOptions([
+      { value: '', label: 'All Types' },
+      ...types.map(t => ({ value: t, label: t })),
+    ]);
+    this.dropdowns.provider.setOptions([
+      { value: '', label: 'All Providers' },
+      ...providers.map(p => ({ value: p, label: p })),
+    ]);
+    this.dropdowns.region.setOptions([
+      { value: '', label: 'All Regions' },
+      ...regions.map(r => ({ value: r, label: r })),
+    ]);
   }
 
   applyFilters() {
-    const typeFilter = document.getElementById("type-filter").value;
-    const providerFilter = document.getElementById("provider-filter").value;
-    const regionFilter = document.getElementById("region-filter").value;
-    const stateFilter = document.getElementById("state-filter").value;
+    const typeFilter = this.dropdowns.type.value;
+    const providerFilter = this.dropdowns.provider.value;
+    const regionFilter = this.dropdowns.region.value;
+    const stateFilter = this.dropdowns.state.value;
     const searchTerm = document
       .getElementById("search-input")
       .value.toLowerCase();
