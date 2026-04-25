@@ -120,6 +120,14 @@ function debounce(fn, ms) {
   };
 }
 
+/** Safe min/max for large arrays (avoids stack overflow from spread operator). */
+function safeMin(arr) {
+  return arr.reduce((a, b) => (a < b ? a : b), Infinity);
+}
+function safeMax(arr) {
+  return arr.reduce((a, b) => (a > b ? a : b), -Infinity);
+}
+
 // ─── Searchable Dropdown ───────────────────────────────────────────────────────
 
 class SearchableDropdown {
@@ -800,7 +808,7 @@ class EnhancedDiagramViewer {
       });
 
       // Track how far down this layer extends
-      const maxY = Math.max(...layer.resources.map((r) => r.y));
+      const maxY = safeMax(layer.resources.map((r) => r.y));
       currentY = maxY + LAYOUT_PADDING_Y + LAYOUT_GAP;
 
       // Store layout metadata for renderLayers
@@ -918,19 +926,19 @@ class EnhancedDiagramViewer {
       if (visible.length === 0) return;
 
       const minX =
-        Math.min(...visible.map((r) => r.x)) -
+        safeMin(visible.map((r) => r.x)) -
         LAYER_BOX_PAD -
         LAYER_BOX_EXTRA_X;
       const maxX =
-        Math.max(...visible.map((r) => r.x)) +
+        safeMax(visible.map((r) => r.x)) +
         LAYER_BOX_PAD +
         LAYER_BOX_EXTRA_X;
       const minY =
-        Math.min(...visible.map((r) => r.y)) -
+        safeMin(visible.map((r) => r.y)) -
         LAYER_BOX_PAD -
         LAYER_BOX_EXTRA_Y;
       const maxY =
-        Math.max(...visible.map((r) => r.y)) +
+        safeMax(visible.map((r) => r.y)) +
         LAYER_BOX_PAD +
         LAYER_BOX_EXTRA_Y;
 
@@ -968,19 +976,19 @@ class EnhancedDiagramViewer {
           if (sgVisible.length === 0) return;
 
           const sgMinX =
-            Math.min(...sgVisible.map((r) => r.x)) -
+            safeMin(sgVisible.map((r) => r.x)) -
             SUBGROUP_BOX_PAD -
             SUBGROUP_BOX_EXTRA_X;
           const sgMaxX =
-            Math.max(...sgVisible.map((r) => r.x)) +
+            safeMax(sgVisible.map((r) => r.x)) +
             SUBGROUP_BOX_PAD +
             SUBGROUP_BOX_EXTRA_X;
           const sgMinY =
-            Math.min(...sgVisible.map((r) => r.y)) -
+            safeMin(sgVisible.map((r) => r.y)) -
             SUBGROUP_BOX_PAD -
             SUBGROUP_BOX_EXTRA_Y;
           const sgMaxY =
-            Math.max(...sgVisible.map((r) => r.y)) +
+            safeMax(sgVisible.map((r) => r.y)) +
             SUBGROUP_BOX_PAD +
             SUBGROUP_BOX_EXTRA_Y;
 
@@ -1252,14 +1260,6 @@ class EnhancedDiagramViewer {
         nodeGroup.appendChild(typeLabel);
       }
 
-      // Highlight if selected
-      if (this.selectedResource && this.selectedResource.id === resource.id) {
-        nodeBg.setAttribute("stroke-width", "2.5");
-        nodeBg.setAttribute("stroke-opacity", "1");
-        glowCircle.setAttribute("stroke-width", "1");
-        glowCircle.setAttribute("stroke-opacity", "0.5");
-      }
-
       nodeGroup.addEventListener("click", (e) => {
         e.stopPropagation();
         this.selectResource(resource);
@@ -1385,10 +1385,10 @@ class EnhancedDiagramViewer {
     const allResources = this.resources;
     if (allResources.length === 0) return;
 
-    const minX = Math.min(...allResources.map((r) => r.x)) - MINIMAP_PADDING;
-    const maxX = Math.max(...allResources.map((r) => r.x)) + MINIMAP_PADDING;
-    const minY = Math.min(...allResources.map((r) => r.y)) - MINIMAP_PADDING;
-    const maxY = Math.max(...allResources.map((r) => r.y)) + MINIMAP_PADDING;
+    const minX = safeMin(allResources.map((r) => r.x)) - MINIMAP_PADDING;
+    const maxX = safeMax(allResources.map((r) => r.x)) + MINIMAP_PADDING;
+    const minY = safeMin(allResources.map((r) => r.y)) - MINIMAP_PADDING;
+    const maxY = safeMax(allResources.map((r) => r.y)) + MINIMAP_PADDING;
 
     const scaleX = MINIMAP_WIDTH / (maxX - minX);
     const scaleY = MINIMAP_HEIGHT / (maxY - minY);
@@ -1513,13 +1513,13 @@ class EnhancedDiagramViewer {
     if (this.filteredResources.length === 0) return;
 
     const minX =
-      Math.min(...this.filteredResources.map((r) => r.x)) - FIT_VIEW_MARGIN;
+      safeMin(this.filteredResources.map((r) => r.x)) - FIT_VIEW_MARGIN;
     const maxX =
-      Math.max(...this.filteredResources.map((r) => r.x)) + FIT_VIEW_MARGIN;
+      safeMax(this.filteredResources.map((r) => r.x)) + FIT_VIEW_MARGIN;
     const minY =
-      Math.min(...this.filteredResources.map((r) => r.y)) - FIT_VIEW_MARGIN;
+      safeMin(this.filteredResources.map((r) => r.y)) - FIT_VIEW_MARGIN;
     const maxY =
-      Math.max(...this.filteredResources.map((r) => r.y)) + FIT_VIEW_MARGIN;
+      safeMax(this.filteredResources.map((r) => r.y)) + FIT_VIEW_MARGIN;
 
     const contentWidth = maxX - minX;
     const contentHeight = maxY - minY;
@@ -1673,6 +1673,9 @@ class EnhancedDiagramViewer {
     while (resourceList.firstChild)
       resourceList.removeChild(resourceList.firstChild);
 
+    // Build all items in a DocumentFragment to minimize reflows
+    const fragment = document.createDocumentFragment();
+
     this.filteredResources.forEach((resource) => {
       const item = document.createElement("div");
       item.className = "resource-item";
@@ -1717,8 +1720,10 @@ class EnhancedDiagramViewer {
         item.appendChild(tagsDiv);
       }
 
-      resourceList.appendChild(item);
+      fragment.appendChild(item);
     });
+
+    resourceList.appendChild(fragment);
   }
 
   updateStats() {
@@ -1748,8 +1753,6 @@ class EnhancedDiagramViewer {
     this.highlightDependencies(resource);
     this.updateResourceDetailsPanel(resource);
     this.panToResource(resource);
-    this.renderDiagram();
-    this.updateTransform();
   }
 
   panToResource(resource) {
@@ -1765,15 +1768,37 @@ class EnhancedDiagramViewer {
   highlightDependencies(resource) {
     const connectedResources = this.getConnectedResources(resource);
 
+    // Build lookup maps for DOM elements to avoid querySelector per resource/connection
+    const nodeElements = new Map();
+    this.svg.querySelectorAll("[data-id]").forEach((el) => {
+      nodeElements.set(el.getAttribute("data-id"), el);
+    });
+    const connElements = new Map();
+    this.svg.querySelectorAll("path[data-connection]").forEach((el) => {
+      connElements.set(el.getAttribute("data-connection"), el);
+    });
+
+    const upstreamIds = new Set(connectedResources.upstream.map((r) => r.id));
+    const downstreamIds = new Set(connectedResources.downstream.map((r) => r.id));
+
     this.resources.forEach((r) => {
-      const nodeElement = document.querySelector(`[data-id="${r.id}"]`);
+      const nodeElement = nodeElements.get(r.id);
       if (!nodeElement) return;
 
       if (r.id === resource.id) {
         nodeElement.classList.add("selected-resource");
-      } else if (connectedResources.upstream.some((cr) => cr.id === r.id)) {
+        // Apply selection glow directly to avoid full re-render
+        const circles = nodeElement.querySelectorAll("circle");
+        if (circles.length >= 2) {
+          // First circle is glow ring, second is node background
+          circles[0].setAttribute("stroke-width", "1");
+          circles[0].setAttribute("stroke-opacity", "0.5");
+          circles[1].setAttribute("stroke-width", "2.5");
+          circles[1].setAttribute("stroke-opacity", "1");
+        }
+      } else if (upstreamIds.has(r.id)) {
         nodeElement.classList.add("upstream-dependency");
-      } else if (connectedResources.downstream.some((cr) => cr.id === r.id)) {
+      } else if (downstreamIds.has(r.id)) {
         nodeElement.classList.add("downstream-dependency");
       } else {
         nodeElement.classList.add("unrelated-resource");
@@ -1781,9 +1806,7 @@ class EnhancedDiagramViewer {
     });
 
     this.connections.forEach((conn) => {
-      const pathElement = document.querySelector(
-        `path[data-connection="${conn.id}"]`,
-      );
+      const pathElement = connElements.get(conn.id);
       if (!pathElement) return;
 
       if (conn.source_id === resource.id || conn.target_id === resource.id) {
@@ -1795,6 +1818,19 @@ class EnhancedDiagramViewer {
   }
 
   clearDependencyHighlighting() {
+    document
+      .querySelectorAll(".selected-resource")
+      .forEach((el) => {
+        // Reset selection glow attributes to defaults
+        const circles = el.querySelectorAll("circle");
+        if (circles.length >= 2) {
+          circles[0].setAttribute("stroke-width", "0.5");
+          circles[0].setAttribute("stroke-opacity", "0.25");
+          circles[1].setAttribute("stroke-width", "1.5");
+          circles[1].setAttribute("stroke-opacity", "0.6");
+        }
+      });
+
     document
       .querySelectorAll(
         ".selected-resource, .upstream-dependency, .downstream-dependency, .unrelated-resource",
@@ -1865,8 +1901,6 @@ class EnhancedDiagramViewer {
       panel.classList.remove("visible");
       this.clearDependencyHighlighting();
       this.selectedResource = null;
-      this.renderDiagram();
-      this.updateTransform();
     };
     header.appendChild(closeBtn);
     panel.appendChild(header);

@@ -25,11 +25,12 @@ const (
 
 // Server represents the web server for serving diagrams.
 type Server struct {
-	mu      sync.RWMutex
-	port    int
-	host    string
-	router  *gin.Engine
-	diagram *models.ScanResult
+	mu            sync.RWMutex
+	port          int
+	host          string
+	router        *gin.Engine
+	diagram       *models.ScanResult
+	cachedDiagram []byte // JSON cache of diagram; nil when stale
 }
 
 // NewServer creates a new web server.
@@ -60,9 +61,15 @@ func (s *Server) LoadDiagram(filePath string) error {
 
 	s.mu.Lock()
 	s.diagram = &scanResult
+	s.cachedDiagram = nil // invalidate cache
 	s.mu.Unlock()
 
 	return nil
+}
+
+// invalidateCache clears the cached diagram JSON. Must be called with s.mu held.
+func (s *Server) invalidateCache() {
+	s.cachedDiagram = nil
 }
 
 // Start starts the web server.
@@ -145,13 +152,35 @@ func (s *Server) handleEnhancedIndex(c *gin.Context) {
 	})
 }
 
-// handleGetDiagram returns the complete diagram data.
+// handleGetDiagram returns the complete diagram data, using a JSON cache.
 func (s *Server) handleGetDiagram(c *gin.Context) {
-	d := s.requireDiagram(c)
+	s.mu.RLock()
+	cached := s.cachedDiagram
+	d := s.diagram
+	s.mu.RUnlock()
+
 	if d == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "No diagram loaded"})
 		return
 	}
-	c.JSON(http.StatusOK, d)
+
+	if cached != nil {
+		c.Data(http.StatusOK, "application/json; charset=utf-8", cached)
+		return
+	}
+
+	// Build and cache the JSON
+	data, err := json.Marshal(d)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to serialize diagram"})
+		return
+	}
+
+	s.mu.Lock()
+	s.cachedDiagram = data
+	s.mu.Unlock()
+
+	c.Data(http.StatusOK, "application/json; charset=utf-8", data)
 }
 
 // handleGetResources returns all resources.
@@ -206,19 +235,22 @@ func (s *Server) handleSetResourceVisibility(hidden bool) gin.HandlerFunc {
 	}
 
 	return func(c *gin.Context) {
-		d := s.requireDiagram(c)
-		if d == nil {
-			return
-		}
-
 		resourceID := c.Param("id")
 
+		// Hold write lock for the entire read-check-mutate sequence.
 		s.mu.Lock()
 		defer s.mu.Unlock()
+
+		if s.diagram == nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "No diagram loaded"})
+			return
+		}
+		d := s.diagram
 
 		for i := range d.Diagram.Resources {
 			if d.Diagram.Resources[i].ID == resourceID {
 				d.Diagram.Resources[i].Hidden = hidden
+				s.invalidateCache()
 				c.JSON(http.StatusOK, gin.H{"success": true, "message": "Resource " + action})
 				return
 			}
@@ -239,11 +271,6 @@ func (s *Server) handleGetConnections(c *gin.Context) {
 
 // handleCreateConnection creates a new connection between resources.
 func (s *Server) handleCreateConnection(c *gin.Context) {
-	d := s.requireDiagram(c)
-	if d == nil {
-		return
-	}
-
 	var req struct {
 		SourceID    string `json:"source_id" binding:"required"`
 		TargetID    string `json:"target_id" binding:"required"`
@@ -255,6 +282,17 @@ func (s *Server) handleCreateConnection(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Hold the write lock for the entire read-validate-mutate sequence
+	// to prevent races between validation and append.
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.diagram == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "No diagram loaded"})
+		return
+	}
+	d := s.diagram
 
 	// Validate that both resources exist.
 	var sourceExists, targetExists bool
@@ -291,24 +329,25 @@ func (s *Server) handleCreateConnection(c *gin.Context) {
 		Style:       DefaultConnectionStyle,
 	}
 
-	s.mu.Lock()
 	d.Diagram.Connections = append(d.Diagram.Connections, conn)
-	s.mu.Unlock()
+	s.invalidateCache()
 
 	c.JSON(http.StatusCreated, conn)
 }
 
 // handleDeleteConnection deletes a connection.
 func (s *Server) handleDeleteConnection(c *gin.Context) {
-	d := s.requireDiagram(c)
-	if d == nil {
-		return
-	}
-
 	connectionID := c.Param("id")
 
+	// Hold write lock for the entire read-check-mutate sequence.
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if s.diagram == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "No diagram loaded"})
+		return
+	}
+	d := s.diagram
 
 	for i, conn := range d.Diagram.Connections {
 		if conn.ID == connectionID {
@@ -316,6 +355,7 @@ func (s *Server) handleDeleteConnection(c *gin.Context) {
 				d.Diagram.Connections[:i],
 				d.Diagram.Connections[i+1:]...,
 			)
+			s.invalidateCache()
 			c.JSON(http.StatusOK, gin.H{"success": true, "message": "Connection deleted"})
 			return
 		}

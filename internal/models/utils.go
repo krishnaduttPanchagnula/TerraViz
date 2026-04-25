@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"strings"
+	"sync"
 )
 
 const (
@@ -12,7 +13,9 @@ const (
 )
 
 // DiagramBuilder helps build diagrams incrementally.
+// It is safe for concurrent use from multiple goroutines.
 type DiagramBuilder struct {
+	mu          sync.Mutex
 	diagram     *Diagram
 	resourceMap map[string]*Resource
 }
@@ -44,14 +47,19 @@ func (db *DiagramBuilder) AddResource(resource Resource) {
 		resource.IconURL = resource.GetResourceIcon()
 	}
 
+	db.mu.Lock()
 	db.diagram.Resources = append(db.diagram.Resources, resource)
 	// Point to the element within the slice to avoid stale pointers after reallocation.
 	db.resourceMap[resource.ID] = &db.diagram.Resources[len(db.diagram.Resources)-1]
+	db.mu.Unlock()
 }
 
 // AddConnection adds a connection between two resources.
 // Returns false if either the source or target resource does not exist.
 func (db *DiagramBuilder) AddConnection(sourceID, targetID string, connType ConnectionType, description string) bool {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
 	if _, exists := db.resourceMap[sourceID]; !exists {
 		return false
 	}
@@ -60,7 +68,7 @@ func (db *DiagramBuilder) AddConnection(sourceID, targetID string, connType Conn
 	}
 
 	conn := Connection{
-		ID:          generateID(sourceID + targetID + string(connType)),
+		ID:          generateID(sourceID + targetID + string(connType) + description),
 		SourceID:    sourceID,
 		TargetID:    targetID,
 		Type:        connType,
@@ -74,6 +82,8 @@ func (db *DiagramBuilder) AddConnection(sourceID, targetID string, connType Conn
 
 // GetResource returns a resource by ID.
 func (db *DiagramBuilder) GetResource(id string) (*Resource, bool) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
 	resource, exists := db.resourceMap[id]
 	return resource, exists
 }
@@ -148,9 +158,9 @@ func (d *Diagram) GetResourceStats() map[string]int {
 	stats := make(map[string]int)
 
 	for _, resource := range d.Resources {
-		stats[fmt.Sprintf("type:%s", resource.Type)]++
-		stats[fmt.Sprintf("provider:%s", resource.Provider)]++
-		stats[fmt.Sprintf("state:%s", resource.State)]++
+		stats["type:"+string(resource.Type)]++
+		stats["provider:"+resource.Provider]++
+		stats["state:"+string(resource.State)]++
 	}
 
 	stats["total_resources"] = len(d.Resources)

@@ -1,6 +1,7 @@
 package parsers
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -28,19 +29,11 @@ func (p *TerraformParser) ParseStateFile(filePath string) (*models.ScanResult, e
 		return nil, fmt.Errorf("failed to read state file: %w", err)
 	}
 
-	// Auto-detect format by looking for key fields
-	var temp map[string]interface{}
-	if err := json.Unmarshal(data, &temp); err != nil {
-		return nil, fmt.Errorf("failed to parse state file: %w", err)
-	}
-
-	// Check if this is terraform show -json format (has "format_version")
-	// or raw .tfstate format (has "version" but no "format_version")
-	if formatVersion, hasFormatVersion := temp["format_version"]; hasFormatVersion && formatVersion != nil {
-		// This is terraform show -json format
+	// Auto-detect format using byte-level checks to avoid a full unmarshal.
+	// terraform show -json always has "format_version"; raw v4 has "version" but not "format_version".
+	if bytes.Contains(data, []byte(`"format_version"`)) {
 		return p.parseTerraformShowJSON(data)
-	} else if version, hasVersion := temp["version"]; hasVersion && version != nil {
-		// This is raw .tfstate format
+	} else if bytes.Contains(data, []byte(`"version"`)) {
 		return p.parseRawStateFile(data, filePath)
 	} else {
 		return nil, fmt.Errorf("unknown state file format")

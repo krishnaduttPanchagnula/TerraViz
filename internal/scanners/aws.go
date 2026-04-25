@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -19,6 +20,11 @@ import (
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	"terraviz/internal/models"
+)
+
+const (
+	// apiCallTimeout is the per-API-call context timeout for AWS SDK operations.
+	apiCallTimeout = 30 * time.Second
 )
 
 const defaultRegion = "us-east-1"
@@ -54,7 +60,24 @@ func NewAWSScanner(ctx context.Context, profile string, regions []string) (*AWSS
 	}, nil
 }
 
+// scanResult collects errors, warnings, and resource counts from concurrent scans.
+type scanResult struct {
+	mu        sync.Mutex
+	errors    []string
+	warnings  []string
+	resources int
+}
+
+func (sr *scanResult) merge(errors []string, warnings []string, count int) {
+	sr.mu.Lock()
+	sr.errors = append(sr.errors, errors...)
+	sr.warnings = append(sr.warnings, warnings...)
+	sr.resources += count
+	sr.mu.Unlock()
+}
+
 // ScanAccount scans an AWS account and returns a diagram.
+// Service scans (EC2, S3, RDS, Lambda) run concurrently within each region.
 func (s *AWSScanner) ScanAccount(ctx context.Context) (*models.ScanResult, error) {
 	startTime := time.Now()
 
@@ -62,9 +85,9 @@ func (s *AWSScanner) ScanAccount(ctx context.Context) (*models.ScanResult, error
 	builder.Build().Metadata["aws_regions"] = s.regions
 	builder.Build().Metadata["aws_profile"] = s.profile
 
-	var allErrors []string
-	var allWarnings []string
-	totalResources := 0
+	sr := &scanResult{}
+
+	var wg sync.WaitGroup
 
 	for _, region := range s.regions {
 		regionCfg := s.cfg.Copy()
@@ -72,29 +95,39 @@ func (s *AWSScanner) ScanAccount(ctx context.Context) (*models.ScanResult, error
 
 		slog.Info("scanning region", "region", region)
 
-		errors, warnings, count := s.scanEC2(ctx, regionCfg, region, builder)
-		allErrors = append(allErrors, errors...)
-		allWarnings = append(allWarnings, warnings...)
-		totalResources += count
+		wg.Add(1)
+		go func(cfg aws.Config, reg string) {
+			defer wg.Done()
+			errors, warnings, count := s.scanEC2(ctx, cfg, reg, builder)
+			sr.merge(errors, warnings, count)
+		}(regionCfg, region)
 
 		// S3 is global; list buckets once from us-east-1.
 		if region == defaultRegion {
-			errors, warnings, count = s.scanS3(ctx, regionCfg, builder)
-			allErrors = append(allErrors, errors...)
-			allWarnings = append(allWarnings, warnings...)
-			totalResources += count
+			wg.Add(1)
+			go func(cfg aws.Config) {
+				defer wg.Done()
+				errors, warnings, count := s.scanS3(ctx, cfg, builder)
+				sr.merge(errors, warnings, count)
+			}(regionCfg)
 		}
 
-		errors, warnings, count = s.scanRDS(ctx, regionCfg, region, builder)
-		allErrors = append(allErrors, errors...)
-		allWarnings = append(allWarnings, warnings...)
-		totalResources += count
+		wg.Add(1)
+		go func(cfg aws.Config, reg string) {
+			defer wg.Done()
+			errors, warnings, count := s.scanRDS(ctx, cfg, reg, builder)
+			sr.merge(errors, warnings, count)
+		}(regionCfg, region)
 
-		errors, warnings, count = s.scanLambda(ctx, regionCfg, region, builder)
-		allErrors = append(allErrors, errors...)
-		allWarnings = append(allWarnings, warnings...)
-		totalResources += count
+		wg.Add(1)
+		go func(cfg aws.Config, reg string) {
+			defer wg.Done()
+			errors, warnings, count := s.scanLambda(ctx, cfg, reg, builder)
+			sr.merge(errors, warnings, count)
+		}(regionCfg, region)
 	}
+
+	wg.Wait()
 
 	diagram := builder.Build()
 	diagram.CreatedAt = time.Now()
@@ -106,13 +139,13 @@ func (s *AWSScanner) ScanAccount(ctx context.Context) (*models.ScanResult, error
 
 	return &models.ScanResult{
 		Diagram:  *diagram,
-		Errors:   allErrors,
-		Warnings: allWarnings,
+		Errors:   sr.errors,
+		Warnings: sr.warnings,
 		Stats: models.ScanStats{
-			ResourceCount:   totalResources,
+			ResourceCount:   sr.resources,
 			ConnectionCount: len(diagram.Connections),
-			ErrorCount:      len(allErrors),
-			WarningCount:    len(allWarnings),
+			ErrorCount:      len(sr.errors),
+			WarningCount:    len(sr.warnings),
 			ScanDurationMs:  scanDuration,
 		},
 		ScanTime: time.Now(),
@@ -131,37 +164,48 @@ func (s *AWSScanner) scanEC2(ctx context.Context, cfg aws.Config, region string,
 
 	client := ec2.NewFromConfig(cfg)
 
-	vpcsOutput, err := client.DescribeVpcs(ctx, &ec2.DescribeVpcsInput{})
+	callCtx, cancel := context.WithTimeout(ctx, apiCallTimeout)
+	defer cancel()
+	vpcsOutput, err := client.DescribeVpcs(callCtx, &ec2.DescribeVpcsInput{})
 	if err != nil {
 		errors = append(errors, fmt.Sprintf("Failed to describe VPCs in %s: %v", region, err))
 		return errors, warnings, resourceCount
 	}
 	for _, vpc := range vpcsOutput.Vpcs {
-		builder.AddResource(*s.convertVPCToResource(vpc, region))
+		tags := s.extractEC2Tags(vpc.Tags)
+		builder.AddResource(*s.convertVPCToResource(vpc, region, tags))
 		resourceCount++
 	}
 
-	subnetsOutput, err := client.DescribeSubnets(ctx, &ec2.DescribeSubnetsInput{})
+	callCtx2, cancel2 := context.WithTimeout(ctx, apiCallTimeout)
+	defer cancel2()
+	subnetsOutput, err := client.DescribeSubnets(callCtx2, &ec2.DescribeSubnetsInput{})
 	if err != nil {
 		errors = append(errors, fmt.Sprintf("Failed to describe subnets in %s: %v", region, err))
 	} else {
 		for _, subnet := range subnetsOutput.Subnets {
-			builder.AddResource(*s.convertSubnetToResource(subnet, region))
+			tags := s.extractEC2Tags(subnet.Tags)
+			builder.AddResource(*s.convertSubnetToResource(subnet, region, tags))
 			resourceCount++
 		}
 	}
 
-	sgOutput, err := client.DescribeSecurityGroups(ctx, &ec2.DescribeSecurityGroupsInput{})
+	callCtx3, cancel3 := context.WithTimeout(ctx, apiCallTimeout)
+	defer cancel3()
+	sgOutput, err := client.DescribeSecurityGroups(callCtx3, &ec2.DescribeSecurityGroupsInput{})
 	if err != nil {
 		errors = append(errors, fmt.Sprintf("Failed to describe security groups in %s: %v", region, err))
 	} else {
 		for _, sg := range sgOutput.SecurityGroups {
-			builder.AddResource(*s.convertSecurityGroupToResource(sg, region))
+			tags := s.extractEC2Tags(sg.Tags)
+			builder.AddResource(*s.convertSecurityGroupToResource(sg, region, tags))
 			resourceCount++
 		}
 	}
 
-	instancesOutput, err := client.DescribeInstances(ctx, &ec2.DescribeInstancesInput{})
+	callCtx4, cancel4 := context.WithTimeout(ctx, apiCallTimeout)
+	defer cancel4()
+	instancesOutput, err := client.DescribeInstances(callCtx4, &ec2.DescribeInstancesInput{})
 	if err != nil {
 		errors = append(errors, fmt.Sprintf("Failed to describe instances in %s: %v", region, err))
 	} else {
@@ -170,7 +214,8 @@ func (s *AWSScanner) scanEC2(ctx context.Context, cfg aws.Config, region string,
 				if instance.State.Name == ec2types.InstanceStateNameTerminated {
 					continue
 				}
-				builder.AddResource(*s.convertInstanceToResource(instance, region))
+				tags := s.extractEC2Tags(instance.Tags)
+				builder.AddResource(*s.convertInstanceToResource(instance, region, tags))
 				resourceCount++
 			}
 		}
@@ -187,7 +232,9 @@ func (s *AWSScanner) scanS3(ctx context.Context, cfg aws.Config, builder *models
 
 	client := s3.NewFromConfig(cfg)
 
-	bucketsOutput, err := client.ListBuckets(ctx, &s3.ListBucketsInput{})
+	callCtx, cancel := context.WithTimeout(ctx, apiCallTimeout)
+	defer cancel()
+	bucketsOutput, err := client.ListBuckets(callCtx, &s3.ListBucketsInput{})
 	if err != nil {
 		errors = append(errors, fmt.Sprintf("Failed to list S3 buckets: %v", err))
 		return errors, warnings, resourceCount
@@ -195,7 +242,7 @@ func (s *AWSScanner) scanS3(ctx context.Context, cfg aws.Config, builder *models
 
 	for _, bucket := range bucketsOutput.Buckets {
 		region := defaultRegion
-		locationOutput, err := client.GetBucketLocation(ctx, &s3.GetBucketLocationInput{
+		locationOutput, err := client.GetBucketLocation(callCtx, &s3.GetBucketLocationInput{
 			Bucket: bucket.Name,
 		})
 		if err == nil && locationOutput.LocationConstraint != "" {
@@ -217,7 +264,9 @@ func (s *AWSScanner) scanRDS(ctx context.Context, cfg aws.Config, region string,
 
 	client := rds.NewFromConfig(cfg)
 
-	instancesOutput, err := client.DescribeDBInstances(ctx, &rds.DescribeDBInstancesInput{})
+	callCtx, cancel := context.WithTimeout(ctx, apiCallTimeout)
+	defer cancel()
+	instancesOutput, err := client.DescribeDBInstances(callCtx, &rds.DescribeDBInstancesInput{})
 	if err != nil {
 		errors = append(errors, fmt.Sprintf("Failed to describe RDS instances in %s: %v", region, err))
 		return errors, warnings, resourceCount
@@ -239,7 +288,9 @@ func (s *AWSScanner) scanLambda(ctx context.Context, cfg aws.Config, region stri
 
 	client := lambda.NewFromConfig(cfg)
 
-	functionsOutput, err := client.ListFunctions(ctx, &lambda.ListFunctionsInput{})
+	callCtx, cancel := context.WithTimeout(ctx, apiCallTimeout)
+	defer cancel()
+	functionsOutput, err := client.ListFunctions(callCtx, &lambda.ListFunctionsInput{})
 	if err != nil {
 		errors = append(errors, fmt.Sprintf("Failed to list Lambda functions in %s: %v", region, err))
 		return errors, warnings, resourceCount
@@ -255,9 +306,9 @@ func (s *AWSScanner) scanLambda(ctx context.Context, cfg aws.Config, region stri
 
 // --- Resource conversion helpers ---
 
-func (s *AWSScanner) convertVPCToResource(vpc ec2types.Vpc, region string) *models.Resource {
+func (s *AWSScanner) convertVPCToResource(vpc ec2types.Vpc, region string, tags map[string]string) *models.Resource {
 	name := aws.ToString(vpc.VpcId)
-	if tags := s.extractEC2Tags(vpc.Tags); tags["Name"] != "" {
+	if tags["Name"] != "" {
 		name = tags["Name"]
 	}
 
@@ -275,14 +326,14 @@ func (s *AWSScanner) convertVPCToResource(vpc ec2types.Vpc, region string) *mode
 			"is_default":      aws.ToBool(vpc.IsDefault),
 			"dhcp_options_id": aws.ToString(vpc.DhcpOptionsId),
 		},
-		Tags:   s.extractEC2Tags(vpc.Tags),
+		Tags:   tags,
 		Source: "aws",
 	}
 }
 
-func (s *AWSScanner) convertSubnetToResource(subnet ec2types.Subnet, region string) *models.Resource {
+func (s *AWSScanner) convertSubnetToResource(subnet ec2types.Subnet, region string, tags map[string]string) *models.Resource {
 	name := aws.ToString(subnet.SubnetId)
-	if tags := s.extractEC2Tags(subnet.Tags); tags["Name"] != "" {
+	if tags["Name"] != "" {
 		name = tags["Name"]
 	}
 
@@ -301,14 +352,14 @@ func (s *AWSScanner) convertSubnetToResource(subnet ec2types.Subnet, region stri
 			"available_ip_addresses": aws.ToInt32(subnet.AvailableIpAddressCount),
 			"state":                  string(subnet.State),
 		},
-		Tags:   s.extractEC2Tags(subnet.Tags),
+		Tags:   tags,
 		Source: "aws",
 	}
 }
 
-func (s *AWSScanner) convertSecurityGroupToResource(sg ec2types.SecurityGroup, region string) *models.Resource {
+func (s *AWSScanner) convertSecurityGroupToResource(sg ec2types.SecurityGroup, region string, tags map[string]string) *models.Resource {
 	name := aws.ToString(sg.GroupName)
-	if tags := s.extractEC2Tags(sg.Tags); tags["Name"] != "" {
+	if tags["Name"] != "" {
 		name = tags["Name"]
 	}
 
@@ -325,14 +376,14 @@ func (s *AWSScanner) convertSecurityGroupToResource(sg ec2types.SecurityGroup, r
 			"description": aws.ToString(sg.Description),
 			"vpc_id":      aws.ToString(sg.VpcId),
 		},
-		Tags:   s.extractEC2Tags(sg.Tags),
+		Tags:   tags,
 		Source: "aws",
 	}
 }
 
-func (s *AWSScanner) convertInstanceToResource(instance ec2types.Instance, region string) *models.Resource {
+func (s *AWSScanner) convertInstanceToResource(instance ec2types.Instance, region string, tags map[string]string) *models.Resource {
 	name := aws.ToString(instance.InstanceId)
-	if tags := s.extractEC2Tags(instance.Tags); tags["Name"] != "" {
+	if tags["Name"] != "" {
 		name = tags["Name"]
 	}
 
@@ -360,7 +411,7 @@ func (s *AWSScanner) convertInstanceToResource(instance ec2types.Instance, regio
 			"security_groups":    sgIDs,
 			"state":              string(instance.State.Name),
 		},
-		Tags:   s.extractEC2Tags(instance.Tags),
+		Tags:   tags,
 		Source: "aws",
 	}
 }

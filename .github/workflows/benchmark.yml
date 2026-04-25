@@ -1,0 +1,112 @@
+name: Benchmarks
+
+on:
+  pull_request:
+    paths:
+      - "internal/**"
+      - "go.mod"
+      - "go.sum"
+  push:
+    branches: [main]
+    paths:
+      - "internal/**"
+      - "go.mod"
+      - "go.sum"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: Run benchmarks (PR / current)
+        run: go test -bench=. -benchmem -count=6 -run='^$' -timeout 10m ./internal/... > /tmp/bench_new.txt
+
+      - name: Checkout base branch
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          clean: false
+          path: _base
+
+      - name: Run benchmarks (base)
+        if: github.event_name == 'pull_request'
+        working-directory: _base
+        run: go test -bench=. -benchmem -count=6 -run='^$' -timeout 10m ./internal/... > /tmp/bench_old.txt
+
+      - name: Compare benchmarks
+        if: github.event_name == 'pull_request'
+        id: benchstat
+        run: |
+          result=$(benchstat /tmp/bench_old.txt /tmp/bench_new.txt 2>&1)
+          echo "BENCHSTAT<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$result" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Post benchmark comparison to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = `## Benchmark Comparison (base vs PR)
+
+            \`\`\`
+            ${{ steps.benchstat.outputs.BENCHSTAT }}
+            \`\`\`
+
+            <details><summary>How to read this</summary>
+
+            - **sec/op**: time per operation (lower is better)
+            - **B/op**: bytes allocated per operation (lower is better)
+            - **allocs/op**: allocations per operation (lower is better)
+            - **vs base**: percentage change vs the base branch
+            - Negative % = improvement, positive % = regression
+
+            </details>`;
+
+            // Find and update existing comment, or create new one
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const marker = '## Benchmark Comparison';
+            const existing = comments.find(c => c.body.startsWith(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Print benchmarks (push to main)
+        if: github.event_name == 'push'
+        run: |
+          echo "## Benchmark Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat /tmp/bench_new.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
