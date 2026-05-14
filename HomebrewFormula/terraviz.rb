@@ -5,21 +5,21 @@
 class Terraviz < Formula
   desc "Generate interactive architecture diagrams from Terraform state files or live AWS accounts"
   homepage "https://github.com/krishnaduttPanchagnula/TerraViz"
-  version "0.1.4"
+  version "0.2.0"
   license "MIT"
 
   on_macos do
     if Hardware::CPU.intel?
-      url "https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v0.1.4/terraviz_0.1.4_darwin_amd64.tar.gz"
-      sha256 "827c7724cd77ac3239d3c87bd77f0232c71271fcb4116930e040900c2ad47487"
+      url "https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v0.2.0/terraviz_0.2.0_darwin_amd64.tar.gz"
+      sha256 "94c2e0a0da65396f4d0aab037e8e2597ce235678d335e376c726e52ed71d0030"
 
       define_method(:install) do
         bin.install "terraviz"
       end
     end
     if Hardware::CPU.arm?
-      url "https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v0.1.4/terraviz_0.1.4_darwin_arm64.tar.gz"
-      sha256 "03d46f966ec0d75f44d21e375430ec4b7945c56a0b3cc0867e2005cb23b2201f"
+      url "https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v0.2.0/terraviz_0.2.0_darwin_arm64.tar.gz"
+      sha256 "92e1bcc566cc7f0206cbde514bd91a5ef2fc7b25386d7c33e1c5c0cb4b2406b1"
 
       define_method(:install) do
         bin.install "terraviz"
@@ -29,15 +29,15 @@ class Terraviz < Formula
 
   on_linux do
     if Hardware::CPU.intel? && Hardware::CPU.is_64_bit?
-      url "https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v0.1.4/terraviz_0.1.4_linux_amd64.tar.gz"
-      sha256 "17e8147967c50a038e0300a32d4f445f41280dd6d23919e7dd2b69209ca3dc28"
+      url "https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v0.2.0/terraviz_0.2.0_linux_amd64.tar.gz"
+      sha256 "a42d04329c7e235a13d7021a0f858c1dc8a1d4fe30d8acc62c0a78e021c38e06"
       define_method(:install) do
         bin.install "terraviz"
       end
     end
     if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
-      url "https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v0.1.4/terraviz_0.1.4_linux_arm64.tar.gz"
-      sha256 "26afd99518b2e1ffd2cdda5e3a2075063cbf7db0228de11fa879499541a19923"
+      url "https://github.com/krishnaduttPanchagnula/TerraViz/releases/download/v0.2.0/terraviz_0.2.0_linux_arm64.tar.gz"
+      sha256 "84c6664a1034b268d2c63e52b735d7fd7d135b4664d94604c93a840316c60ff2"
       define_method(:install) do
         bin.install "terraviz"
       end
