@@ -4,7 +4,7 @@
 [![Go](https://img.shields.io/github/go-mod/go-version/krishnaduttPanchagnula/TerraViz?style=flat-square)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 
-Generate interactive architecture diagrams from Terraform state files or live AWS accounts. A single self-contained binary — no external dependencies, no CDN, no runtime assets.
+Generate interactive architecture diagrams from Terraform state files, remote S3-hosted state, or live AWS accounts. A single self-contained binary — no external dependencies, no CDN, no runtime assets.
 
 ![Enhanced UI](docs/screenshots/enhanced-ui.png)
 
@@ -62,6 +62,9 @@ terraviz scan terraform terraform.tfstate
 # Serve the diagram
 terraviz serve diagram.json
 
+# Or start the server without a diagram and import from S3 or local file
+terraviz serve
+
 # Open in browser
 open http://localhost:8080/enhanced
 ```
@@ -89,15 +92,26 @@ Lightweight diagram view.
 
 ### Input Sources
 - **Terraform State Files** — Parse `.tfstate` (v4 raw format) or `terraform show -json` output
+- **S3 Remote State** — Browse S3 buckets and load remote `.tfstate` files directly from the UI (supports custom AWS profiles)
+- **Local File Import** — Upload `.tfstate` files from your machine via drag-and-drop or file picker
 - **Live AWS Account** — Scan EC2, S3, RDS, Lambda, VPCs, subnets, security groups, IAM, and more across multiple regions
 
 ### Interactive Web Diagrams
 - SVG-based rendering with zoom, pan, and fit-to-view
+- **Floating pill toolbar** — semi-transparent bottom-center toolbar with clean SVG icons for zoom, grid toggle, labels, minimap, flow animations, legend, deployment diff, export, and presentation mode
 - Filter by resource type, provider, region, or state
 - Real-time search by resource name or ID
 - Hide/show individual resources; add or delete connections at runtime
 - Hover tooltips with resource details
+- **Resizable sidebar** with collapsible sections (Search & Filter, Files, Filters, Resources) and vertical scrolling
+- **Connection legend** — popover showing all 6 connection type colors
 - Two UI modes: basic (`/`) and enhanced (`/enhanced`)
+
+### Design
+- Matte black (`#101010`) background with dot-grid blueprint pattern
+- Geist + JetBrains Mono typography with systematized design tokens (spacing, shadows, motion, radius)
+- Animated expand/collapse sidebar sections with smooth CSS transitions
+- Button micro-interactions (hover glow, active scale)
 
 ### Infrastructure Comparison
 - Compare two scan results to see added, removed, and modified resources
@@ -134,8 +148,8 @@ Scans a live AWS account using the AWS SDK.
 ### `compare <scan1.json> <scan2.json>`
 Compares two scan result JSON files and outputs a comparison JSON. With `--verbose`, prints per-resource property diffs to stdout.
 
-### `serve <diagram.json>`
-Starts a local web server to display the interactive diagram.
+### `serve [diagram.json]`
+Starts a local web server to display the interactive diagram. The diagram argument is optional — when omitted, the server starts with an empty canvas and you can import state files from S3 or your local machine via the UI.
 
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
@@ -156,6 +170,10 @@ Starts a local web server to display the interactive diagram.
 - `DELETE /api/connections/:id` — Delete a connection
 - `GET /api/stats` — Diagram statistics
 - `POST /api/export/:format` — Export (json supported; svg/png handled client-side)
+- `GET /api/s3/buckets?profile=` — List S3 buckets (optional AWS profile)
+- `GET /api/s3/objects?bucket=&prefix=&profile=` — List objects in an S3 bucket
+- `POST /api/s3/load` — Load a `.tfstate` file from S3 and render it
+- `POST /api/upload` — Upload a local `.tfstate` file (multipart form)
 
 ## Supported AWS Resource Types
 

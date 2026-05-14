@@ -29,12 +29,18 @@ func (p *TerraformParser) ParseStateFile(filePath string) (*models.ScanResult, e
 		return nil, fmt.Errorf("failed to read state file: %w", err)
 	}
 
+	return p.ParseStateData(data, filePath)
+}
+
+// ParseStateData parses Terraform state data from bytes and returns a diagram.
+// sourceName is used for metadata (e.g. the file path or S3 key).
+func (p *TerraformParser) ParseStateData(data []byte, sourceName string) (*models.ScanResult, error) {
 	// Auto-detect format using byte-level checks to avoid a full unmarshal.
 	// terraform show -json always has "format_version"; raw v4 has "version" but not "format_version".
 	if bytes.Contains(data, []byte(`"format_version"`)) {
 		return p.parseTerraformShowJSON(data)
 	} else if bytes.Contains(data, []byte(`"version"`)) {
-		return p.parseRawStateFile(data, filePath)
+		return p.parseRawStateFile(data, sourceName)
 	} else {
 		return nil, fmt.Errorf("unknown state file format")
 	}

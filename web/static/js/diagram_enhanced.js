@@ -517,6 +517,17 @@ class EnhancedDiagramViewer {
   async loadDiagram() {
     const response = await fetch("/api/diagram");
     if (!response.ok) {
+      if (response.status === 404) {
+        // No diagram loaded yet (e.g. server started without a file).
+        // Set empty state so the UI remains functional for S3 import.
+        this.resources = [];
+        this.connections = [];
+        this.filteredResources = [];
+        this._resourceMap.clear();
+        console.log("No diagram loaded yet");
+        this.updateEmptyState();
+        return;
+      }
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     const data = await response.json();
@@ -535,6 +546,37 @@ class EnhancedDiagramViewer {
 
     this.updateFilters();
     this.updateResourceList();
+    this.updateEmptyState();
+  }
+
+  // Toggle the empty-state overlay based on whether resources are loaded.
+  updateEmptyState() {
+    const el = document.getElementById("empty-state");
+    if (!el) return;
+    if (this.resources.length > 0) {
+      el.classList.add("hidden");
+    } else {
+      el.classList.remove("hidden");
+    }
+  }
+
+  // Reload diagram data from server and re-render in place (no page reload).
+  async reloadDiagram() {
+    await this.loadDiagram();
+    this.categorizeResources();
+    this.autoLayout();
+    this.renderDiagram();
+    this.updateMinimap();
+    setTimeout(() => this.fitToView(), 100);
+
+    // Update header stats
+    const rc = document.getElementById("resource-count");
+    const cc = document.getElementById("connection-count");
+    const vc = document.getElementById("visible-count");
+    if (rc) rc.textContent = this.resources.length;
+    if (cc) cc.textContent = this.connections.length;
+    if (vc) vc.textContent = this.resources.length;
+    this.updateEmptyState();
   }
 
   setupCanvas() {
@@ -573,9 +615,10 @@ class EnhancedDiagramViewer {
     document
       .getElementById("fit-view")
       .addEventListener("click", () => this.fitToView());
-    document
-      .getElementById("reset-layout")
-      .addEventListener("click", () => this.resetLayout());
+    const resetBtn = document.getElementById("reset-layout");
+    if (resetBtn) {
+      resetBtn.addEventListener("click", () => this.resetLayout());
+    }
 
     document
       .getElementById("toggle-labels")
@@ -601,6 +644,47 @@ class EnhancedDiagramViewer {
     document
       .getElementById("export-svg")
       .addEventListener("click", () => this.exportToSVG());
+
+    // Toggle Grid
+    const gridBtn = document.getElementById("toggle-grid");
+    if (gridBtn) {
+      gridBtn.addEventListener("click", () => {
+        const root = document.documentElement;
+        const current = getComputedStyle(root).getPropertyValue('--sm-grid-dot').trim();
+        if (current === 'transparent') {
+          root.style.setProperty('--sm-grid-dot', 'rgba(255,255,255,0.08)');
+          gridBtn.classList.add('active');
+        } else {
+          root.style.setProperty('--sm-grid-dot', 'transparent');
+          gridBtn.classList.remove('active');
+        }
+      });
+    }
+
+    // Legend popover
+    const legendBtn = document.getElementById("toggle-legend");
+    const legendPopover = document.getElementById("legend-popover");
+    if (legendBtn && legendPopover) {
+      legendBtn.addEventListener("click", () => {
+        legendPopover.classList.toggle('visible');
+        legendBtn.classList.toggle('active');
+      });
+      // Close on click outside
+      document.addEventListener("click", (e) => {
+        if (!legendBtn.contains(e.target) && !legendPopover.contains(e.target)) {
+          legendPopover.classList.remove('visible');
+          legendBtn.classList.remove('active');
+        }
+      });
+    }
+
+    // Deployment Diff toggle
+    const diffBtn = document.getElementById("deployment-diff");
+    if (diffBtn) {
+      diffBtn.addEventListener("click", () => {
+        diffBtn.classList.toggle('diff-active');
+      });
+    }
   }
 
   setupFilters() {

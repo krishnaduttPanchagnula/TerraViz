@@ -1,17 +1,24 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
+	"time"
 
 	"terraviz/internal/models"
+	"terraviz/internal/parsers"
 	"terraviz/web"
 
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gin-gonic/gin"
 )
 
@@ -114,6 +121,17 @@ func (s *Server) setupRoutes() {
 		api.DELETE("/connections/:id", s.handleDeleteConnection)
 		api.GET("/stats", s.handleGetStats)
 		api.POST("/export/:format", s.handleExport)
+
+		// S3 backend integration
+		s3Group := api.Group("/s3")
+		{
+			s3Group.GET("/buckets", s.handleListBuckets)
+			s3Group.GET("/objects", s.handleListObjects)
+			s3Group.POST("/load", s.handleLoadFromS3)
+		}
+
+		// Local file upload
+		api.POST("/upload", s.handleUploadStateFile)
 	}
 }
 
@@ -137,19 +155,20 @@ func (s *Server) handleEnhancedIndex(c *gin.Context) {
 	d := s.diagram
 	s.mu.RUnlock()
 
-	if d == nil {
-		c.HTML(http.StatusOK, "error.html", gin.H{
-			"error": "No diagram loaded. Please load a diagram file first.",
-		})
-		return
+	data := gin.H{
+		"title":            "Cloud Architecture Visualizer",
+		"diagram_name":     "No Diagram Loaded",
+		"resource_count":   0,
+		"connection_count": 0,
 	}
 
-	c.HTML(http.StatusOK, "index_enhanced.html", gin.H{
-		"title":            "Cloud Architecture Visualizer",
-		"diagram_name":     d.Diagram.Name,
-		"resource_count":   len(d.Diagram.Resources),
-		"connection_count": len(d.Diagram.Connections),
-	})
+	if d != nil {
+		data["diagram_name"] = d.Diagram.Name
+		data["resource_count"] = len(d.Diagram.Resources)
+		data["connection_count"] = len(d.Diagram.Connections)
+	}
+
+	c.HTML(http.StatusOK, "index_enhanced.html", data)
 }
 
 // handleGetDiagram returns the complete diagram data, using a JSON cache.
@@ -404,4 +423,245 @@ func (s *Server) handleExport(c *gin.Context) {
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported export format. Supported: json, svg, png"})
 	}
+}
+
+// handleUploadStateFile accepts a multipart file upload of a Terraform state file,
+// parses it, and sets it as the active diagram.
+func (s *Server) handleUploadStateFile(c *gin.Context) {
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No file provided"})
+		return
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to read uploaded file: %v", err)})
+		return
+	}
+
+	parser := parsers.NewTerraformParser()
+	result, err := parser.ParseStateData(data, header.Filename)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Failed to parse state file: %v", err)})
+		return
+	}
+
+	result.Diagram.Name = fmt.Sprintf("Local: %s", header.Filename)
+	result.ScanConfig.InputPath = header.Filename
+
+	s.mu.Lock()
+	s.diagram = result
+	s.cachedDiagram = nil
+	s.mu.Unlock()
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":          true,
+		"message":          fmt.Sprintf("Loaded state from %s", header.Filename),
+		"resource_count":   len(result.Diagram.Resources),
+		"connection_count": len(result.Diagram.Connections),
+	})
+}
+
+// s3APITimeout is the timeout for S3 API calls made by the server.
+const s3APITimeout = 30 * time.Second
+
+// newS3Client creates an S3 client using the default credential provider chain.
+// An optional profile query parameter is supported.
+func newS3Client(ctx context.Context, profile string, region string) (*s3.Client, error) {
+	var opts []func(*config.LoadOptions) error
+	if profile != "" {
+		opts = append(opts, config.WithSharedConfigProfile(profile))
+	}
+	if region != "" {
+		opts = append(opts, config.WithRegion(region))
+	}
+
+	cfg, err := config.LoadDefaultConfig(ctx, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("loading AWS config: %w", err)
+	}
+
+	return s3.NewFromConfig(cfg), nil
+}
+
+// handleListBuckets returns all S3 buckets for the configured AWS account.
+// Query params: profile (optional), region (optional).
+func (s *Server) handleListBuckets(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), s3APITimeout)
+	defer cancel()
+
+	client, err := newS3Client(ctx, c.Query("profile"), c.Query("region"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to initialize AWS client: %v", err)})
+		return
+	}
+
+	output, err := client.ListBuckets(ctx, &s3.ListBucketsInput{})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to list buckets: %v", err)})
+		return
+	}
+
+	type bucketInfo struct {
+		Name      string `json:"name"`
+		CreatedAt string `json:"created_at,omitempty"`
+	}
+
+	buckets := make([]bucketInfo, 0, len(output.Buckets))
+	for _, b := range output.Buckets {
+		info := bucketInfo{Name: *b.Name}
+		if b.CreationDate != nil {
+			info.CreatedAt = b.CreationDate.Format(time.RFC3339)
+		}
+		buckets = append(buckets, info)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"buckets": buckets})
+}
+
+// handleListObjects lists objects in an S3 bucket with optional prefix for tree navigation.
+// Query params: bucket (required), prefix (optional), profile (optional), region (optional).
+func (s *Server) handleListObjects(c *gin.Context) {
+	bucket := c.Query("bucket")
+	if bucket == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Query parameter 'bucket' is required"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), s3APITimeout)
+	defer cancel()
+
+	client, err := newS3Client(ctx, c.Query("profile"), c.Query("region"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to initialize AWS client: %v", err)})
+		return
+	}
+
+	prefix := c.Query("prefix")
+	input := &s3.ListObjectsV2Input{
+		Bucket:    &bucket,
+		Prefix:    &prefix,
+		Delimiter: strPtr("/"),
+	}
+
+	output, err := client.ListObjectsV2(ctx, input)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to list objects: %v", err)})
+		return
+	}
+
+	type objectInfo struct {
+		Key          string `json:"key"`
+		Size         int64  `json:"size"`
+		LastModified string `json:"last_modified,omitempty"`
+		IsFolder     bool   `json:"is_folder"`
+	}
+
+	items := make([]objectInfo, 0, len(output.CommonPrefixes)+len(output.Contents))
+
+	// Folders (common prefixes)
+	for _, cp := range output.CommonPrefixes {
+		items = append(items, objectInfo{
+			Key:      *cp.Prefix,
+			IsFolder: true,
+		})
+	}
+
+	// Files
+	for _, obj := range output.Contents {
+		key := *obj.Key
+		// Skip the prefix itself if it appears as an object
+		if key == prefix {
+			continue
+		}
+		info := objectInfo{
+			Key:  key,
+			Size: *obj.Size,
+		}
+		if obj.LastModified != nil {
+			info.LastModified = obj.LastModified.Format(time.RFC3339)
+		}
+		items = append(items, info)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"objects": items, "prefix": prefix, "bucket": bucket})
+}
+
+// handleLoadFromS3 downloads a state file from S3 and loads it as the active diagram.
+// JSON body: {"bucket": "...", "key": "...", "profile": "...", "region": "..."}.
+func (s *Server) handleLoadFromS3(c *gin.Context) {
+	var req struct {
+		Bucket  string `json:"bucket" binding:"required"`
+		Key     string `json:"key" binding:"required"`
+		Profile string `json:"profile"`
+		Region  string `json:"region"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), s3APITimeout)
+	defer cancel()
+
+	client, err := newS3Client(ctx, req.Profile, req.Region)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to initialize AWS client: %v", err)})
+		return
+	}
+
+	output, err := client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: &req.Bucket,
+		Key:    &req.Key,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to download state file: %v", err)})
+		return
+	}
+	defer output.Body.Close()
+
+	data, err := io.ReadAll(output.Body)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to read state file: %v", err)})
+		return
+	}
+
+	// Parse the state data
+	parser := parsers.NewTerraformParser()
+	sourceName := fmt.Sprintf("s3://%s/%s", req.Bucket, req.Key)
+	result, err := parser.ParseStateData(data, sourceName)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Failed to parse state file: %v", err)})
+		return
+	}
+
+	// Extract a short name from the key for the diagram
+	parts := strings.Split(req.Key, "/")
+	name := parts[len(parts)-1]
+	if name == "" && len(parts) > 1 {
+		name = parts[len(parts)-2]
+	}
+	result.Diagram.Name = fmt.Sprintf("S3: %s", name)
+	result.ScanConfig.InputPath = sourceName
+
+	// Set as active diagram
+	s.mu.Lock()
+	s.diagram = result
+	s.cachedDiagram = nil
+	s.mu.Unlock()
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":          true,
+		"message":          fmt.Sprintf("Loaded state from %s", sourceName),
+		"resource_count":   len(result.Diagram.Resources),
+		"connection_count": len(result.Diagram.Connections),
+	})
+}
+
+// strPtr returns a pointer to the given string.
+func strPtr(s string) *string {
+	return &s
 }

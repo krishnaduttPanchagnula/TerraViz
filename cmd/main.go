@@ -242,20 +242,25 @@ func printComparisonDetails(c *models.ComparisonResult) {
 var serveCmd = &cobra.Command{
 	Use:   "serve [diagram-file]",
 	Short: "Serve interactive diagram locally",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		printHeader()
-		fmt.Println(infoStyle.Render("Starting web server for diagram: " + args[0]))
 
 		port, _ := cmd.Flags().GetInt("port")
 		host, _ := cmd.Flags().GetString("host")
 
 		webServer := server.NewServer(host, port)
-		if err := webServer.LoadDiagram(args[0]); err != nil {
-			fatalf("Error loading diagram: %v", err)
+
+		if len(args) == 1 {
+			fmt.Println(infoStyle.Render("Starting web server for diagram: " + args[0]))
+			if err := webServer.LoadDiagram(args[0]); err != nil {
+				fatalf("Error loading diagram: %v", err)
+			}
+			fmt.Printf("Diagram loaded successfully\n")
+		} else {
+			fmt.Println(infoStyle.Render("Starting web server without a diagram (use S3 import in the UI)"))
 		}
 
-		fmt.Printf("Diagram loaded successfully\n")
 		fmt.Printf("Open http://%s:%d in your browser\n", host, port)
 
 		if err := webServer.Start(); err != nil {

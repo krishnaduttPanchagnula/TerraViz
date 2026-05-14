@@ -5,7 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.title}} - {{.diagram_name}}</title>
     <style>
-        /* Local Inter font (variable, weights 300-700) */
+        /* Geist Sans — geometric sans-serif (CDN, variable weight) */
+        @font-face {
+            font-family: 'Geist';
+            font-style: normal;
+            font-weight: 100 900;
+            font-display: swap;
+            src: url('https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/Geist-Variable.woff2') format('woff2');
+        }
+        /* Local Inter fallback (variable, weights 300-700) */
         @font-face {
             font-family: 'Inter';
             font-style: normal;
@@ -22,7 +30,7 @@
             src: url('/static/fonts/inter-latin.woff2') format('woff2');
             unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
         }
-        /* Local JetBrains Mono font (variable, weights 400-600) */
+        /* Local JetBrains Mono — data labels & code (variable, weights 400-600) */
         @font-face {
             font-family: 'JetBrains Mono';
             font-style: normal;
@@ -40,33 +48,80 @@
             unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
         }
         :root {
-            /* StackMap-inspired Design Tokens */
-            --sm-bg: #0a0a0f;
-            --sm-surface: #12121a;
-            --sm-surface-raised: #16161f;
-            --sm-border: rgba(255, 255, 255, 0.06);
-            --sm-border-hover: rgba(255, 255, 255, 0.10);
-            --sm-border-subtle: rgba(255, 255, 255, 0.04);
+            /* Developer-first Dark Dashboard Tokens */
+            --sm-font-sans: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+            --sm-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'Cascadia Code', monospace;
+
+            /* Matte black palette */
+            --sm-bg: #101010;
+            --sm-surface: #181818;
+            --sm-surface-raised: #1e1e1e;
+            --sm-border: rgba(255, 255, 255, 0.08);
+            --sm-border-hover: rgba(255, 255, 255, 0.14);
+            --sm-border-subtle: rgba(255, 255, 255, 0.05);
             --sm-primary: #4ADE80;
-            --sm-primary-glow: rgba(74, 222, 128, 0.15);
+            --sm-primary-glow: rgba(74, 222, 128, 0.12);
             --sm-secondary: #38BDF8;
             --sm-tertiary: #C084FC;
             --sm-warning: #FB923C;
             --sm-danger: #ef4444;
             --sm-danger-muted: rgba(239, 68, 68, 0.6);
-            --sm-text: #f5f5f7;
-            --sm-text-muted: rgba(245, 245, 247, 0.6);
-            --sm-text-faint: rgba(245, 245, 247, 0.3);
-            --sm-terminal-bg: #0d0d14;
-            --sm-spacing-unit: 8px;
+            --sm-text: #e8e8e8;
+            --sm-text-muted: rgba(232, 232, 232, 0.55);
+            --sm-text-faint: rgba(232, 232, 232, 0.28);
+            --sm-terminal-bg: #141414;
+
+            /* Dot-grid blueprint pattern */
+            --sm-grid-dot: rgba(255, 255, 255, 0.08);
+            --sm-grid-size: 20px;
+
+            /* Spacing scale (4px base) */
+            --sm-space-1: 4px;
+            --sm-space-2: 8px;
+            --sm-space-3: 12px;
+            --sm-space-4: 16px;
+            --sm-space-5: 20px;
+            --sm-space-6: 24px;
+            --sm-space-7: 32px;
+            --sm-space-8: 48px;
+            --sm-space-9: 64px;
+
+            /* Radius scale */
+            --sm-radius-xs: 3px;
             --sm-radius-sm: 6px;
             --sm-radius-md: 10px;
             --sm-radius-lg: 16px;
-            --sm-transition-fast: 120ms ease-out;
-            --sm-transition-normal: 180ms ease-out;
-            --sm-shadow-panel: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.03);
-            --sm-shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.04);
-            --sm-shadow-overlay: 0 24px 64px rgba(0, 0, 0, 0.55);
+
+            /* Font sizes */
+            --sm-text-xs: 10px;
+            --sm-text-sm: 11px;
+            --sm-text-md: 13px;
+            --sm-text-lg: 14px;
+            --sm-text-xl: 16px;
+            --sm-text-2xl: 18px;
+
+            /* Motion */
+            --sm-dur-fast: 120ms;
+            --sm-dur-base: 180ms;
+            --sm-dur-slow: 320ms;
+            --sm-ease: cubic-bezier(.2, 0, 0, 1);
+            --sm-ease-out: ease-out;
+            --sm-transition-fast: var(--sm-dur-fast) var(--sm-ease-out);
+            --sm-transition-normal: var(--sm-dur-base) var(--sm-ease-out);
+            --sm-transition-slow: var(--sm-dur-slow) var(--sm-ease);
+
+            /* Shadows (3-tier) */
+            --sm-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.03);
+            --sm-shadow-md: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.04);
+            --sm-shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.55);
+            --sm-shadow-glow-primary: 0 0 20px rgba(74, 222, 128, 0.25);
+            --sm-shadow-glow-secondary: 0 0 20px rgba(56, 189, 248, 0.2);
+
+            /* Legacy aliases (keep for backward compat) */
+            --sm-spacing-unit: var(--sm-space-2);
+            --sm-shadow-panel: var(--sm-shadow-sm);
+            --sm-shadow-elevated: var(--sm-shadow-md);
+            --sm-shadow-overlay: var(--sm-shadow-lg);
         }
 
         * {
@@ -75,14 +130,21 @@
             box-sizing: border-box;
         }
 
+        *, *::before, *::after {
+            border-color: var(--sm-border);
+        }
+
         html, body {
             overflow: hidden;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            letter-spacing: -0.01em;
-            line-height: 1.6;
+            font-family: var(--sm-font-sans);
+            letter-spacing: -0.011em;
+            line-height: 1.5;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
-            background: var(--sm-bg);
+            background:
+                radial-gradient(circle, var(--sm-grid-dot) 1px, transparent 1px),
+                var(--sm-bg);
+            background-size: var(--sm-grid-size) var(--sm-grid-size);
             color: var(--sm-text);
             height: 100vh;
         }
@@ -120,7 +182,7 @@
             padding: 40px 48px;
             border-radius: var(--sm-radius-lg);
             border: 1px solid var(--sm-border);
-            background: rgba(18, 18, 26, 0.8);
+            background: rgba(24, 24, 24, 0.85);
             box-shadow: var(--sm-shadow-overlay);
             backdrop-filter: blur(16px);
         }
@@ -166,7 +228,7 @@
             font-size: 11px;
             color: var(--sm-text-muted);
             text-align: center;
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--sm-font-mono);
         }
 
         @keyframes spin {
@@ -230,16 +292,85 @@
         /* Filter Sidebar */
         .filter-sidebar {
             width: 320px;
+            min-width: 200px;
+            max-width: 600px;
             background: var(--sm-surface);
             border-right: 1px solid var(--sm-border);
             display: flex;
             flex-direction: column;
             z-index: 50;
             transition: transform var(--sm-transition-normal);
+            position: relative;
+            overflow-y: auto;
+            overflow-x: hidden;
         }
 
         .filter-sidebar.collapsed {
             transform: translateX(-100%);
+        }
+
+        .sidebar-resize-handle {
+            position: absolute;
+            top: 0;
+            right: -3px;
+            width: 6px;
+            height: 100%;
+            cursor: col-resize;
+            z-index: 51;
+        }
+        .sidebar-resize-handle:hover,
+        .sidebar-resize-handle.active {
+            background: var(--sm-primary);
+            opacity: 0.4;
+        }
+
+        /* Collapsible sidebar sections */
+        .sidebar-section-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 16px;
+            cursor: pointer;
+            user-select: none;
+            border-bottom: 1px solid var(--sm-border);
+            transition: background var(--sm-transition-fast);
+        }
+        .sidebar-section-header:hover {
+            background: var(--sm-surface-raised);
+        }
+        .sidebar-section-header:active {
+            background: rgba(255, 255, 255, 0.03);
+        }
+        .sidebar-section-chevron {
+            font-size: 9px;
+            color: var(--sm-text-muted);
+            transition: transform var(--sm-dur-fast) var(--sm-ease);
+            width: 14px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .sidebar-section-chevron.expanded {
+            transform: rotate(90deg);
+        }
+        .sidebar-section-title {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--sm-text-muted);
+        }
+        .sidebar-section-body {
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transition: max-height 0.32s cubic-bezier(.2,0,0,1),
+                        opacity 0.24s ease,
+                        padding 0.32s cubic-bezier(.2,0,0,1);
+        }
+        .sidebar-section-body.expanded {
+            max-height: 2000px;
+            opacity: 1;
+            overflow: visible;
         }
 
         .sidebar-header {
@@ -268,7 +399,95 @@
         .search-input:focus {
             outline: none;
             border-color: var(--sm-primary);
-            box-shadow: 0 0 0 2px var(--sm-primary-glow);
+        }
+
+        .s3-import-btn {
+            width: 100%;
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: transparent;
+            border: 1px solid var(--sm-border);
+            border-radius: var(--sm-radius-sm);
+            color: var(--sm-secondary);
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background var(--sm-transition-fast), border-color var(--sm-transition-fast), transform var(--sm-dur-fast) var(--sm-ease), box-shadow var(--sm-transition-fast);
+        }
+        .s3-import-btn:hover {
+            background: var(--sm-surface-raised);
+            border-color: var(--sm-secondary);
+            box-shadow: var(--sm-shadow-glow-secondary);
+        }
+        .s3-import-btn:active {
+            transform: scale(0.97);
+            box-shadow: none;
+        }
+
+        /* S3 Files sidebar panel */
+        .s3-files-panel {
+            border-bottom: 1px solid var(--sm-border);
+        }
+        .s3-files-panel-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 12px;
+            cursor: pointer;
+            user-select: none;
+            transition: background var(--sm-transition-fast);
+        }
+        .s3-files-panel-header:hover {
+            background: var(--sm-surface-raised);
+        }
+        .s3-files-chevron {
+            font-size: 9px;
+            color: var(--sm-text-muted);
+            transition: transform 120ms ease;
+            width: 14px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .s3-files-chevron.expanded {
+            transform: rotate(90deg);
+        }
+        .s3-files-panel-title {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--sm-text-muted);
+        }
+        .s3-files-bucket-name {
+            flex: 1;
+            font-size: 11px;
+            color: var(--sm-text-faint);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-family: var(--sm-font-mono);
+        }
+        .s3-files-close {
+            background: none;
+            border: none;
+            color: var(--sm-text-faint);
+            font-size: 14px;
+            cursor: pointer;
+            padding: 0 4px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+        .s3-files-close:hover {
+            color: var(--sm-danger);
+            background: rgba(239, 68, 68, 0.1);
+        }
+        .s3-files-body {
+            display: none;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .s3-files-body.expanded {
+            display: block;
         }
 
         .search-input::placeholder {
@@ -418,6 +637,11 @@
 
         .resource-item:hover {
             background: var(--sm-surface-raised);
+            padding-left: 22px;
+        }
+
+        .resource-item:active {
+            background: rgba(255, 255, 255, 0.04);
         }
 
         .resource-item.selected {
@@ -435,7 +659,7 @@
         .resource-type {
             font-size: 11px;
             color: var(--sm-text-muted);
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--sm-font-mono);
         }
 
         .resource-tags {
@@ -466,64 +690,259 @@
             width: 100%;
             height: 100%;
             cursor: grab;
-            background: radial-gradient(circle at 20% 80%, rgba(74, 222, 128, 0.05) 0%, transparent 50%),
-                        radial-gradient(circle at 80% 20%, rgba(56, 189, 248, 0.05) 0%, transparent 50%),
-                        var(--sm-bg);
+            background:
+                radial-gradient(circle, var(--sm-grid-dot) 1px, transparent 1px),
+                var(--sm-bg);
+            background-size: var(--sm-grid-size) var(--sm-grid-size);
         }
 
         .diagram-canvas:active {
             cursor: grabbing;
         }
 
-        /* Controls */
-        .control-panel {
+        /* Empty state */
+        .empty-state {
             position: absolute;
-            top: 16px;
-            right: 16px;
+            inset: 0;
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            pointer-events: none;
+            opacity: 1;
+            transition: opacity 0.38s ease;
+        }
+        .empty-state.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .empty-state-card {
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            padding: 48px 56px;
+            border-radius: var(--sm-radius-lg);
+            border: 1px solid var(--sm-border);
+            background: rgba(24, 24, 24, 0.7);
+            backdrop-filter: blur(20px);
+            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+            max-width: 440px;
+            text-align: center;
+            animation: emptyStateIn 0.5s cubic-bezier(.2,0,0,1) both;
+        }
+        @keyframes emptyStateIn {
+            from { opacity: 0; transform: translateY(12px) scale(0.97); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .empty-state-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: var(--sm-primary-glow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            color: var(--sm-primary);
+            border: 1px solid rgba(74, 222, 128, 0.2);
+        }
+        .empty-state-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--sm-text);
+            line-height: 1.3;
+        }
+        .empty-state-desc {
+            font-size: 13px;
+            color: var(--sm-text-muted);
+            line-height: 1.6;
+            max-width: 340px;
+        }
+        .empty-state-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 4px;
+        }
+        .empty-state-btn {
+            padding: 10px 20px;
+            border-radius: var(--sm-radius-sm);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            border: none;
+        }
+        .empty-state-btn:active {
+            transform: scale(0.97);
+        }
+        .empty-state-btn--primary {
+            background: var(--sm-primary);
+            color: #000;
+        }
+        .empty-state-btn--primary:hover {
+            opacity: 0.88;
+            box-shadow: 0 0 20px rgba(74, 222, 128, 0.25);
+        }
+        .empty-state-btn--secondary {
+            background: transparent;
+            color: var(--sm-secondary);
+            border: 1px solid var(--sm-border);
+        }
+        .empty-state-btn--secondary:hover {
+            background: var(--sm-surface-raised);
+            border-color: var(--sm-secondary);
+        }
+        .empty-state-hint {
+            font-size: 11px;
+            color: var(--sm-text-faint);
+            margin-top: -8px;
+        }
+        .empty-state-hint kbd {
+            padding: 2px 6px;
+            background: var(--sm-surface-raised);
+            border: 1px solid var(--sm-border);
+            border-radius: 3px;
+            font-family: var(--sm-font-mono);
+            font-size: 10px;
+        }
+
+        /* Floating Toolbar */
+        .floating-toolbar {
+            position: absolute;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            padding: 6px 10px;
+            background: rgba(16, 16, 16, 0.9);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 999px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
             z-index: 100;
         }
 
-        .control-group {
-            display: flex;
-            gap: 4px;
-            background: var(--sm-surface);
-            border: 1px solid var(--sm-border);
-            border-radius: var(--sm-radius-sm);
-            padding: 4px;
-            box-shadow: var(--sm-shadow-panel);
-            backdrop-filter: blur(8px);
+        .toolbar-divider {
+            width: 1px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            margin: 0 4px;
         }
 
-        .control-btn {
-            width: 32px;
-            height: 32px;
+        .toolbar-btn {
+            width: 34px;
+            height: 34px;
             background: transparent;
             border: none;
-            border-radius: 4px;
-            color: var(--sm-text-muted);
+            border-radius: 50%;
+            color: rgba(255, 255, 255, 0.55);
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 14px;
             transition: all var(--sm-transition-fast);
+            position: relative;
         }
 
-        .control-btn:hover {
-            background: var(--sm-surface-raised);
-            color: var(--sm-text);
+        .toolbar-btn svg {
+            width: 18px;
+            height: 18px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
 
-        .control-btn:active {
-            transform: scale(0.95);
+        .toolbar-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.9);
         }
 
-        .control-btn.active {
-            background: var(--sm-primary-glow);
+        .toolbar-btn:active {
+            transform: scale(0.9);
+        }
+
+        .toolbar-btn.active {
             color: var(--sm-primary);
+        }
+
+        .toolbar-btn.diff-active {
+            color: #22c55e;
+        }
+
+        .toolbar-btn .toolbar-tooltip {
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 4px 8px;
+            background: rgba(0, 0, 0, 0.85);
+            color: rgba(255, 255, 255, 0.85);
+            font-family: var(--sm-font-sans);
+            font-size: 11px;
+            white-space: nowrap;
+            border-radius: var(--sm-radius-sm);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity var(--sm-transition-fast);
+        }
+
+        .toolbar-btn:hover .toolbar-tooltip {
+            opacity: 1;
+        }
+
+        /* Legend Popover */
+        .legend-popover {
+            position: absolute;
+            bottom: calc(100% + 12px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(16, 16, 16, 0.95);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: var(--sm-radius-md);
+            padding: var(--sm-space-4);
+            min-width: 200px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            display: none;
+            z-index: 101;
+        }
+
+        .legend-popover.visible {
+            display: block;
+        }
+
+        .legend-popover h4 {
+            margin: 0 0 var(--sm-space-3) 0;
+            font-family: var(--sm-font-sans);
+            font-size: 12px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.7);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: var(--sm-space-2);
+            padding: 3px 0;
+            font-family: var(--sm-font-sans);
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .legend-swatch {
+            width: 12px;
+            height: 3px;
+            border-radius: 2px;
         }
 
         /* Toggle Button */
@@ -550,6 +969,11 @@
         .sidebar-toggle:hover {
             background: var(--sm-surface-raised);
             color: var(--sm-text);
+            border-color: var(--sm-border-hover);
+        }
+
+        .sidebar-toggle:active {
+            transform: scale(0.93);
         }
 
         /* Minimap */
@@ -582,7 +1006,7 @@
         /* Presentation Mode */
         .presentation-mode .filter-sidebar,
         .presentation-mode .sidebar-toggle,
-        .presentation-mode .control-panel,
+        .presentation-mode .floating-toolbar,
         .presentation-mode .minimap {
             opacity: 0;
             pointer-events: none;
@@ -613,7 +1037,7 @@
         }
 
         .resource-label {
-            font-family: 'Inter', sans-serif;
+            font-family: var(--sm-font-sans);
             font-size: 11px;
             fill: #f5f5f7;
             text-anchor: middle;
@@ -767,13 +1191,17 @@
             font-size: 18px;
             cursor: pointer;
             padding: 4px;
-            border-radius: 4px;
-            transition: background-color 0.2s;
+            border-radius: var(--sm-radius-xs);
+            transition: background-color var(--sm-transition-fast), color var(--sm-transition-fast), transform var(--sm-dur-fast) var(--sm-ease);
         }
 
         .close-btn:hover {
             background: var(--sm-border);
             color: var(--sm-text);
+        }
+
+        .close-btn:active {
+            transform: scale(0.9);
         }
 
         .resource-info {
@@ -802,7 +1230,7 @@
             font-size: 11px;
             color: var(--sm-text-muted);
             margin-bottom: 4px;
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--sm-font-mono);
         }
 
         .dependencies-section, .properties-section {
@@ -869,7 +1297,7 @@
         .dep-type {
             font-size: 9px;
             color: var(--sm-text-muted);
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--sm-font-mono);
         }
 
         .property-item {
@@ -882,12 +1310,12 @@
             font-weight: 500;
             color: var(--sm-text-muted);
             min-width: 100px;
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--sm-font-mono);
         }
 
         .prop-value {
             color: var(--sm-text);
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--sm-font-mono);
             word-break: break-word;
         }
 
@@ -923,6 +1351,229 @@
         .dimmed-connection {
             stroke-opacity: 0.08 !important;
         }
+
+        /* S3 Import Modal */
+        .s3-modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .s3-modal {
+            background: var(--sm-surface);
+            border: 1px solid var(--sm-border);
+            border-radius: var(--sm-radius-lg);
+            width: 560px;
+            max-height: 70vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--sm-shadow-overlay);
+        }
+        .s3-modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--sm-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .s3-modal-header h3 {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--sm-text);
+        }
+        .s3-modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 20px;
+        }
+        .s3-search-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .s3-search-input {
+            flex: 1;
+            padding: 8px 12px;
+            background: var(--sm-terminal-bg);
+            border: 1px solid var(--sm-border);
+            border-radius: var(--sm-radius-sm);
+            color: var(--sm-text);
+            font-size: 13px;
+            outline: none;
+        }
+        .s3-search-input:focus {
+            border-color: var(--sm-primary);
+        }
+        .s3-profile-input {
+            width: 140px;
+            padding: 8px 12px;
+            background: var(--sm-terminal-bg);
+            border: 1px solid var(--sm-border);
+            border-radius: var(--sm-radius-sm);
+            color: var(--sm-text);
+            font-size: 13px;
+            outline: none;
+        }
+        .s3-profile-input:focus {
+            border-color: var(--sm-primary);
+        }
+        .s3-list {
+            max-height: 320px;
+            overflow-y: auto;
+            border: 1px solid var(--sm-border-subtle);
+            border-radius: var(--sm-radius-sm);
+            background: var(--sm-terminal-bg);
+        }
+        .s3-list-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--sm-text);
+            border-bottom: 1px solid var(--sm-border-subtle);
+            transition: background var(--sm-transition-fast), padding-left var(--sm-transition-fast);
+        }
+        .s3-list-item:last-child { border-bottom: none; }
+        .s3-list-item:hover { background: var(--sm-surface-raised); padding-left: 14px; }
+        .s3-list-item:active { background: rgba(255, 255, 255, 0.04); }
+        .s3-list-item .s3-icon {
+            font-size: 14px;
+            width: 20px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .s3-list-item .s3-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-family: var(--sm-font-mono);
+            font-size: 12px;
+        }
+        .s3-list-item .s3-meta {
+            font-size: 11px;
+            color: var(--sm-text-muted);
+        }
+        .s3-empty {
+            padding: 24px;
+            text-align: center;
+            color: var(--sm-text-muted);
+            font-size: 13px;
+        }
+        .s3-action-btn {
+            margin-top: 12px;
+            width: 100%;
+            padding: 10px;
+            background: var(--sm-primary);
+            color: #000;
+            border: none;
+            border-radius: var(--sm-radius-sm);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity var(--sm-transition-fast), transform var(--sm-dur-fast) var(--sm-ease), box-shadow var(--sm-transition-fast);
+        }
+        .s3-action-btn:hover { opacity: 0.88; box-shadow: var(--sm-shadow-glow-primary); }
+        .s3-action-btn:active { transform: scale(0.97); box-shadow: none; }
+        .s3-action-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+        /* VSCode-style file tree */
+        .s3-file-tree {
+            max-height: 380px;
+            overflow-y: auto;
+            border: 1px solid var(--sm-border-subtle);
+            border-radius: var(--sm-radius-sm);
+            background: var(--sm-terminal-bg);
+            font-family: var(--sm-font-mono);
+            font-size: 12px;
+            user-select: none;
+        }
+        .s3-tree-node {
+            display: flex;
+            align-items: center;
+            height: 26px;
+            padding-right: 8px;
+            cursor: pointer;
+            color: var(--sm-text);
+            transition: background var(--sm-transition-fast);
+            white-space: nowrap;
+        }
+        .s3-tree-node:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+        .s3-tree-node.selected {
+            background: rgba(74, 222, 128, 0.10);
+        }
+        .s3-tree-node .indent {
+            flex-shrink: 0;
+        }
+        .s3-tree-node .chevron {
+            width: 18px;
+            text-align: center;
+            flex-shrink: 0;
+            font-size: 10px;
+            color: var(--sm-text-faint);
+            transition: transform 120ms ease;
+        }
+        .s3-tree-node .chevron.expanded {
+            transform: rotate(90deg);
+        }
+        .s3-tree-node .node-icon {
+            width: 18px;
+            text-align: center;
+            flex-shrink: 0;
+            font-size: 13px;
+        }
+        .s3-tree-node .node-icon.folder { color: #E8A838; }
+        .s3-tree-node .node-icon.folder.open { color: #D4922A; }
+        .s3-tree-node .node-icon.file-tf { color: #7B61FF; }
+        .s3-tree-node .node-icon.file-json { color: #F1C232; }
+        .s3-tree-node .node-icon.file-default { color: var(--sm-text-muted); }
+        .s3-tree-node .node-label {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-left: 4px;
+        }
+        .s3-tree-node .node-size {
+            font-size: 10px;
+            color: var(--sm-text-faint);
+            margin-left: 8px;
+            flex-shrink: 0;
+        }
+        .s3-tree-children {
+            display: none;
+        }
+        .s3-tree-children.expanded {
+            display: block;
+        }
+        .s3-tree-loading {
+            height: 26px;
+            display: flex;
+            align-items: center;
+            color: var(--sm-text-faint);
+            font-size: 11px;
+            padding-left: 36px;
+        }
+        .s3-tree-empty {
+            padding: 20px;
+            text-align: center;
+            color: var(--sm-text-muted);
+            font-size: 12px;
+        }
+        .s3-status {
+            padding: 12px 20px;
+            border-top: 1px solid var(--sm-border);
+            font-size: 12px;
+            color: var(--sm-text-muted);
+        }
+        .s3-status.error { color: var(--sm-danger); }
+        .s3-status.loading { color: var(--sm-secondary); }
     </style>
 </head>
 <body>
@@ -967,47 +1618,94 @@
         <main class="main-layout">
             <!-- Filter Sidebar -->
             <aside id="filter-sidebar" class="filter-sidebar">
-                <div class="sidebar-header">
-                    <div class="sidebar-title">Search & Filter</div>
+                <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+
+                <!-- Search & Filter (collapsible) -->
+                <div class="sidebar-section-header" onclick="toggleSidebarSection(this)">
+                    <span class="sidebar-section-chevron expanded">&#9654;</span>
+                    <span class="sidebar-section-title">Search & Filter</span>
+                </div>
+                <div class="sidebar-section-body expanded" style="padding:12px 16px; border-bottom:1px solid var(--sm-border);">
                     <input type="text" class="search-input" id="search-input" placeholder="Search resources...">
                 </div>
 
-                <div class="filter-section">
-                    <div class="filter-group">
-                        <label class="filter-label">Resource Type</label>
-                        <div class="searchable-dropdown" id="type-filter-dropdown">
-                            <input type="text" class="searchable-dropdown-input" placeholder="All Types" autocomplete="off">
-                            <span class="searchable-dropdown-arrow">▼</span>
-                            <ul class="searchable-dropdown-list"></ul>
-                        </div>
+                <!-- Files (collapsible) -->
+                <div class="sidebar-section-header" onclick="toggleSidebarSection(this)">
+                    <span class="sidebar-section-chevron expanded">&#9654;</span>
+                    <span class="sidebar-section-title">Files</span>
+                </div>
+                <div class="sidebar-section-body expanded" style="padding:12px 16px; border-bottom:1px solid var(--sm-border);">
+                    <div style="display:flex; gap:8px;">
+                        <button class="s3-import-btn" onclick="openS3Modal()" title="Import state from S3 bucket" style="margin-top:0;">Import from S3</button>
+                        <button class="s3-import-btn" onclick="document.getElementById('local-file-input').click()" title="Import state file from your computer" style="margin-top:0;">Import from PC</button>
                     </div>
-                    <div class="filter-group">
-                        <label class="filter-label">Provider</label>
-                        <div class="searchable-dropdown" id="provider-filter-dropdown">
-                            <input type="text" class="searchable-dropdown-input" placeholder="All Providers" autocomplete="off">
-                            <span class="searchable-dropdown-arrow">▼</span>
-                            <ul class="searchable-dropdown-list"></ul>
+                    <input type="file" id="local-file-input" accept=".tfstate,.json" style="display:none;" onchange="handleLocalFileUpload(this)">
+
+                    <!-- S3 Files Panel (shown after bucket selection) -->
+                    <div id="s3-files-panel" class="s3-files-panel" style="display:none; margin-top:10px; border:none; border-top:1px solid var(--sm-border); padding-top:8px;">
+                        <div class="s3-files-panel-header" onclick="toggleFilesPanel()">
+                            <span class="s3-files-chevron" id="s3-files-chevron">&#9654;</span>
+                            <span class="s3-files-panel-title">Files</span>
+                            <span class="s3-files-bucket-name" id="s3-files-bucket-name"></span>
+                            <button class="s3-files-close" onclick="event.stopPropagation(); closeFilesPanel()" title="Disconnect bucket">&times;</button>
                         </div>
-                    </div>
-                    <div class="filter-group">
-                        <label class="filter-label">Region</label>
-                        <div class="searchable-dropdown" id="region-filter-dropdown">
-                            <input type="text" class="searchable-dropdown-input" placeholder="All Regions" autocomplete="off">
-                            <span class="searchable-dropdown-arrow">▼</span>
-                            <ul class="searchable-dropdown-list"></ul>
-                        </div>
-                    </div>
-                    <div class="filter-group">
-                        <label class="filter-label">State</label>
-                        <div class="searchable-dropdown" id="state-filter-dropdown">
-                            <input type="text" class="searchable-dropdown-input" placeholder="All States" autocomplete="off">
-                            <span class="searchable-dropdown-arrow">▼</span>
-                            <ul class="searchable-dropdown-list"></ul>
+                        <div id="s3-files-body" class="s3-files-body">
+                            <input type="text" id="s3-files-search" class="s3-search-input" placeholder="Filter files..." style="margin:8px 12px;width:calc(100% - 24px);">
+                            <div id="s3-file-tree" class="s3-file-tree"></div>
                         </div>
                     </div>
                 </div>
 
-                <div class="resource-list" id="resource-list"></div>
+                <!-- Filters (collapsible) -->
+                <div class="sidebar-section-header" onclick="toggleSidebarSection(this)">
+                    <span class="sidebar-section-chevron expanded">&#9654;</span>
+                    <span class="sidebar-section-title">Filters</span>
+                </div>
+                <div class="sidebar-section-body expanded">
+                    <div class="filter-section">
+                        <div class="filter-group">
+                            <label class="filter-label">Resource Type</label>
+                            <div class="searchable-dropdown" id="type-filter-dropdown">
+                                <input type="text" class="searchable-dropdown-input" placeholder="All Types" autocomplete="off">
+                                <span class="searchable-dropdown-arrow">▼</span>
+                                <ul class="searchable-dropdown-list"></ul>
+                            </div>
+                        </div>
+                        <div class="filter-group">
+                            <label class="filter-label">Provider</label>
+                            <div class="searchable-dropdown" id="provider-filter-dropdown">
+                                <input type="text" class="searchable-dropdown-input" placeholder="All Providers" autocomplete="off">
+                                <span class="searchable-dropdown-arrow">▼</span>
+                                <ul class="searchable-dropdown-list"></ul>
+                            </div>
+                        </div>
+                        <div class="filter-group">
+                            <label class="filter-label">Region</label>
+                            <div class="searchable-dropdown" id="region-filter-dropdown">
+                                <input type="text" class="searchable-dropdown-input" placeholder="All Regions" autocomplete="off">
+                                <span class="searchable-dropdown-arrow">▼</span>
+                                <ul class="searchable-dropdown-list"></ul>
+                            </div>
+                        </div>
+                        <div class="filter-group">
+                            <label class="filter-label">State</label>
+                            <div class="searchable-dropdown" id="state-filter-dropdown">
+                                <input type="text" class="searchable-dropdown-input" placeholder="All States" autocomplete="off">
+                                <span class="searchable-dropdown-arrow">▼</span>
+                                <ul class="searchable-dropdown-list"></ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resources (collapsible) -->
+                <div class="sidebar-section-header" onclick="toggleSidebarSection(this)">
+                    <span class="sidebar-section-chevron expanded">&#9654;</span>
+                    <span class="sidebar-section-title">Resources</span>
+                </div>
+                <div class="sidebar-section-body expanded">
+                    <div class="resource-list" id="resource-list"></div>
+                </div>
             </aside>
 
             <!-- Canvas Container -->
@@ -1017,27 +1715,119 @@
                     <span>☰</span>
                 </button>
 
-                <!-- Controls -->
-                <div class="control-panel">
-                    <div class="control-group">
-                        <button class="control-btn" id="zoom-in" title="Zoom In">+</button>
-                        <button class="control-btn" id="zoom-out" title="Zoom Out">−</button>
-                        <button class="control-btn" id="fit-view" title="Fit to View">⌖</button>
-                        <button class="control-btn" id="reset-layout" title="Reset Layout">↻</button>
-                    </div>
-                    <div class="control-group">
-                        <button class="control-btn" id="toggle-labels" title="Toggle Labels (L)">Aa</button>
-                        <button class="control-btn" id="toggle-minimap" title="Toggle Minimap (M)">🗺</button>
-                        <button class="control-btn active" id="toggle-flow" title="Toggle Flow Animations (A)">〰</button>
-                        <button class="control-btn" id="presentation-mode" title="Presentation Mode (P)">📺</button>
-                    </div>
-                    <div class="control-group">
-                        <button class="control-btn" id="export-png" title="Export PNG">📷</button>
-                        <button class="control-btn" id="export-svg" title="Export SVG">🎨</button>
+                <!-- Floating Toolbar -->
+                <div class="floating-toolbar">
+                    <!-- Zoom In -->
+                    <button class="toolbar-btn" id="zoom-in" title="Zoom In">
+                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                        <span class="toolbar-tooltip">Zoom In</span>
+                    </button>
+                    <!-- Zoom Out -->
+                    <button class="toolbar-btn" id="zoom-out" title="Zoom Out">
+                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                        <span class="toolbar-tooltip">Zoom Out</span>
+                    </button>
+                    <!-- Fit/Reset View -->
+                    <button class="toolbar-btn" id="fit-view" title="Reset View">
+                        <svg viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+                        <span class="toolbar-tooltip">Reset View</span>
+                    </button>
+
+                    <div class="toolbar-divider"></div>
+
+                    <!-- Toggle Grid -->
+                    <button class="toolbar-btn active" id="toggle-grid" title="Toggle Grid">
+                        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                        <span class="toolbar-tooltip">Toggle Grid</span>
+                    </button>
+                    <!-- Toggle Labels -->
+                    <button class="toolbar-btn" id="toggle-labels" title="Toggle Labels">
+                        <svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M6 16l6-12 6 12"/><path d="M8 12h8"/></svg>
+                        <span class="toolbar-tooltip">Labels</span>
+                    </button>
+                    <!-- Toggle Minimap -->
+                    <button class="toolbar-btn" id="toggle-minimap" title="Toggle Minimap">
+                        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="12" y="12" width="7" height="7" rx="1" fill="currentColor" stroke="none" opacity="0.4"/></svg>
+                        <span class="toolbar-tooltip">Minimap</span>
+                    </button>
+                    <!-- Toggle Flow -->
+                    <button class="toolbar-btn active" id="toggle-flow" title="Toggle Flow Animations">
+                        <svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                        <span class="toolbar-tooltip">Flow</span>
+                    </button>
+
+                    <div class="toolbar-divider"></div>
+
+                    <!-- Legend -->
+                    <button class="toolbar-btn" id="toggle-legend" title="Legend">
+                        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="4" height="2" rx="1" fill="currentColor" stroke="none"/><line x1="10" y1="6" x2="21" y2="6"/><rect x="3" y="11" width="4" height="2" rx="1" fill="currentColor" stroke="none"/><line x1="10" y1="12" x2="21" y2="12"/><rect x="3" y="17" width="4" height="2" rx="1" fill="currentColor" stroke="none"/><line x1="10" y1="18" x2="21" y2="18"/></svg>
+                        <span class="toolbar-tooltip">Legend</span>
+                    </button>
+                    <!-- Deployment Diff -->
+                    <button class="toolbar-btn" id="deployment-diff" title="Deployment Diff">
+                        <svg viewBox="0 0 24 24"><path d="M6 3v12"/><circle cx="6" cy="18" r="3"/><path d="M18 9V3"/><circle cx="18" cy="12" r="3"/><path d="M18 15v6"/><path d="M6 6h6a3 3 0 0 1 3 3v0"/></svg>
+                        <span class="toolbar-tooltip">Deployment Diff</span>
+                    </button>
+
+                    <div class="toolbar-divider"></div>
+
+                    <!-- Export PNG -->
+                    <button class="toolbar-btn" id="export-png" title="Export PNG">
+                        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none"/><path d="M21 15l-5-5L5 21"/></svg>
+                        <span class="toolbar-tooltip">Export PNG</span>
+                    </button>
+                    <!-- Export SVG -->
+                    <button class="toolbar-btn" id="export-svg" title="Export SVG">
+                        <svg viewBox="0 0 24 24"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M9 15l2 2 4-4"/></svg>
+                        <span class="toolbar-tooltip">Export SVG</span>
+                    </button>
+                    <!-- Presentation Mode -->
+                    <button class="toolbar-btn" id="presentation-mode" title="Presentation Mode">
+                        <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                        <span class="toolbar-tooltip">Present</span>
+                    </button>
+
+                    <!-- Legend Popover -->
+                    <div class="legend-popover" id="legend-popover">
+                        <h4>Connection Types</h4>
+                        <div class="legend-item"><span class="legend-swatch" style="background: #3b82f6"></span> Networking</div>
+                        <div class="legend-item"><span class="legend-swatch" style="background: #f59e0b"></span> Access / IAM</div>
+                        <div class="legend-item"><span class="legend-swatch" style="background: #22c55e"></span> Data</div>
+                        <div class="legend-item"><span class="legend-swatch" style="background: #ef4444"></span> Trigger</div>
+                        <div class="legend-item"><span class="legend-swatch" style="background: #8b5cf6"></span> Dependency</div>
+                        <div class="legend-item"><span class="legend-swatch" style="background: #6b7280"></span> Reference</div>
                     </div>
                 </div>
 
                 <!-- Main Canvas -->
+                <!-- Empty state -->
+                <div id="empty-state" class="empty-state">
+                    <div class="empty-state-card">
+                        <div class="empty-state-icon">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+                                <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                                <line x1="12" y1="22.08" x2="12" y2="12"/>
+                            </svg>
+                        </div>
+                        <div class="empty-state-title">No infrastructure loaded</div>
+                        <div class="empty-state-desc">
+                            Import a Terraform state file to visualize your cloud architecture as an interactive diagram.
+                        </div>
+                        <div class="empty-state-actions">
+                            <button class="empty-state-btn empty-state-btn--primary" onclick="document.getElementById('local-file-input').click()">
+                                Import from PC
+                            </button>
+                            <button class="empty-state-btn empty-state-btn--secondary" onclick="openS3Modal()">
+                                Import from S3
+                            </button>
+                        </div>
+                        <div class="empty-state-hint">
+                            Supports <kbd>.tfstate</kbd> and <kbd>terraform show -json</kbd> output
+                        </div>
+                    </div>
+                </div>
+
                 <svg id="diagram-canvas" class="diagram-canvas"></svg>
 
                 <!-- Minimap -->
@@ -1049,6 +1839,27 @@
 
         <!-- Tooltip -->
         <div id="tooltip" class="tooltip"></div>
+
+        <!-- S3 Import Modal (bucket selection only) -->
+        <div id="s3-modal" class="s3-modal-overlay" style="display:none;">
+            <div class="s3-modal">
+                <div class="s3-modal-header">
+                    <h3 id="s3-modal-title">Import State from S3</h3>
+                    <button class="close-btn" onclick="closeS3Modal()">&times;</button>
+                </div>
+                <div class="s3-modal-body">
+                    <div class="s3-search-row">
+                        <input type="text" id="s3-bucket-search" class="s3-search-input" placeholder="Search buckets...">
+                        <input type="text" id="s3-profile" class="s3-profile-input" placeholder="AWS profile (optional)">
+                    </div>
+                    <div id="s3-bucket-list" class="s3-list">
+                        <div class="s3-empty">Click "Load Buckets" to fetch your S3 buckets.</div>
+                    </div>
+                    <button id="s3-load-buckets-btn" class="s3-action-btn" onclick="loadS3Buckets()">Load Buckets</button>
+                </div>
+                <div id="s3-status" class="s3-status" style="display:none;"></div>
+            </div>
+        </div>
     </div>
 
     <script src="/static/js/diagram_enhanced.js"></script>
@@ -1058,6 +1869,357 @@
         document.addEventListener('DOMContentLoaded', () => {
             diagram = new EnhancedDiagramViewer();
         });
+
+        // === S3 Import Logic ===
+        let s3State = { bucket: '', profile: '' };
+
+        // --- Local file upload ---
+        function handleLocalFileUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('statefile', file);
+            const btn = input.previousElementSibling; // the Import from PC button's container
+            fetch('/api/upload', { method: 'POST', body: formData })
+                .then(r => {
+                    if (!r.ok) return r.json().then(d => { throw new Error(d.error || 'Upload failed'); });
+                    return r.json();
+                })
+                .then(data => {
+                    input.value = ''; // reset so same file can be re-selected
+                    if (window.diagram && typeof window.diagram.reloadDiagram === 'function') {
+                        window.diagram.reloadDiagram();
+                    } else {
+                        window.location.reload();
+                    }
+                })
+                .catch(err => {
+                    input.value = '';
+                    alert('Upload failed: ' + err.message);
+                });
+        }
+
+        // --- Modal (bucket selection only) ---
+        function openS3Modal() {
+            document.getElementById('s3-modal').style.display = 'flex';
+        }
+
+        function closeS3Modal() {
+            document.getElementById('s3-modal').style.display = 'none';
+            hideS3Status();
+        }
+
+        function showS3Status(msg, type) {
+            const el = document.getElementById('s3-status');
+            el.style.display = '';
+            el.className = 's3-status ' + (type || '');
+            el.textContent = msg;
+        }
+
+        function hideS3Status() {
+            document.getElementById('s3-status').style.display = 'none';
+        }
+
+        function getS3Profile() {
+            return s3State.profile || '';
+        }
+
+        async function loadS3Buckets() {
+            showS3Status('Loading buckets...', 'loading');
+            const profile = document.getElementById('s3-profile').value.trim();
+            s3State.profile = profile;
+            const params = new URLSearchParams();
+            if (profile) params.set('profile', profile);
+
+            try {
+                const resp = await fetch('/api/s3/buckets?' + params.toString());
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'Failed to load buckets');
+
+                renderBucketList(data.buckets || []);
+                hideS3Status();
+            } catch (e) {
+                showS3Status(e.message, 'error');
+            }
+        }
+
+        function renderBucketList(buckets) {
+            const list = document.getElementById('s3-bucket-list');
+            const search = document.getElementById('s3-bucket-search');
+
+            function render(filter) {
+                const filtered = filter
+                    ? buckets.filter(b => b.name.toLowerCase().includes(filter.toLowerCase()))
+                    : buckets;
+
+                if (filtered.length === 0) {
+                    list.innerHTML = '<div class="s3-empty">No buckets found.</div>';
+                    return;
+                }
+
+                list.innerHTML = filtered.map(b =>
+                    `<div class="s3-list-item" onclick="selectBucket('${b.name}')">
+                        <span class="s3-icon">&#128230;</span>
+                        <span class="s3-name">${b.name}</span>
+                        <span class="s3-meta">${b.created_at ? new Date(b.created_at).toLocaleDateString() : ''}</span>
+                    </div>`
+                ).join('');
+            }
+
+            render('');
+            search.oninput = () => render(search.value);
+        }
+
+        // --- Bucket selected: close modal, open sidebar Files panel ---
+        async function selectBucket(bucket) {
+            s3State.bucket = bucket;
+            closeS3Modal();
+
+            // Show the sidebar Files panel
+            const panel = document.getElementById('s3-files-panel');
+            panel.style.display = '';
+            document.getElementById('s3-files-bucket-name').textContent = bucket;
+
+            // Expand it
+            const body = document.getElementById('s3-files-body');
+            const chevron = document.getElementById('s3-files-chevron');
+            body.classList.add('expanded');
+            chevron.classList.add('expanded');
+
+            // Load root tree
+            const tree = document.getElementById('s3-file-tree');
+            tree.innerHTML = '<div class="s3-tree-loading">Loading...</div>';
+            await loadTreeLevel(tree, '');
+
+            // Wire up filter
+            const searchInput = document.getElementById('s3-files-search');
+            searchInput.value = '';
+            searchInput.oninput = () => filterTree(searchInput.value);
+        }
+
+        // --- Files panel collapse/expand ---
+        function toggleFilesPanel() {
+            const body = document.getElementById('s3-files-body');
+            const chevron = document.getElementById('s3-files-chevron');
+            body.classList.toggle('expanded');
+            chevron.classList.toggle('expanded');
+        }
+
+        function closeFilesPanel() {
+            document.getElementById('s3-files-panel').style.display = 'none';
+            document.getElementById('s3-file-tree').innerHTML = '';
+            s3State.bucket = '';
+        }
+
+        // --- Tree rendering ---
+        function fileIcon(name) {
+            if (name.endsWith('.tfstate') || name.endsWith('.tf')) return { cls: 'file-tf', ch: '\u25A8' };
+            if (name.endsWith('.json')) return { cls: 'file-json', ch: '\u25A3' };
+            return { cls: 'file-default', ch: '\u25A1' };
+        }
+
+        async function loadTreeLevel(container, prefix) {
+            const params = new URLSearchParams({ bucket: s3State.bucket, prefix });
+            const profile = getS3Profile();
+            if (profile) params.set('profile', profile);
+
+            try {
+                const resp = await fetch('/api/s3/objects?' + params.toString());
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'Failed to list objects');
+
+                const objects = data.objects || [];
+                container.innerHTML = '';
+
+                if (objects.length === 0) {
+                    container.innerHTML = '<div class="s3-tree-empty">Empty</div>';
+                    return;
+                }
+
+                const depth = prefix ? prefix.split('/').filter(Boolean).length : 0;
+                const indentPx = depth * 16;
+
+                for (const obj of objects) {
+                    const displayName = obj.key.replace(prefix, '').replace(/\/$/, '');
+
+                    if (obj.is_folder) {
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 's3-tree-folder';
+                        wrapper.dataset.key = obj.key;
+                        wrapper.dataset.name = displayName.toLowerCase();
+
+                        const row = document.createElement('div');
+                        row.className = 's3-tree-node';
+                        row.innerHTML =
+                            `<span class="indent" style="width:${indentPx}px"></span>` +
+                            `<span class="chevron">&#9654;</span>` +
+                            `<span class="node-icon folder">&#128193;</span>` +
+                            `<span class="node-label">${displayName}</span>`;
+
+                        const children = document.createElement('div');
+                        children.className = 's3-tree-children';
+
+                        row.onclick = () => toggleFolder(row, children, obj.key);
+
+                        wrapper.appendChild(row);
+                        wrapper.appendChild(children);
+                        container.appendChild(wrapper);
+                    } else {
+                        const icon = fileIcon(displayName);
+                        const row = document.createElement('div');
+                        row.className = 's3-tree-node';
+                        row.dataset.key = obj.key;
+                        row.dataset.name = displayName.toLowerCase();
+                        row.innerHTML =
+                            `<span class="indent" style="width:${indentPx}px"></span>` +
+                            `<span class="chevron"></span>` +
+                            `<span class="node-icon ${icon.cls}">${icon.ch}</span>` +
+                            `<span class="node-label">${displayName}</span>` +
+                            `<span class="node-size">${formatBytes(obj.size)}</span>`;
+
+                        row.onclick = () => {
+                            document.querySelectorAll('.s3-tree-node.selected').forEach(el => el.classList.remove('selected'));
+                            row.classList.add('selected');
+                            loadStateFromS3(obj.key);
+                        };
+
+                        container.appendChild(row);
+                    }
+                }
+            } catch (e) {
+                container.innerHTML = `<div class="s3-tree-empty" style="color:var(--sm-danger)">${e.message}</div>`;
+            }
+        }
+
+        async function toggleFolder(row, childrenContainer, prefix) {
+            const chevron = row.querySelector('.chevron');
+            const icon = row.querySelector('.node-icon');
+            const isExpanded = childrenContainer.classList.contains('expanded');
+
+            if (isExpanded) {
+                childrenContainer.classList.remove('expanded');
+                chevron.classList.remove('expanded');
+                icon.classList.remove('open');
+                icon.innerHTML = '&#128193;';
+            } else {
+                if (childrenContainer.children.length === 0) {
+                    childrenContainer.innerHTML = '<div class="s3-tree-loading">Loading...</div>';
+                    childrenContainer.classList.add('expanded');
+                    chevron.classList.add('expanded');
+                    icon.classList.add('open');
+                    icon.innerHTML = '&#128194;';
+                    await loadTreeLevel(childrenContainer, prefix);
+                } else {
+                    childrenContainer.classList.add('expanded');
+                    chevron.classList.add('expanded');
+                    icon.classList.add('open');
+                    icon.innerHTML = '&#128194;';
+                }
+            }
+        }
+
+        function filterTree(query) {
+            const tree = document.getElementById('s3-file-tree');
+            const q = query.toLowerCase().trim();
+
+            if (!q) {
+                tree.querySelectorAll('.s3-tree-node, .s3-tree-folder').forEach(el => {
+                    el.style.display = '';
+                });
+                return;
+            }
+
+            tree.querySelectorAll('.s3-tree-folder').forEach(folder => {
+                const name = folder.dataset.name || '';
+                const childNodes = folder.querySelectorAll('.s3-tree-node[data-name]');
+                let anyChildMatch = false;
+                childNodes.forEach(f => {
+                    const n = f.dataset.name || '';
+                    if (n.includes(q)) { f.style.display = ''; anyChildMatch = true; }
+                    else { f.style.display = 'none'; }
+                });
+                folder.style.display = (name.includes(q) || anyChildMatch) ? '' : 'none';
+            });
+
+            tree.querySelectorAll(':scope > .s3-tree-node[data-name]').forEach(node => {
+                const name = node.dataset.name || '';
+                node.style.display = name.includes(q) ? '' : 'none';
+            });
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        async function loadStateFromS3(key) {
+            const profile = getS3Profile();
+            const body = { bucket: s3State.bucket, key: key };
+            if (profile) body.profile = profile;
+
+            // Show loading in the selected node
+            const selectedNode = document.querySelector('.s3-tree-node.selected .node-label');
+            const origText = selectedNode ? selectedNode.textContent : '';
+            if (selectedNode) selectedNode.textContent = 'Loading...';
+
+            try {
+                const resp = await fetch('/api/s3/load', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'Failed to load state');
+
+                // Reload diagram in place without losing sidebar state
+                await diagram.reloadDiagram();
+                if (selectedNode) selectedNode.textContent = origText;
+            } catch (e) {
+                if (selectedNode) selectedNode.textContent = origText;
+                alert('Error: ' + e.message);
+            }
+        }
+        // === Collapsible sidebar sections ===
+        function toggleSidebarSection(headerEl) {
+            const chevron = headerEl.querySelector('.sidebar-section-chevron');
+            const body = headerEl.nextElementSibling;
+            chevron.classList.toggle('expanded');
+            body.classList.toggle('expanded');
+        }
+
+        // === Sidebar resize ===
+        (function() {
+            const handle = document.getElementById('sidebar-resize-handle');
+            const sidebar = document.getElementById('filter-sidebar');
+            let dragging = false;
+
+            handle.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                dragging = true;
+                handle.classList.add('active');
+                sidebar.style.transition = 'none';
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!dragging) return;
+                const newWidth = Math.min(600, Math.max(200, e.clientX));
+                sidebar.style.width = newWidth + 'px';
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (!dragging) return;
+                dragging = false;
+                handle.classList.remove('active');
+                sidebar.style.transition = '';
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            });
+        })();
     </script>
 </body>
 </html>
