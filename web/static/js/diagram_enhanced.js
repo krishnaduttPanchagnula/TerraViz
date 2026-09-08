@@ -8,28 +8,41 @@ const ZOOM_MAX = 5;
 const ZOOM_FACTOR_IN = 1.1;
 const ZOOM_FACTOR_OUT = 0.9;
 
-const NODE_RADIUS = 22;
-const GLOW_RING_RADIUS = 28;
-const ICON_OFFSET = 14; // half of icon dimension (28/2)
-const ICON_SIZE = 28;
+const NODE_RADIUS = 40;
+const GLOW_RING_RADIUS = 50;
+const ICON_OFFSET = 24; // half of icon dimension (48/2)
+const ICON_SIZE = 48;
 
-const LABEL_Y_OFFSET = 40;
-const TYPE_LABEL_Y_OFFSET = 54;
-const LABEL_MAX_CHARS = 18;
-const TYPE_LABEL_MAX_CHARS = 22;
+// Rectangular card dimensions for AWS-style node rendering
+const NODE_CARD_W = 110;
+const NODE_CARD_H = 90;
+const NODE_CARD_RX = 10;
+const NODE_ICON_Y = -18; // icon center Y offset within card (upper portion)
+
+const LABEL_Y_OFFSET = 22;
+const TYPE_LABEL_Y_OFFSET = 36;
+const LABEL_MAX_CHARS = 14;
+const TYPE_LABEL_MAX_CHARS = 20;
 const TYPE_LABEL_FONT_SIZE = "9";
-const TYPE_LABEL_COLOR = "rgba(245, 245, 247, 0.3)";
+const TYPE_LABEL_COLOR = "rgba(245, 245, 247, 0.6)";
 const TYPE_LABEL_FONT = "'JetBrains Mono', monospace";
+
+// Layer label badge dimensions
+const LAYER_LABEL_H = 24;
+const LAYER_LABEL_RX = 6;
+const LAYER_LABEL_FONT_SIZE = 11;
+const LAYER_LABEL_PAD_X = 10;
+const LAYER_LABEL_PAD_Y = 8;
 
 const LAYOUT_PADDING_X = 40;
 const LAYOUT_PADDING_Y = 50;
-const LAYOUT_GAP = 60;
-const SUBGROUP_PADDING_X = 20;
-const SUBGROUP_PADDING_Y = 36;
-const SUBGROUP_GAP = 20;
-const NODE_SPACING_X = 160;
-const NODE_SPACING_Y = 110;
-const NODES_PER_ROW = 5;
+const LAYOUT_GAP = 80;
+const SUBGROUP_PADDING_X = 30;
+const SUBGROUP_PADDING_Y = 50;
+const SUBGROUP_GAP = 30;
+const NODE_SPACING_X = 150;
+const NODE_SPACING_Y = 140;
+const NODES_PER_ROW = 4;
 const LAYOUT_MIN_CANVAS_WIDTH = 1400;
 const LAYOUT_START_Y = 80;
 
@@ -37,7 +50,7 @@ const GRID_SPACING = 180;
 const GRID_MIN_COLS = 4;
 const GRID_START_X = 100;
 const GRID_START_Y = 150;
-const GRID_ROW_HEIGHT = 150;
+const GRID_ROW_HEIGHT = 160;
 
 const MINIMAP_WIDTH = 200;
 const MINIMAP_HEIGHT = 120;
@@ -61,12 +74,12 @@ const FLOW_DOT_SHORT_DUR = "1.5s";
 const FLOW_DOT_LONG_DUR = "2.5s";
 const FLOW_LONG_DIST = 300;
 
-const LAYER_BOX_PAD = 30;
+const LAYER_BOX_PAD = 40;
 const LAYER_BOX_EXTRA_X = 50;
 const LAYER_BOX_EXTRA_Y = 30;
 const LAYER_BOX_MIN_W = 200;
 const LAYER_BOX_MIN_H = 120;
-const SUBGROUP_BOX_PAD = 18;
+const SUBGROUP_BOX_PAD = 24;
 const SUBGROUP_BOX_EXTRA_X = 40;
 const SUBGROUP_BOX_EXTRA_Y = 20;
 const SUBGROUP_BOX_MIN_W = 140;
@@ -75,7 +88,7 @@ const SUBGROUP_BOX_MIN_H = 80;
 const CONN_CLOSE_DIST = 200;
 const CONN_MED_DIST = 500;
 const CONN_CURVE_FACTOR = 0.2;
-const CONN_ELBOW_RADIUS = 16;
+const CONN_ELBOW_RADIUS = 12;
 
 const EXPORT_SCALE = 2;
 const EXPORT_BG_COLOR = "#0a0a0f";
@@ -272,7 +285,7 @@ class EnhancedDiagramViewer {
     this.selectedResource = null;
     this.showLabels = true;
     this.showMinimap = true;
-    this.showFlowAnimations = true;
+    this.showFlowAnimations = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.presentationMode = false;
     this.sidebarCollapsed = false;
 
@@ -343,26 +356,26 @@ class EnhancedDiagramViewer {
       },
     };
 
-    // AWS Service Groups (organized by actual AWS services)
+    // AWS Service Groups (organized by actual AWS services, distinct colors)
     this.layers = {
       ec2: { name: "EC2", color: "#FF9900", resources: [], subgroups: {} },
-      ecs: { name: "ECS", color: "#FF9900", resources: [], subgroups: {} },
-      ecr: { name: "ECR", color: "#FF9900", resources: [], subgroups: {} },
+      ecs: { name: "ECS", color: "#ED7100", resources: [], subgroups: {} },
+      ecr: { name: "ECR", color: "#E86100", resources: [], subgroups: {} },
       lambda: {
         name: "Lambda",
-        color: "#FF9900",
+        color: "#F59E0B",
         resources: [],
         subgroups: {},
       },
       apigateway: {
         name: "API Gateway",
-        color: "#FF9900",
+        color: "#A855F7",
         resources: [],
         subgroups: {},
       },
       elb: {
         name: "Load Balancer",
-        color: "#FF9900",
+        color: "#8B5CF6",
         resources: [],
         subgroups: {},
       },
@@ -370,12 +383,12 @@ class EnhancedDiagramViewer {
       rds: { name: "RDS", color: "#3F48CC", resources: [], subgroups: {} },
       dynamodb: {
         name: "DynamoDB",
-        color: "#3F48CC",
+        color: "#2563EB",
         resources: [],
         subgroups: {},
       },
       sns: { name: "SNS", color: "#B7CA9D", resources: [], subgroups: {} },
-      sqs: { name: "SQS", color: "#B7CA9D", resources: [], subgroups: {} },
+      sqs: { name: "SQS", color: "#D97706", resources: [], subgroups: {} },
       logs: {
         name: "CloudWatch Logs",
         color: "#759C3E",
@@ -384,11 +397,11 @@ class EnhancedDiagramViewer {
       },
       cloudwatch: {
         name: "CloudWatch",
-        color: "#759C3E",
+        color: "#5B9A42",
         resources: [],
         subgroups: {},
       },
-      iam: { name: "IAM", color: "#FF9900", resources: [], subgroups: {} },
+      iam: { name: "IAM", color: "#DD344C", resources: [], subgroups: {} },
       vpc: { name: "VPC", color: "#248814", resources: [], subgroups: {} },
       route53: {
         name: "Route 53",
@@ -398,20 +411,20 @@ class EnhancedDiagramViewer {
       },
       acm: {
         name: "Certificate Manager",
-        color: "#759C3E",
+        color: "#0EA5E9",
         resources: [],
         subgroups: {},
       },
-      waf: { name: "WAF", color: "#FF9900", resources: [], subgroups: {} },
+      waf: { name: "WAF", color: "#E11D48", resources: [], subgroups: {} },
       secretsmanager: {
         name: "Secrets Manager",
-        color: "#FF9900",
+        color: "#DC2626",
         resources: [],
         subgroups: {},
       },
       servicediscovery: {
         name: "Service Discovery",
-        color: "#FF9900",
+        color: "#E5729D",
         resources: [],
         subgroups: {},
       },
@@ -429,37 +442,37 @@ class EnhancedDiagramViewer {
       },
       database: {
         name: "Database",
-        color: "#3F48CC",
+        color: "#4338CA",
         resources: [],
         subgroups: {},
       },
       "management-governance": {
         name: "Management & Governance",
-        color: "#B7CA9D",
+        color: "#64748B",
         resources: [],
         subgroups: {},
       },
       storage: {
         name: "Storage",
-        color: "#3F891A",
+        color: "#16A34A",
         resources: [],
         subgroups: {},
       },
       compute: {
         name: "Compute",
-        color: "#FF9900",
+        color: "#EA580C",
         resources: [],
         subgroups: {},
       },
       "networking-content-delivery": {
         name: "Networking & Content Delivery",
-        color: "#248814",
+        color: "#059669",
         resources: [],
         subgroups: {},
       },
       "security-identity-compliance": {
         name: "Security & Compliance",
-        color: "#E01515",
+        color: "#BE123C",
         resources: [],
         subgroups: {},
       },
@@ -590,6 +603,22 @@ class EnhancedDiagramViewer {
     this.svg.setAttribute("viewBox", `0 0 ${this.width} ${this.height}`);
 
     this.minimapSvg = document.getElementById("minimap-canvas");
+
+    // Interactive minimap: click to navigate
+    this.minimapSvg.addEventListener("click", (e) => {
+      if (!this._minimapTransform || this.resources.length === 0) return;
+      const rect = this.minimapSvg.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+      const { minX, minY, scale } = this._minimapTransform;
+      // Convert minimap click to diagram coordinates
+      const diagramX = (clickX - 10) / scale + minX;
+      const diagramY = (clickY - 10) / scale + minY;
+      // Center the view on the clicked point
+      this.panX = this.width / 2 - diagramX * this.zoom;
+      this.panY = this.height / 2 - diagramY * this.zoom;
+      this.updateTransform();
+    });
 
     this.svg.addEventListener("mousedown", this.onMouseDown.bind(this));
     this.svg.addEventListener("mousemove", this.onMouseMove.bind(this));
@@ -812,6 +841,14 @@ class EnhancedDiagramViewer {
 
   // ─── Layout ────────────────────────────────────────────────────────
 
+  /**
+   * Container-first hierarchical grid layout (AWS architecture diagram style).
+   *
+   * 1. Compute grid dimensions for each subgroup
+   * 2. Lay out subgroups side-by-side within each layer
+   * 3. Position resources at grid cells within their subgroup
+   * 4. Layers stack top-to-bottom
+   */
   autoLayout() {
     const canvasWidth = Math.max(this.width, LAYOUT_MIN_CANVAS_WIDTH);
 
@@ -830,7 +867,7 @@ class EnhancedDiagramViewer {
 
       const subgroupKeys = Object.keys(layer.subgroups);
 
-      // First pass: compute dimensions of each sub-group
+      // First pass: compute grid dimensions for each sub-group
       const sgLayouts = {};
       subgroupKeys.forEach((sgKey) => {
         const sgResources = layer.subgroups[sgKey].resources;
@@ -848,7 +885,7 @@ class EnhancedDiagramViewer {
         };
       });
 
-      // Second pass: place sub-groups side by side (wrapping if wider than canvas)
+      // Second pass: lay out sub-groups side by side, wrapping when too wide
       const maxLayerWidth = canvasWidth - LAYOUT_PADDING_X * 2;
       let rowX = LAYOUT_PADDING_X;
       let rowY = currentY + LAYOUT_PADDING_Y;
@@ -857,7 +894,7 @@ class EnhancedDiagramViewer {
       subgroupKeys.forEach((sgKey) => {
         const sg = sgLayouts[sgKey];
 
-        // Wrap to next row if needed
+        // Wrap to next row if this subgroup would overflow
         if (
           rowX + sg.innerW > LAYOUT_PADDING_X + maxLayerWidth &&
           rowX > LAYOUT_PADDING_X
@@ -867,11 +904,11 @@ class EnhancedDiagramViewer {
           rowMaxH = 0;
         }
 
-        // Store layout position
+        // Store subgroup position
         sg.x = rowX;
         sg.y = rowY;
 
-        // Position each resource within the sub-group
+        // Position each resource within the sub-group grid
         sg.resources.forEach((resource, idx) => {
           const col = idx % NODES_PER_ROW;
           const row = Math.floor(idx / NODES_PER_ROW);
@@ -917,7 +954,8 @@ class EnhancedDiagramViewer {
   // ─── Rendering ─────────────────────────────────────────────────────
 
   renderDiagram() {
-    this.svg.innerHTML = "";
+    // Clear SVG using DOM API instead of innerHTML (proper SVG namespace handling)
+    while (this.svg.firstChild) this.svg.removeChild(this.svg.firstChild);
 
     const defsGroup = svgEl("defs");
     const connectionsGroup = svgEl("g");
@@ -1026,7 +1064,7 @@ class EnhancedDiagramViewer {
         LAYER_BOX_PAD +
         LAYER_BOX_EXTRA_Y;
 
-      // Outer service box
+      // Outer service box — dashed border (AWS architecture style)
       const serviceBox = svgEl("rect", {
         x: minX,
         y: minY,
@@ -1035,25 +1073,46 @@ class EnhancedDiagramViewer {
         fill: `url(#gradient-${layerKey})`,
         stroke: layer.color,
         "stroke-width": "1.5",
-        "stroke-opacity": "0.35",
+        "stroke-opacity": "0.5",
+        "stroke-dasharray": "8,4",
         rx: "14",
       });
       layersGroup.appendChild(serviceBox);
 
-      // Service label (top-left)
-      const serviceLabel = svgEl("text", {
-        x: minX + 16,
-        y: minY + 18,
+      // Service label badge — colored pill at top-left
+      const labelText = layer.name.toUpperCase();
+      const labelWidth =
+        labelText.length * 7.5 + LAYER_LABEL_PAD_X * 2;
+
+      const labelBadge = svgEl("rect", {
+        x: minX + 8,
+        y: minY + 6,
+        width: labelWidth,
+        height: LAYER_LABEL_H,
+        rx: LAYER_LABEL_RX,
         fill: layer.color,
-        "font-size": "13",
+        "fill-opacity": "0.15",
+        stroke: layer.color,
+        "stroke-width": "1",
+        "stroke-opacity": "0.3",
+      });
+      layersGroup.appendChild(labelBadge);
+
+      const serviceLabel = svgEl("text", {
+        x: minX + 8 + labelWidth / 2,
+        y: minY + 6 + LAYER_LABEL_H / 2 + 1,
+        fill: layer.color,
+        "font-size": String(LAYER_LABEL_FONT_SIZE),
         "font-weight": "700",
         "font-family": "'Inter', sans-serif",
+        "text-anchor": "middle",
+        "dominant-baseline": "central",
         opacity: "0.9",
       });
-      serviceLabel.textContent = layer.name.toUpperCase();
+      serviceLabel.textContent = labelText;
       layersGroup.appendChild(serviceLabel);
 
-      // Inner sub-group boxes
+      // Inner sub-group boxes — solid border (contrast with dashed outer)
       if (layer.subgroups) {
         Object.entries(layer.subgroups).forEach(([sgKey, sg]) => {
           const sgVisible = sg.resources.filter((r) => filteredSet.has(r));
@@ -1082,11 +1141,10 @@ class EnhancedDiagramViewer {
             width: Math.max(sgMaxX - sgMinX, SUBGROUP_BOX_MIN_W),
             height: Math.max(sgMaxY - sgMinY, SUBGROUP_BOX_MIN_H),
             fill: layer.color,
-            "fill-opacity": "0.04",
+            "fill-opacity": "0.06",
             stroke: layer.color,
             "stroke-width": "1",
-            "stroke-opacity": "0.2",
-            "stroke-dasharray": "5,3",
+            "stroke-opacity": "0.3",
             rx: "8",
           });
           layersGroup.appendChild(sgBox);
@@ -1094,12 +1152,12 @@ class EnhancedDiagramViewer {
           // Sub-group label
           const sgLabel = svgEl("text", {
             x: sgMinX + 10,
-            y: sgMinY + 14,
+            y: sgMinY + 16,
             fill: layer.color,
-            "font-size": "9",
+            "font-size": "10",
             "font-weight": "600",
             "font-family": TYPE_LABEL_FONT,
-            opacity: "0.55",
+            opacity: "0.7",
             "letter-spacing": "0.8",
           });
           sgLabel.textContent = sgKey.toUpperCase();
@@ -1112,6 +1170,23 @@ class EnhancedDiagramViewer {
   renderConnections(connectionsGroup) {
     // Build a Set of filtered resource IDs for fast membership checks
     const filteredIds = new Set(this.filteredResources.map((r) => r.id));
+
+    // Count edges between each ordered node pair for multi-edge offset
+    const edgeCounts = new Map(); // "srcId->tgtId" -> count
+    const edgeIndex = new Map(); // "srcId->tgtId" -> current index
+    this.connections.forEach((connection) => {
+      const sourceId = connection.source_id || connection.source;
+      const targetId = connection.target_id || connection.target;
+      // Use sorted key so both directions share the same offset group
+      const pairKey =
+        sourceId < targetId
+          ? `${sourceId}->${targetId}`
+          : `${targetId}->${sourceId}`;
+      edgeCounts.set(pairKey, (edgeCounts.get(pairKey) || 0) + 1);
+    });
+
+    // Track placed label positions for collision avoidance
+    const placedLabels = [];
 
     this.connections.forEach((connection) => {
       const sourceId = connection.source_id || connection.source;
@@ -1132,29 +1207,90 @@ class EnhancedDiagramViewer {
       const dy = target.y - source.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
-      const normDx = dx / dist;
-      const normDy = dy / dist;
-      const sx = source.x + normDx * NODE_RADIUS;
-      const sy = source.y + normDy * NODE_RADIUS;
-      const tx = target.x - normDx * NODE_RADIUS;
-      const ty = target.y - normDy * NODE_RADIUS;
+      // Multi-edge offset: fan out parallel edges between the same node pair
+      const pairKey =
+        sourceId < targetId
+          ? `${sourceId}->${targetId}`
+          : `${targetId}->${sourceId}`;
+      const totalEdges = edgeCounts.get(pairKey) || 1;
+      const currentIndex = edgeIndex.get(pairKey) || 0;
+      edgeIndex.set(pairKey, currentIndex + 1);
+
+      // Compute perpendicular offset for multi-edges
+      let offsetAmount = 0;
+      if (totalEdges > 1) {
+        const spread = 20; // pixels between parallel edges
+        offsetAmount =
+          (currentIndex - (totalEdges - 1) / 2) * spread;
+      }
+
+      const halfW = NODE_CARD_W / 2;
+      const halfH = NODE_CARD_H / 2;
+
+      // Compute anchor points on card edges (rect intersection)
+      // For orthogonal routing we pick the nearest horizontal or vertical edge
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+
+      let sx, sy, tx, ty;
+      if (absDx > absDy) {
+        // Primarily horizontal: exit from left/right edges
+        sx = source.x + Math.sign(dx) * halfW;
+        sy = source.y + offsetAmount;
+        tx = target.x - Math.sign(dx) * halfW;
+        ty = target.y + offsetAmount;
+      } else {
+        // Primarily vertical: exit from top/bottom edges
+        sx = source.x + offsetAmount;
+        sy = source.y + Math.sign(dy) * halfH;
+        tx = target.x + offsetAmount;
+        ty = target.y - Math.sign(dy) * halfH;
+      }
 
       let pathData;
+      const r = CONN_ELBOW_RADIUS;
 
       if (dist < CONN_CLOSE_DIST) {
+        // Short connections: straight line
         pathData = `M ${sx},${sy} L ${tx},${ty}`;
-      } else if (dist < CONN_MED_DIST) {
-        const cx = (sx + tx) / 2 - (ty - sy) * CONN_CURVE_FACTOR;
-        const cy = (sy + ty) / 2 + (tx - sx) * CONN_CURVE_FACTOR;
-        pathData = `M ${sx},${sy} Q ${cx},${cy} ${tx},${ty}`;
-      } else {
+      } else if (absDx > absDy) {
+        // Primarily horizontal: elbow at midX with rounded corners
         const midX = (sx + tx) / 2;
-        const r = CONN_ELBOW_RADIUS;
-        if (Math.abs(dy) > Math.abs(dx) * 0.3) {
-          const midY = (sy + ty) / 2;
-          pathData = `M ${sx},${sy} L ${sx},${midY - r} Q ${sx},${midY} ${sx + Math.sign(dx) * r},${midY} L ${tx - Math.sign(dx) * r},${midY} Q ${tx},${midY} ${tx},${midY + Math.sign(dy) * r} L ${tx},${ty}`;
+        const dxSign = Math.sign(tx - sx);
+        const dySign = Math.sign(ty - sy);
+        const vGap = Math.abs(ty - sy);
+        const hHalf = Math.abs(midX - sx);
+        // Clamp radius to half the shorter segment
+        const cr = Math.min(r, vGap / 2, hHalf);
+        if (vGap < 1) {
+          // Same Y: straight line
+          pathData = `M ${sx},${sy} L ${tx},${ty}`;
         } else {
-          pathData = `M ${sx},${sy} L ${midX - Math.sign(dx) * r},${sy} Q ${midX},${sy} ${midX},${sy + Math.sign(dy) * r} L ${midX},${ty - Math.sign(dy) * r} Q ${midX},${ty} ${midX + Math.sign(dx) * r},${ty} L ${tx},${ty}`;
+          pathData = `M ${sx},${sy}`
+            + ` L ${midX - dxSign * cr},${sy}`
+            + ` Q ${midX},${sy} ${midX},${sy + dySign * cr}`
+            + ` L ${midX},${ty - dySign * cr}`
+            + ` Q ${midX},${ty} ${midX + dxSign * cr},${ty}`
+            + ` L ${tx},${ty}`;
+        }
+      } else {
+        // Primarily vertical: elbow at midY with rounded corners
+        const midY = (sy + ty) / 2;
+        const dxSign = Math.sign(tx - sx);
+        const dySign = Math.sign(ty - sy);
+        const hGap = Math.abs(tx - sx);
+        const vHalf = Math.abs(midY - sy);
+        const cr = Math.min(r, hGap / 2, vHalf);
+        if (hGap < 1) {
+          // Same X: straight line
+          pathData = `M ${sx},${sy} L ${tx},${ty}`;
+        } else {
+          pathData = `M ${sx},${sy}`
+            + ` L ${sx},${midY - dySign * cr}`
+            + ` Q ${sx},${midY} ${sx + dxSign * cr},${midY}`
+            + ` L ${tx - dxSign * cr},${midY}`
+            + ` Q ${tx},${midY} ${tx},${midY + dySign * cr}`
+            + ` L ${tx},${ty}`;
         }
       }
 
@@ -1181,16 +1317,39 @@ class EnhancedDiagramViewer {
       }
       connectionsGroup.appendChild(line);
 
-      // Edge label
+      // Edge label with collision avoidance
       if (connection.description) {
-        const labelX = (source.x + target.x) / 2;
-        const labelY = (source.y + target.y) / 2 - 8;
+        let labelX = (source.x + target.x) / 2;
+        let labelY = (source.y + target.y) / 2 - 8;
         const labelText = truncateText(
           connection.description,
           CONN_LABEL_MAX_CHARS,
         );
         const textWidth =
           labelText.length * CONN_LABEL_CHAR_WIDTH + CONN_LABEL_PAD;
+
+        // Apply multi-edge offset to labels too
+        labelX += perpDx * offsetAmount;
+        labelY += perpDy * offsetAmount;
+
+        // Collision avoidance: shift label if overlapping with existing labels
+        for (let attempt = 0; attempt < 5; attempt++) {
+          let collision = false;
+          for (const placed of placedLabels) {
+            const overlapX =
+              Math.abs(labelX - placed.x) < (textWidth + placed.w) / 2;
+            const overlapY =
+              Math.abs(labelY - placed.y) < CONN_LABEL_HEIGHT + 2;
+            if (overlapX && overlapY) {
+              collision = true;
+              labelY -= CONN_LABEL_HEIGHT + 4;
+              break;
+            }
+          }
+          if (!collision) break;
+        }
+
+        placedLabels.push({ x: labelX, y: labelY, w: textWidth });
 
         const labelBg = svgEl("rect", {
           x: String(labelX - textWidth / 2),
@@ -1283,42 +1442,52 @@ class EnhancedDiagramViewer {
       nodeGroup.classList.add("resource-node");
 
       const layerColor = this.getResourceColor(resource);
+      const halfW = NODE_CARD_W / 2;
+      const halfH = NODE_CARD_H / 2;
 
-      // Outer glow ring
-      const glowCircle = svgEl("circle", {
-        r: String(GLOW_RING_RADIUS),
+      // Outer glow rectangle
+      const glowRect = svgEl("rect", {
+        x: String(-halfW - 6),
+        y: String(-halfH - 6),
+        width: String(NODE_CARD_W + 12),
+        height: String(NODE_CARD_H + 12),
+        rx: String(NODE_CARD_RX + 4),
         fill: "none",
         stroke: layerColor,
         "stroke-width": "0.5",
-        "stroke-opacity": "0.25",
+        "stroke-opacity": "0.15",
       });
-      nodeGroup.appendChild(glowCircle);
+      nodeGroup.appendChild(glowRect);
 
-      // Node background circle
-      const nodeBg = svgEl("circle", {
-        r: String(NODE_RADIUS),
+      // Card background rectangle
+      const cardBg = svgEl("rect", {
+        x: String(-halfW),
+        y: String(-halfH),
+        width: String(NODE_CARD_W),
+        height: String(NODE_CARD_H),
+        rx: String(NODE_CARD_RX),
         fill: layerColor,
-        "fill-opacity": "0.15",
+        "fill-opacity": "0.08",
         stroke: layerColor,
         "stroke-width": "1.5",
-        "stroke-opacity": "0.6",
+        "stroke-opacity": "0.4",
       });
-      nodeGroup.appendChild(nodeBg);
+      nodeGroup.appendChild(cardBg);
 
-      // Icon
+      // Icon (centered horizontally, positioned in upper portion of card)
       const iconPath =
         resource.icon_url || this.getResourceIconPath(resource.type);
       const icon = svgEl("image", {
         href: iconPath,
         x: String(-ICON_OFFSET),
-        y: String(-ICON_OFFSET),
+        y: String(NODE_ICON_Y - ICON_OFFSET),
         width: String(ICON_SIZE),
         height: String(ICON_SIZE),
         preserveAspectRatio: "xMidYMid meet",
       });
       nodeGroup.appendChild(icon);
 
-      // Labels
+      // Labels (positioned in lower portion of card)
       if (this.showLabels) {
         const label = svgEl("text", {
           x: "0",
@@ -1478,7 +1647,8 @@ class EnhancedDiagramViewer {
     const scaleY = MINIMAP_HEIGHT / (maxY - minY);
     const scale = Math.min(scaleX, scaleY) * MINIMAP_SCALE_FACTOR;
 
-    this.minimapSvg.innerHTML = "";
+    while (this.minimapSvg.firstChild)
+      this.minimapSvg.removeChild(this.minimapSvg.firstChild);
     this.minimapSvg.setAttribute(
       "viewBox",
       `0 0 ${MINIMAP_WIDTH} ${MINIMAP_HEIGHT}`,
@@ -1513,7 +1683,29 @@ class EnhancedDiagramViewer {
       "stroke-width": "1",
       opacity: "0.6",
     });
+
+    // Compute actual viewport rectangle from zoom/pan state
+    if (this.width && this.height && scale > 0) {
+      const diagramWidth = maxX - minX;
+      const diagramHeight = maxY - minY;
+
+      // Convert screen viewport to diagram coordinates
+      const viewLeft = (-this.panX / this.zoom - minX) * scale + 10;
+      const viewTop = (-this.panY / this.zoom - minY) * scale + 10;
+      const viewW = (this.width / this.zoom) * scale;
+      const viewH = (this.height / this.zoom) * scale;
+
+      // Clamp to minimap bounds
+      viewportRect.setAttribute("x", Math.max(0, Math.min(viewLeft, MINIMAP_WIDTH)));
+      viewportRect.setAttribute("y", Math.max(0, Math.min(viewTop, MINIMAP_HEIGHT)));
+      viewportRect.setAttribute("width", Math.min(viewW, MINIMAP_WIDTH));
+      viewportRect.setAttribute("height", Math.min(viewH, MINIMAP_HEIGHT));
+    }
+
     this.minimapSvg.appendChild(viewportRect);
+
+    // Store minimap transform data for interactive click-to-navigate
+    this._minimapTransform = { minX, minY, scale };
   }
 
   // ─── UI Controls ───────────────────────────────────────────────────
@@ -1549,8 +1741,11 @@ class EnhancedDiagramViewer {
   toggleLabels() {
     this.showLabels = !this.showLabels;
     document.getElementById("toggle-labels").classList.toggle("active");
-    this.renderDiagram();
-    this.updateTransform();
+    // Toggle label visibility via CSS class instead of full re-render
+    const nodesGroup = this.svg.querySelector(".nodes");
+    if (nodesGroup) {
+      nodesGroup.classList.toggle("hide-labels", !this.showLabels);
+    }
   }
 
   toggleMinimap() {
@@ -1637,12 +1832,31 @@ class EnhancedDiagramViewer {
     if (nodesGroup) nodesGroup.setAttribute("transform", transform);
     if (connectionsGroup) connectionsGroup.setAttribute("transform", transform);
     if (layersGroup) layersGroup.setAttribute("transform", transform);
+
+    // Update minimap viewport to reflect current zoom/pan
+    this.updateMinimap();
   }
 
   // ─── Mouse Events ──────────────────────────────────────────────────
 
   onMouseDown(e) {
-    if (e.target === this.svg) {
+    // Check if clicking on a node group (for drag-and-drop)
+    const nodeGroup = e.target.closest("[data-id]");
+    if (nodeGroup && e.button === 0) {
+      const resourceId = nodeGroup.getAttribute("data-id");
+      const resource = this._resourceMap.get(resourceId);
+      if (resource) {
+        this._draggingNode = resource;
+        this._draggingNodeGroup = nodeGroup;
+        this.lastMouseX = e.clientX;
+        this.lastMouseY = e.clientY;
+        this.svg.style.cursor = "move";
+        e.preventDefault();
+        return;
+      }
+    }
+
+    if (e.target === this.svg || e.target.closest(".layers")) {
       this.isDragging = true;
       this.lastMouseX = e.clientX;
       this.lastMouseY = e.clientY;
@@ -1651,6 +1865,28 @@ class EnhancedDiagramViewer {
   }
 
   onMouseMove(e) {
+    // Node dragging
+    if (this._draggingNode) {
+      const deltaX = (e.clientX - this.lastMouseX) / this.zoom;
+      const deltaY = (e.clientY - this.lastMouseY) / this.zoom;
+      this._draggingNode.x += deltaX;
+      this._draggingNode.y += deltaY;
+      this.lastMouseX = e.clientX;
+      this.lastMouseY = e.clientY;
+
+      if (!this._rafPending) {
+        this._rafPending = true;
+        requestAnimationFrame(() => {
+          this._rafPending = false;
+          // Re-render to update node position and connections
+          this.renderDiagram();
+          this.updateTransform();
+        });
+      }
+      return;
+    }
+
+    // Canvas panning
     if (this.isDragging) {
       const deltaX = e.clientX - this.lastMouseX;
       const deltaY = e.clientY - this.lastMouseY;
@@ -1661,17 +1897,32 @@ class EnhancedDiagramViewer {
       this.lastMouseX = e.clientX;
       this.lastMouseY = e.clientY;
 
-      this.updateTransform();
+      if (!this._rafPending) {
+        this._rafPending = true;
+        requestAnimationFrame(() => {
+          this._rafPending = false;
+          this.updateTransform();
+        });
+      }
     }
   }
 
   onMouseUp() {
+    if (this._draggingNode) {
+      this._draggingNode = null;
+      this._draggingNodeGroup = null;
+      this.svg.style.cursor = "grab";
+      return;
+    }
     this.isDragging = false;
     this.svg.style.cursor = "grab";
   }
 
   onWheel(e) {
     e.preventDefault();
+
+    if (this._wheelRafPending) return;
+    this._wheelRafPending = true;
 
     const rect = this.svg.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
@@ -1686,7 +1937,10 @@ class EnhancedDiagramViewer {
     this.panX = mouseX - (mouseX - this.panX) * zoomRatio;
     this.panY = mouseY - (mouseY - this.panY) * zoomRatio;
 
-    this.updateTransform();
+    requestAnimationFrame(() => {
+      this._wheelRafPending = false;
+      this.updateTransform();
+    });
   }
 
   onResize() {
@@ -1872,13 +2126,13 @@ class EnhancedDiagramViewer {
       if (r.id === resource.id) {
         nodeElement.classList.add("selected-resource");
         // Apply selection glow directly to avoid full re-render
-        const circles = nodeElement.querySelectorAll("circle");
-        if (circles.length >= 2) {
-          // First circle is glow ring, second is node background
-          circles[0].setAttribute("stroke-width", "1");
-          circles[0].setAttribute("stroke-opacity", "0.5");
-          circles[1].setAttribute("stroke-width", "2.5");
-          circles[1].setAttribute("stroke-opacity", "1");
+        const rects = nodeElement.querySelectorAll("rect");
+        if (rects.length >= 2) {
+          // First rect is glow ring, second is card background
+          rects[0].setAttribute("stroke-width", "1");
+          rects[0].setAttribute("stroke-opacity", "0.5");
+          rects[1].setAttribute("stroke-width", "2.5");
+          rects[1].setAttribute("stroke-opacity", "1");
         }
       } else if (upstreamIds.has(r.id)) {
         nodeElement.classList.add("upstream-dependency");
@@ -1906,12 +2160,12 @@ class EnhancedDiagramViewer {
       .querySelectorAll(".selected-resource")
       .forEach((el) => {
         // Reset selection glow attributes to defaults
-        const circles = el.querySelectorAll("circle");
-        if (circles.length >= 2) {
-          circles[0].setAttribute("stroke-width", "0.5");
-          circles[0].setAttribute("stroke-opacity", "0.25");
-          circles[1].setAttribute("stroke-width", "1.5");
-          circles[1].setAttribute("stroke-opacity", "0.6");
+        const rects = el.querySelectorAll("rect");
+        if (rects.length >= 2) {
+          rects[0].setAttribute("stroke-width", "0.5");
+          rects[0].setAttribute("stroke-opacity", "0.15");
+          rects[1].setAttribute("stroke-width", "1.5");
+          rects[1].setAttribute("stroke-opacity", "0.4");
         }
       });
 

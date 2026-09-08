@@ -17,7 +17,7 @@ const (
 type DiagramBuilder struct {
 	mu          sync.Mutex
 	diagram     *Diagram
-	resourceMap map[string]*Resource
+	resourceMap map[string]int // maps resource ID -> index in diagram.Resources
 }
 
 // NewDiagramBuilder creates a new diagram builder.
@@ -32,7 +32,7 @@ func NewDiagramBuilder(name, source string) *DiagramBuilder {
 			Source:      source,
 			Version:     DiagramVersion,
 		},
-		resourceMap: make(map[string]*Resource),
+		resourceMap: make(map[string]int),
 	}
 }
 
@@ -49,8 +49,9 @@ func (db *DiagramBuilder) AddResource(resource Resource) {
 
 	db.mu.Lock()
 	db.diagram.Resources = append(db.diagram.Resources, resource)
-	// Point to the element within the slice to avoid stale pointers after reallocation.
-	db.resourceMap[resource.ID] = &db.diagram.Resources[len(db.diagram.Resources)-1]
+	// Store the index rather than a pointer to avoid stale pointers when
+	// append() reallocates the underlying slice.
+	db.resourceMap[resource.ID] = len(db.diagram.Resources) - 1
 	db.mu.Unlock()
 }
 
@@ -84,8 +85,11 @@ func (db *DiagramBuilder) AddConnection(sourceID, targetID string, connType Conn
 func (db *DiagramBuilder) GetResource(id string) (*Resource, bool) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	resource, exists := db.resourceMap[id]
-	return resource, exists
+	idx, exists := db.resourceMap[id]
+	if !exists {
+		return nil, false
+	}
+	return &db.diagram.Resources[idx], true
 }
 
 // Build returns the completed diagram.

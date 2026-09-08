@@ -1,6 +1,7 @@
 package server
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -28,6 +29,12 @@ const (
 
 	// DefaultConnectionStyle is the default line style for user-created connections.
 	DefaultConnectionStyle = "dashed"
+
+	// maxUploadSize is the maximum allowed size for uploaded state files (50 MB).
+	maxUploadSize = 50 << 20
+
+	// maxS3DownloadSize is the maximum allowed size for S3 state file downloads (100 MB).
+	maxS3DownloadSize = 100 << 20
 )
 
 // Server represents the web server for serving diagrams.
@@ -37,7 +44,8 @@ type Server struct {
 	host          string
 	router        *gin.Engine
 	diagram       *models.ScanResult
-	cachedDiagram []byte // JSON cache of diagram; nil when stale
+	cachedDiagram []byte         // JSON cache of diagram; nil when stale
+	resourceIndex map[string]int // resource ID -> index in diagram.Resources for O(1) lookup
 }
 
 // NewServer creates a new web server.
@@ -50,8 +58,44 @@ func NewServer(host string, port int) *Server {
 		router: gin.Default(),
 	}
 
+	// Add gzip compression middleware for API responses
+	s.router.Use(gzipMiddleware())
+
 	s.setupRoutes()
 	return s
+}
+
+// gzipResponseWriter wraps gin.ResponseWriter to apply gzip compression.
+type gzipResponseWriter struct {
+	gin.ResponseWriter
+	writer *gzip.Writer
+}
+
+func (g *gzipResponseWriter) Write(data []byte) (int, error) {
+	return g.writer.Write(data)
+}
+
+// gzipMiddleware compresses responses for clients that accept gzip encoding.
+func gzipMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !strings.Contains(c.GetHeader("Accept-Encoding"), "gzip") {
+			c.Next()
+			return
+		}
+
+		gz, err := gzip.NewWriterLevel(c.Writer, gzip.DefaultCompression)
+		if err != nil {
+			c.Next()
+			return
+		}
+		defer gz.Close()
+
+		c.Header("Content-Encoding", "gzip")
+		c.Header("Vary", "Accept-Encoding")
+
+		c.Writer = &gzipResponseWriter{ResponseWriter: c.Writer, writer: gz}
+		c.Next()
+	}
 }
 
 // LoadDiagram loads a diagram file into the server.
@@ -69,6 +113,7 @@ func (s *Server) LoadDiagram(filePath string) error {
 	s.mu.Lock()
 	s.diagram = &scanResult
 	s.cachedDiagram = nil // invalidate cache
+	s.rebuildResourceIndex()
 	s.mu.Unlock()
 
 	return nil
@@ -77,6 +122,16 @@ func (s *Server) LoadDiagram(filePath string) error {
 // invalidateCache clears the cached diagram JSON. Must be called with s.mu held.
 func (s *Server) invalidateCache() {
 	s.cachedDiagram = nil
+}
+
+// rebuildResourceIndex builds the resource ID -> index lookup map.
+// Must be called with s.mu held and s.diagram != nil.
+func (s *Server) rebuildResourceIndex() {
+	idx := make(map[string]int, len(s.diagram.Diagram.Resources))
+	for i, r := range s.diagram.Diagram.Resources {
+		idx[r.ID] = i
+	}
+	s.resourceIndex = idx
 }
 
 // Start starts the web server.
@@ -173,29 +228,31 @@ func (s *Server) handleEnhancedIndex(c *gin.Context) {
 
 // handleGetDiagram returns the complete diagram data, using a JSON cache.
 func (s *Server) handleGetDiagram(c *gin.Context) {
-	s.mu.RLock()
-	cached := s.cachedDiagram
+	// Hold write lock for the entire read-check-marshal-cache sequence
+	// to eliminate the TOCTOU race between checking and populating the cache.
+	s.mu.Lock()
 	d := s.diagram
-	s.mu.RUnlock()
-
 	if d == nil {
+		s.mu.Unlock()
 		c.JSON(http.StatusNotFound, gin.H{"error": "No diagram loaded"})
 		return
 	}
 
-	if cached != nil {
+	if s.cachedDiagram != nil {
+		cached := s.cachedDiagram
+		s.mu.Unlock()
 		c.Data(http.StatusOK, "application/json; charset=utf-8", cached)
 		return
 	}
 
-	// Build and cache the JSON
+	// Build and cache the JSON while holding the lock
 	data, err := json.Marshal(d)
 	if err != nil {
+		s.mu.Unlock()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to serialize diagram"})
 		return
 	}
 
-	s.mu.Lock()
 	s.cachedDiagram = data
 	s.mu.Unlock()
 
@@ -266,13 +323,11 @@ func (s *Server) handleSetResourceVisibility(hidden bool) gin.HandlerFunc {
 		}
 		d := s.diagram
 
-		for i := range d.Diagram.Resources {
-			if d.Diagram.Resources[i].ID == resourceID {
-				d.Diagram.Resources[i].Hidden = hidden
-				s.invalidateCache()
-				c.JSON(http.StatusOK, gin.H{"success": true, "message": "Resource " + action})
-				return
-			}
+		if idx, ok := s.resourceIndex[resourceID]; ok {
+			d.Diagram.Resources[idx].Hidden = hidden
+			s.invalidateCache()
+			c.JSON(http.StatusOK, gin.H{"success": true, "message": "Resource " + action})
+			return
 		}
 
 		c.JSON(http.StatusNotFound, gin.H{"error": "Resource not found"})
@@ -313,19 +368,9 @@ func (s *Server) handleCreateConnection(c *gin.Context) {
 	}
 	d := s.diagram
 
-	// Validate that both resources exist.
-	var sourceExists, targetExists bool
-	for _, resource := range d.Diagram.Resources {
-		if resource.ID == req.SourceID {
-			sourceExists = true
-		}
-		if resource.ID == req.TargetID {
-			targetExists = true
-		}
-		if sourceExists && targetExists {
-			break
-		}
-	}
+	// Validate that both resources exist using O(1) index lookup.
+	_, sourceExists := s.resourceIndex[req.SourceID]
+	_, targetExists := s.resourceIndex[req.TargetID]
 
 	if !sourceExists || !targetExists {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Source or target resource does not exist"})
@@ -428,6 +473,9 @@ func (s *Server) handleExport(c *gin.Context) {
 // handleUploadStateFile accepts a multipart file upload of a Terraform state file,
 // parses it, and sets it as the active diagram.
 func (s *Server) handleUploadStateFile(c *gin.Context) {
+	// Enforce upload size limit
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadSize)
+
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "No file provided"})
@@ -454,6 +502,7 @@ func (s *Server) handleUploadStateFile(c *gin.Context) {
 	s.mu.Lock()
 	s.diagram = result
 	s.cachedDiagram = nil
+	s.rebuildResourceIndex()
 	s.mu.Unlock()
 
 	c.JSON(http.StatusOK, gin.H{
@@ -623,7 +672,7 @@ func (s *Server) handleLoadFromS3(c *gin.Context) {
 	}
 	defer output.Body.Close()
 
-	data, err := io.ReadAll(output.Body)
+	data, err := io.ReadAll(io.LimitReader(output.Body, maxS3DownloadSize))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to read state file: %v", err)})
 		return
@@ -651,6 +700,7 @@ func (s *Server) handleLoadFromS3(c *gin.Context) {
 	s.mu.Lock()
 	s.diagram = result
 	s.cachedDiagram = nil
+	s.rebuildResourceIndex()
 	s.mu.Unlock()
 
 	c.JSON(http.StatusOK, gin.H{

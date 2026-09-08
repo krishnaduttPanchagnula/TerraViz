@@ -1060,6 +1060,17 @@
             filter: drop-shadow(0 0 2px currentColor);
         }
 
+        /* Hide node labels via CSS class toggle (avoids full SVG re-render) */
+        .nodes.hide-labels text {
+            display: none;
+        }
+
+        /* prefers-reduced-motion: disable flow animations for accessibility */
+        @media (prefers-reduced-motion: reduce) {
+            .flow-dot { display: none; }
+            animateMotion { display: none; }
+        }
+
         /* Tooltip */
         .tooltip {
             position: absolute;
@@ -1790,12 +1801,12 @@
                     <!-- Legend Popover -->
                     <div class="legend-popover" id="legend-popover">
                         <h4>Connection Types</h4>
-                        <div class="legend-item"><span class="legend-swatch" style="background: #3b82f6"></span> Networking</div>
-                        <div class="legend-item"><span class="legend-swatch" style="background: #f59e0b"></span> Access / IAM</div>
-                        <div class="legend-item"><span class="legend-swatch" style="background: #22c55e"></span> Data</div>
-                        <div class="legend-item"><span class="legend-swatch" style="background: #ef4444"></span> Trigger</div>
-                        <div class="legend-item"><span class="legend-swatch" style="background: #8b5cf6"></span> Dependency</div>
-                        <div class="legend-item"><span class="legend-swatch" style="background: #6b7280"></span> Reference</div>
+                        <div class="legend-item"><span class="legend-swatch" style="background: #38BDF8"></span> Networking</div>
+                        <div class="legend-item"><span class="legend-swatch" style="background: #ef4444"></span> Access / IAM</div>
+                        <div class="legend-item"><span class="legend-swatch" style="background: #4ADE80"></span> Data</div>
+                        <div class="legend-item"><span class="legend-swatch" style="background: #FB923C"></span> Trigger</div>
+                        <div class="legend-item"><span class="legend-swatch" style="background: #C084FC"></span> Dependency</div>
+                        <div class="legend-item"><span class="legend-swatch" style="background: #888888"></span> Reference</div>
                     </div>
                 </div>
 
@@ -1924,6 +1935,18 @@
             return s3State.profile || '';
         }
 
+        /** Escape HTML entities to prevent XSS in innerHTML assignments. */
+        function escapeHTMLStr(str) {
+            const div = document.createElement('div');
+            div.appendChild(document.createTextNode(str));
+            return div.innerHTML;
+        }
+
+        /** Escape a string for safe use inside a JS string literal in an onclick attribute. */
+        function escapeAttr(str) {
+            return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        }
+
         async function loadS3Buckets() {
             showS3Status('Loading buckets...', 'loading');
             const profile = document.getElementById('s3-profile').value.trim();
@@ -1958,9 +1981,9 @@
                 }
 
                 list.innerHTML = filtered.map(b =>
-                    `<div class="s3-list-item" onclick="selectBucket('${b.name}')">
+                    `<div class="s3-list-item" onclick="selectBucket('${escapeAttr(b.name)}')">
                         <span class="s3-icon">&#128230;</span>
-                        <span class="s3-name">${b.name}</span>
+                        <span class="s3-name">${escapeHTMLStr(b.name)}</span>
                         <span class="s3-meta">${b.created_at ? new Date(b.created_at).toLocaleDateString() : ''}</span>
                     </div>`
                 ).join('');
@@ -2054,7 +2077,7 @@
                             `<span class="indent" style="width:${indentPx}px"></span>` +
                             `<span class="chevron">&#9654;</span>` +
                             `<span class="node-icon folder">&#128193;</span>` +
-                            `<span class="node-label">${displayName}</span>`;
+                            `<span class="node-label">${escapeHTMLStr(displayName)}</span>`;
 
                         const children = document.createElement('div');
                         children.className = 's3-tree-children';
@@ -2074,7 +2097,7 @@
                             `<span class="indent" style="width:${indentPx}px"></span>` +
                             `<span class="chevron"></span>` +
                             `<span class="node-icon ${icon.cls}">${icon.ch}</span>` +
-                            `<span class="node-label">${displayName}</span>` +
+                            `<span class="node-label">${escapeHTMLStr(displayName)}</span>` +
                             `<span class="node-size">${formatBytes(obj.size)}</span>`;
 
                         row.onclick = () => {
@@ -2087,7 +2110,7 @@
                     }
                 }
             } catch (e) {
-                container.innerHTML = `<div class="s3-tree-empty" style="color:var(--sm-danger)">${e.message}</div>`;
+                container.innerHTML = `<div class="s3-tree-empty" style="color:var(--sm-danger)">${escapeHTMLStr(e.message)}</div>`;
             }
         }
 
