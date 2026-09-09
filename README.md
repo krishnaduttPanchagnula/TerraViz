@@ -1,12 +1,35 @@
-# TerraViz — Cloud Architecture Visualizer
+# TerraViz: Open Source Terraform Visualizer and AWS Architecture Diagram Tool
 
 [![Release](https://img.shields.io/github/v/release/krishnaduttPanchagnula/TerraViz?style=flat-square)](https://github.com/krishnaduttPanchagnula/TerraViz/releases/latest)
 [![Go](https://img.shields.io/github/go-mod/go-version/krishnaduttPanchagnula/TerraViz?style=flat-square)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 
-Generate interactive architecture diagrams from Terraform state files, remote S3-hosted state, or live AWS accounts. A single self-contained binary — no external dependencies, no CDN, no runtime assets.
+TerraViz is an open source **Terraform visualizer** and **AWS architecture diagram generator**. It converts Terraform state files, `terraform show -json` output, S3-hosted Terraform state, and live AWS resources into interactive infrastructure diagrams in your browser.
 
-![Enhanced UI](docs/screenshots/enhanced-ui.png)
+Use TerraViz to understand an unfamiliar Terraform project, explore AWS resource relationships, document cloud infrastructure, find referenced resources that are missing from state, and export architecture data as PNG, SVG, or CSV. The Go binary embeds the web application and AWS icon set, so no Node.js application or external database is required.
+
+![TerraViz Terraform state visualizer showing an interactive AWS architecture diagram](docs/screenshots/enhanced-ui.png)
+
+## Why TerraViz?
+
+- **Visualize Terraform state:** Turn raw `.tfstate` and Terraform JSON output into a readable resource graph.
+- **Generate AWS architecture diagrams:** See VPC, subnet, security group, EC2, Lambda, S3, RDS, CloudFront, API Gateway, IAM, ECS, and other relationships.
+- **Find external dependencies:** Referenced AWS resources missing from the state file appear as inferred nodes with relationship lines.
+- **Inspect infrastructure locally:** State data is processed by the TerraViz server you run, with no hosted SaaS account required.
+- **Explore large diagrams:** Search, filter, zoom, pan, use the minimap, or switch to a complete resource list.
+- **Export and compare:** Download PNG, SVG, or CSV output and compare two generated scan snapshots from the CLI.
+
+## Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Terraform Visualization](#terraform-visualization)
+- [AWS Architecture Visualization](#aws-architecture-visualization)
+- [Features](#features)
+- [CLI Reference](#cli-reference)
+- [Supported Providers and Services](#supported-providers-and-services)
+- [FAQ](#frequently-asked-questions)
+- [Development](#development)
 
 ## Installation
 
@@ -25,14 +48,14 @@ Download the latest binary for your platform from the [Releases page](https://gi
 ```bash
 # Linux (amd64)
 curl -Lo terraviz.tar.gz \
-  https://github.com/krishnaduttPanchagnula/TerraViz/releases/latest/download/terraviz_$(curl -s https://api.github.com/repos/krishnaduttPanchagnula/TerraViz/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')_linux_amd64.tar.gz
+  https://github.com/krishnaduttPanchagnula/TerraViz/releases/latest/download/terraviz_$(curl -s https://api.github.com/repos/krishnaduttPanchagnula/TerraViz/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')_linux_amd64.tar.gz
 tar xzf terraviz.tar.gz
 chmod +x terraviz
 sudo mv terraviz /usr/local/bin/
 
 # macOS (Apple Silicon)
 curl -Lo terraviz.tar.gz \
-  https://github.com/krishnaduttPanchagnula/TerraViz/releases/latest/download/terraviz_$(curl -s https://api.github.com/repos/krishnaduttPanchagnula/TerraViz/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')_darwin_arm64.tar.gz
+  https://github.com/krishnaduttPanchagnula/TerraViz/releases/latest/download/terraviz_$(curl -s https://api.github.com/repos/krishnaduttPanchagnula/TerraViz/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')_darwin_arm64.tar.gz
 tar xzf terraviz.tar.gz
 chmod +x terraviz
 sudo mv terraviz /usr/local/bin/
@@ -50,7 +73,7 @@ To embed version info:
 
 ```bash
 go build -ldflags "-s -w -X main.version=1.0.0 -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-  -o terraviz ./cmd/main.go
+  -o terraviz ./cmd/main.go
 ```
 
 ## Quick Start
@@ -65,28 +88,42 @@ terraviz serve diagram.json
 # Or start the server without a diagram and import from S3 or local file
 terraviz serve
 
-# Open in browser
-open http://localhost:8080/enhanced
+# Open the Terraform architecture diagram in your browser
+open http://localhost:8080
 ```
 
-That's it. One binary, zero setup.
+TerraViz serves the interactive diagram at `http://localhost:8080` by default.
+
+## Terraform Visualization
+
+TerraViz parses Terraform state without requiring access to the original HCL source code. It supports:
+
+- Raw Terraform state format version 4 (`terraform.tfstate`).
+- State JSON produced by `terraform show -json`.
+- Local state uploads through the browser.
+- Remote Terraform state stored in Amazon S3.
+- Nested Terraform module addresses and indexed resources.
+- Inferred AWS dependencies from IDs, ARNs, and recognized resource arguments.
+
+Terraform resources are grouped by AWS service and resource type. Connections are inferred from attributes such as `vpc_id`, `subnet_id`, security group IDs, IAM role ARNs, target group ARNs, SQS/SNS endpoints, and CloudFront ACM certificate references.
+
+## AWS Architecture Visualization
+
+TerraViz can also scan supported resources from a live AWS account using the standard AWS SDK credential chain and an optional named profile. The current live scanner discovers EC2 instances, VPCs, subnets, security groups, S3 buckets, RDS database instances, and Lambda functions across configured regions.
+
+For broader AWS service coverage, load a Terraform state file. See [Supported Providers and Services](#supported-providers-and-services) for the complete Terraform resource list.
 
 ## Screenshots
 
-### Enhanced UI — Interactive Diagram
-Full-featured diagram view with zoom, pan, filtering, and search.
+### Interactive Terraform and AWS Diagram
+Explore Terraform resources and AWS dependencies with zoom, pan, filtering, search, and hierarchical service containers.
 
-![Enhanced UI](docs/screenshots/enhanced-ui.png)
+![Interactive Terraform visualizer with AWS resources grouped by service](docs/screenshots/enhanced-ui.png)
 
 ### Resource Details
 Click any resource to see its properties, connections, and metadata.
 
-![Resource Details](docs/screenshots/resource-details.png)
-
-### Basic UI
-Lightweight diagram view.
-
-![Basic UI](docs/screenshots/basic-ui.png)
+![Terraform resource details and dependency relationships in TerraViz](docs/screenshots/resource-details.png)
 
 ## Features
 
@@ -94,21 +131,25 @@ Lightweight diagram view.
 - **Terraform State Files** — Parse `.tfstate` (v4 raw format) or `terraform show -json` output
 - **S3 Remote State** — Browse S3 buckets and load remote `.tfstate` files directly from the UI (supports custom AWS profiles)
 - **Local File Import** — Upload `.tfstate` files from your machine via drag-and-drop or file picker
-- **Live AWS Account** — Scan EC2, S3, RDS, Lambda, VPCs, subnets, security groups, IAM, and more across multiple regions
+- **Live AWS Account** — Scan EC2 instances, S3 buckets, RDS instances, Lambda functions, VPCs, subnets, and security groups across multiple regions
 
 ### Interactive Web Diagrams
 - SVG-based rendering with zoom, pan, and fit-to-view
-- **Floating pill toolbar** — semi-transparent bottom-center toolbar with clean SVG icons for zoom, grid toggle, labels, minimap, flow animations, legend, deployment diff, export, and presentation mode
+- **Floating toolbar** — zoom, grid, labels, minimap, flow animation, legend, export, presentation, and display settings
 - Filter by resource type, provider, region, or state
 - Real-time search by resource name or ID
+- Toggle between the architecture diagram and a full resource table
+- Show referenced AWS resources that are not managed in the loaded Terraform state
+- Export architecture diagrams as PNG or SVG and all resource data as CSV
 - Hide/show individual resources; add or delete connections at runtime
 - Hover tooltips with resource details
 - **Resizable sidebar** with collapsible sections (Search & Filter, Files, Filters, Resources) and vertical scrolling
 - **Connection legend** — popover showing all 6 connection type colors
-- Two UI modes: basic (`/`) and enhanced (`/enhanced`)
+- Browser UI served at `/` with REST endpoints under `/api/`
 
-### Design
-- Matte black (`#101010`) background with dot-grid blueprint pattern
+### Themes and Design
+- Dark, Aurora, Light, and Sand themes with browser-persisted settings
+- Dot-grid architecture canvas with hierarchical service and resource-type containers
 - Geist + JetBrains Mono typography with systematized design tokens (spacing, shadows, motion, radius)
 - Animated expand/collapse sidebar sections with smooth CSS transitions
 - Button micro-interactions (hover glow, active scale)
@@ -118,10 +159,20 @@ Lightweight diagram view.
 - Connection diffs (added/removed)
 - Detailed per-property change reports with `--verbose`
 
-### Self-Contained Binary
+### Common Use Cases
+
+- Generate a Terraform infrastructure diagram for architecture reviews.
+- Visualize relationships in a large or inherited Terraform state file.
+- Document AWS infrastructure without manually drawing every resource.
+- Review dependencies before refactoring Terraform modules.
+- Identify subnets, security groups, certificates, queues, and other references missing from the loaded state.
+- Export an AWS resource inventory to CSV for audits or documentation.
+- Compare infrastructure scan snapshots between deployments.
+
+### Portable Go Binary
 - `go build` produces a single binary (~47 MB) with all HTML templates, JavaScript, fonts, and ~620 AWS icons embedded via `go:embed`
-- No external files, CDN dependencies, or runtime assets needed
-- Download and run from anywhere
+- No Node.js runtime or external database is required
+- Download and run on Linux, macOS, or Windows
 
 ## CLI Reference
 
@@ -157,8 +208,7 @@ Starts a local web server to display the interactive diagram. The diagram argume
 | `--host` | `-H` | `localhost` | Host to bind |
 
 **Routes:**
-- `GET /` — Basic diagram view
-- `GET /enhanced` — Enhanced diagram view (recommended)
+- `GET /` — Interactive Terraform and AWS architecture diagram
 - `GET /api/diagram` — Full diagram JSON
 - `GET /api/resources` — All resources
 - `GET /api/resources/search?q=<query>` — Search resources
@@ -223,31 +273,65 @@ Connections between resources are automatically inferred from Terraform state at
 | `dependency` | Resource dependencies |
 | `reference` | Logical references |
 
+## Frequently Asked Questions
+
+### What is a Terraform visualizer?
+
+A Terraform visualizer converts Terraform state or plan data into a graph of infrastructure resources and their relationships. TerraViz reads raw `.tfstate` files and `terraform show -json` state output, then renders an interactive browser-based architecture diagram.
+
+### Does TerraViz upload Terraform state to a hosted service?
+
+No hosted TerraViz service is required. The CLI starts a local Gin web server and processes local or S3-hosted Terraform state in that server process. Review your own network and AWS credential configuration before exposing the server beyond localhost.
+
+### Can TerraViz create an AWS architecture diagram from Terraform state?
+
+Yes. TerraViz maps supported AWS Terraform resource types to AWS service icons, groups them into hierarchical containers, and infers networking, access, data, trigger, dependency, and reference relationships.
+
+### Does TerraViz support `terraform show -json`?
+
+Yes. TerraViz accepts both raw Terraform state version 4 and state JSON generated with `terraform show -json`. Full Terraform plan action visualization is not currently supported.
+
+### Can TerraViz scan a live AWS account?
+
+Yes. The live scanner currently discovers EC2 instances, VPCs, subnets, security groups, S3 buckets, RDS instances, and Lambda functions. Terraform state parsing supports a broader set of AWS services.
+
+### Which diagram export formats are supported?
+
+The browser can export diagrams as PNG or SVG and resource information as CSV. The CLI writes scan and comparison results as JSON.
+
+### Does TerraViz support Azure or Google Cloud?
+
+Not yet. The current implementation supports AWS. The planned provider-interface architecture for Azure and Google Cloud is documented in [`docs/gcp_azure_implementation.md`](docs/gcp_azure_implementation.md).
+
+### How are resources not present in Terraform state displayed?
+
+When a recognized Terraform argument references an AWS ID or ARN that is absent from the state, TerraViz creates an inferred resource marked `in_state_file: false` and draws the detected relationship. State files do not retain every original HCL expression, so inference is limited to recognized typed arguments.
+
 ## Project Structure
 
 ```
 cmd/
-  main.go                  CLI entry point (Cobra commands)
+  main.go                  CLI entry point (Cobra commands)
 internal/
-  models/
-    models.go              Resource, Connection, Diagram, ScanResult types; icon map
-    utils.go               DiagramBuilder, comparison logic, search/filter, FNV ID generation
-  parsers/
-    terraform.go           Terraform state parser (raw v4 + terraform-json)
-    connections.go         Connection inference analyzers
-  scanners/
-    aws.go                 Live AWS account scanner (EC2, S3, RDS, Lambda)
-  server/
-    server.go              Gin HTTP server, REST API, mutex-protected state
+  models/
+    models.go              Resource, Connection, Diagram, ScanResult types; icon map
+    utils.go               DiagramBuilder, comparison logic, search/filter, FNV ID generation
+  parsers/
+    terraform.go           Terraform state parser (raw v4 + terraform-json)
+    connections.go         Connection inference analyzers
+  scanners/
+    aws.go                 Live AWS account scanner (EC2, S3, RDS, Lambda)
+  server/
+    server.go              Gin HTTP server, REST API, mutex-protected state
 web/
-  embed.go                 go:embed directive (embeds all assets into binary)
-  templates/               Go HTML templates (index.html, index_enhanced.html, error.html)
-  static/
-    js/                    Frontend JavaScript (diagram.js, diagram_enhanced.js)
-    fonts/                 Bundled Inter + JetBrains Mono fonts (WOFF2)
-  icons/                   Full AWS icon packs (~620 SVGs)
-.goreleaser.yml            GoReleaser config for multi-platform releases
-.github/workflows/         CI/CD (release on tag push)
+  embed.go                 go:embed directive (embeds all assets into binary)
+  templates/               Go HTML templates (index_enhanced.html, error.html)
+  static/
+    js/                    Frontend JavaScript (diagram_enhanced.js)
+    fonts/                 Bundled Inter + JetBrains Mono fonts (WOFF2)
+  icons/                   Full AWS icon packs (~620 SVGs)
+.goreleaser.yml            GoReleaser config for multi-platform releases
+.github/workflows/         CI/CD (release on tag push)
 ```
 
 ## Releasing
@@ -255,9 +339,8 @@ web/
 Releases are automated via GitHub Actions and [GoReleaser](https://goreleaser.com/).
 
 ```bash
-# Tag and push to trigger a release
-git tag v1.0.0
-git push origin v1.0.0
+# Generate notes, validate, tag, and trigger a release
+./scripts/release.sh v1.0.0
 ```
 
 This builds binaries for Linux, macOS, and Windows (amd64 + arm64), creates a GitHub release with checksums and changelogs, and updates the Homebrew formula automatically.
