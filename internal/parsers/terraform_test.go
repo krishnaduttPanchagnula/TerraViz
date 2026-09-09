@@ -231,3 +231,166 @@ func benchParseShowJSON(b *testing.B, n int) {
 		}
 	}
 }
+
+func TestParseRawStateAddsReferencedResourcesMissingFromState(t *testing.T) {
+	state := map[string]interface{}{
+		"version": 4,
+		"resources": []interface{}{
+			map[string]interface{}{
+				"mode": "managed", "type": "aws_instance", "name": "app",
+				"provider": `provider["registry.terraform.io/hashicorp/aws"]`,
+				"instances": []interface{}{map[string]interface{}{
+					"schema_version": 0,
+					"attributes": map[string]interface{}{
+						"id": "i-123", "subnet_id": "subnet-external",
+						"vpc_security_group_ids": []interface{}{"sg-shared", "sg-shared"},
+					},
+				}},
+			},
+		},
+	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := NewTerraformParser().ParseStateData(data, "test.tfstate")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := len(result.Diagram.Resources), 3; got != want {
+		t.Fatalf("resource count = %d, want %d", got, want)
+	}
+	if got, want := len(result.Diagram.Connections), 2; got != want {
+		t.Fatalf("connection count = %d, want %d", got, want)
+	}
+
+	externalByType := make(map[string]int)
+	for _, resource := range result.Diagram.Resources {
+		if resource.ID == "aws_instance.app" {
+			if !resource.InStateFile {
+				t.Error("parsed instance should be marked in state file")
+			}
+			continue
+		}
+		if resource.InStateFile {
+			t.Errorf("external resource %q marked in state file", resource.ID)
+		}
+		if resource.Group != "not-in-state-file" {
+			t.Errorf("external resource %q group = %q", resource.ID, resource.Group)
+		}
+		externalByType[string(resource.Type)]++
+	}
+	if externalByType["aws:ec2:subnet"] != 1 || externalByType["aws:ec2:securitygroup"] != 1 {
+		t.Fatalf("unexpected external resources: %#v", externalByType)
+	}
+}
+
+func TestParseRawStateDoesNotDuplicateReferencePresentInState(t *testing.T) {
+	state := map[string]interface{}{
+		"version": 4,
+		"resources": []interface{}{
+			map[string]interface{}{
+				"mode": "managed", "type": "aws_subnet", "name": "main",
+				"provider":  `provider["registry.terraform.io/hashicorp/aws"]`,
+				"instances": []interface{}{map[string]interface{}{"attributes": map[string]interface{}{"id": "subnet-main"}}},
+			},
+			map[string]interface{}{
+				"mode": "managed", "type": "aws_instance", "name": "app",
+				"provider":  `provider["registry.terraform.io/hashicorp/aws"]`,
+				"instances": []interface{}{map[string]interface{}{"attributes": map[string]interface{}{"id": "i-123", "subnet_id": "subnet-main"}}},
+			},
+		},
+	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := NewTerraformParser().ParseStateData(data, "test.tfstate")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := len(result.Diagram.Resources), 2; got != want {
+		t.Fatalf("resource count = %d, want %d", got, want)
+	}
+	if got, want := len(result.Diagram.Connections), 1; got != want {
+		t.Fatalf("connection count = %d, want %d", got, want)
+	}
+}
+
+func TestParseRawStateConnectsSNSSubscriptionToExternalQueue(t *testing.T) {
+	queueARN := "arn:aws:sqs:us-east-1:123456789012:external-queue"
+	state := map[string]interface{}{
+		"version": 4,
+		"resources": []interface{}{
+			map[string]interface{}{
+				"mode": "managed", "type": "aws_sns_topic_subscription", "name": "queue",
+				"provider": `provider["registry.terraform.io/hashicorp/aws"]`,
+				"instances": []interface{}{map[string]interface{}{"attributes": map[string]interface{}{
+					"id": "subscription-id", "protocol": "sqs", "endpoint": queueARN,
+				}}},
+			},
+		},
+	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := NewTerraformParser().ParseStateData(data, "test.tfstate")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := len(result.Diagram.Resources), 2; got != want {
+		t.Fatalf("resource count = %d, want %d", got, want)
+	}
+	if got, want := len(result.Diagram.Connections), 1; got != want {
+		t.Fatalf("connection count = %d, want %d", got, want)
+	}
+}
+
+func TestParseRawStateConnectsCloudFrontToExternalACMCertificate(t *testing.T) {
+	certificateARN := "arn:aws:acm:us-east-1:123456789012:certificate/certificate-id"
+	state := map[string]interface{}{
+		"version": 4,
+		"resources": []interface{}{
+			map[string]interface{}{
+				"mode": "managed", "type": "aws_cloudfront_distribution", "name": "web",
+				"provider": `provider["registry.terraform.io/hashicorp/aws"]`,
+				"instances": []interface{}{map[string]interface{}{"attributes": map[string]interface{}{
+					"id": "distribution-id",
+					"viewer_certificate": []interface{}{map[string]interface{}{
+						"acm_certificate_arn":            certificateARN,
+						"cloudfront_default_certificate": false,
+					}},
+				}}},
+			},
+		},
+	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := NewTerraformParser().ParseStateData(data, "test.tfstate")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := len(result.Diagram.Resources), 2; got != want {
+		t.Fatalf("resource count = %d, want %d", got, want)
+	}
+	if got, want := len(result.Diagram.Connections), 1; got != want {
+		t.Fatalf("connection count = %d, want %d", got, want)
+	}
+
+	external := result.Diagram.Resources[1]
+	if external.Type != "aws:acm:certificate" || external.InStateFile || external.Group != "not-in-state-file" {
+		t.Fatalf("unexpected external certificate: %#v", external)
+	}
+	connection := result.Diagram.Connections[0]
+	if connection.SourceID != "aws_cloudfront_distribution.web" || connection.TargetID != external.ID {
+		t.Fatalf("unexpected connection: %#v", connection)
+	}
+}

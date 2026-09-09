@@ -2,6 +2,8 @@ package parsers
 
 import (
 	"encoding/json"
+	"fmt"
+	"hash/fnv"
 	"strings"
 
 	"terraviz/internal/models"
@@ -12,6 +14,47 @@ type resourceMap = map[string]*models.Resource
 
 // typeIndex maps resource types to slices of resources for O(1) type lookups.
 type typeIndex = map[models.ResourceType][]*models.Resource
+
+type externalReferenceSpec struct {
+	sourceType models.ResourceType
+	path       []string
+	targetType models.ResourceType
+	property   string
+}
+
+var externalReferenceSpecs = []externalReferenceSpec{
+	{models.ResourceTypeEC2Instance, []string{"vpc_id"}, models.ResourceTypeVPC, "id"},
+	{models.ResourceTypeEC2Instance, []string{"subnet_id"}, models.ResourceTypeSubnet, "id"},
+	{models.ResourceTypeEC2Instance, []string{"vpc_security_group_ids"}, models.ResourceTypeSecurityGroup, "id"},
+	{models.ResourceTypeSubnet, []string{"vpc_id"}, models.ResourceTypeVPC, "id"},
+	{models.ResourceTypeSecurityGroup, []string{"vpc_id"}, models.ResourceTypeVPC, "id"},
+	{models.ResourceTypeLoadBalancer, []string{"subnets"}, models.ResourceTypeSubnet, "id"},
+	{models.ResourceTypeLoadBalancer, []string{"security_groups"}, models.ResourceTypeSecurityGroup, "id"},
+	{models.ResourceTypeLBListener, []string{"load_balancer_arn"}, models.ResourceTypeLoadBalancer, "arn"},
+	{models.ResourceTypeLBListener, []string{"certificate_arn"}, models.ResourceTypeACMCertificate, "arn"},
+	{models.ResourceTypeCloudFront, []string{"viewer_certificate", "acm_certificate_arn"}, models.ResourceTypeACMCertificate, "arn"},
+	{models.ResourceTypeRDSInstance, []string{"vpc_security_group_ids"}, models.ResourceTypeSecurityGroup, "id"},
+	{models.ResourceTypeLambdaFunction, []string{"vpc_config", "subnet_ids"}, models.ResourceTypeSubnet, "id"},
+	{models.ResourceTypeLambdaFunction, []string{"vpc_config", "security_group_ids"}, models.ResourceTypeSecurityGroup, "id"},
+	{models.ResourceTypeLambdaFunction, []string{"role"}, models.ResourceTypeIAMRole, "arn"},
+	{models.ResourceTypeECSService, []string{"load_balancer", "target_group_arn"}, models.ResourceTypeLBTargetGroup, "arn"},
+	{models.ResourceTypeECSService, []string{"cluster"}, models.ResourceTypeECSCluster, "arn"},
+	{models.ResourceTypeECSService, []string{"task_definition"}, models.ResourceTypeECSTaskDefinition, "arn"},
+	{models.ResourceTypeECSService, []string{"network_configuration", "security_groups"}, models.ResourceTypeSecurityGroup, "id"},
+	{models.ResourceTypeECSService, []string{"service_registries", "registry_arn"}, models.ResourceTypeServiceDiscoveryService, "arn"},
+	{models.ResourceTypeAPIGatewayIntegration, []string{"connection_id"}, models.ResourceTypeAPIGatewayVPCLink, "id"},
+	{models.ResourceTypeAPIGatewayVPCLink, []string{"target_arns"}, models.ResourceTypeLoadBalancer, "arn"},
+	{models.ResourceTypeAPIGatewayBasePathMapping, []string{"domain_name"}, models.ResourceTypeAPIGatewayDomainName, "domain_name"},
+	{models.ResourceTypeAPIGatewayBasePathMapping, []string{"api_id"}, models.ResourceTypeAPIGateway, "id"},
+	{models.ResourceTypeAPIGatewayStage, []string{"rest_api_id"}, models.ResourceTypeAPIGateway, "id"},
+	{models.ResourceTypeAPIGatewayDeployment, []string{"rest_api_id"}, models.ResourceTypeAPIGateway, "id"},
+	{models.ResourceTypeSNSSubscription, []string{"endpoint"}, models.ResourceTypeSQSQueue, "arn"},
+	{models.ResourceTypeSQSQueue, []string{"redrive_policy", "deadLetterTargetArn"}, models.ResourceTypeSQSQueue, "arn"},
+	{models.ResourceTypeSecurityGroup, []string{"ingress", "security_groups"}, models.ResourceTypeSecurityGroup, "id"},
+	{models.ResourceTypeRoute53Record, []string{"alias", "name"}, models.ResourceTypeLoadBalancer, "dns_name"},
+	{models.ResourceTypeServiceDiscoveryService, []string{"namespace_id"}, models.ResourceTypeServiceDiscoveryNamespace, "id"},
+	{models.ResourceTypeIAMRolePolicyAttachment, []string{"policy_arn"}, models.ResourceTypeIAMPolicy, "arn"},
+}
 
 // buildTypeIndex creates a type-indexed lookup from a resource map.
 func buildTypeIndex(rm resourceMap) typeIndex {
@@ -71,6 +114,8 @@ func findByPropertyContains(ti typeIndex, rType models.ResourceType, propKey, su
 
 // createConnections analyzes resources and creates connections between them.
 func (p *TerraformParser) createConnections(diagram *models.Diagram, builder *models.DiagramBuilder) {
+	p.addExternalReferences(diagram, builder)
+
 	rm := make(resourceMap, len(diagram.Resources))
 	for i := range diagram.Resources {
 		r := &diagram.Resources[i]
@@ -85,13 +130,134 @@ func (p *TerraformParser) createConnections(diagram *models.Diagram, builder *mo
 	}
 }
 
+// addExternalReferences creates typed placeholder nodes for recognized resource
+// arguments whose targets are not present in the Terraform state.
+func (p *TerraformParser) addExternalReferences(diagram *models.Diagram, builder *models.DiagramBuilder) {
+	rm := make(resourceMap, len(diagram.Resources))
+	for i := range diagram.Resources {
+		r := &diagram.Resources[i]
+		rm[r.ID] = r
+	}
+	ti := buildTypeIndex(rm)
+	seen := make(map[string]bool)
+
+	for i := range diagram.Resources {
+		resource := &diagram.Resources[i]
+		for _, spec := range externalReferenceSpecs {
+			if resource.Type != spec.sourceType {
+				continue
+			}
+			if spec.sourceType == models.ResourceTypeAPIGatewayIntegration && resource.Properties["connection_type"] != "VPC_LINK" {
+				continue
+			}
+			if spec.sourceType == models.ResourceTypeSNSSubscription && resource.Properties["protocol"] != "sqs" {
+				continue
+			}
+			for _, value := range referenceValues(resource.Properties, spec.path) {
+				if value == "" || findByProperty(ti, spec.targetType, spec.property, value) != nil {
+					continue
+				}
+				key := string(spec.targetType) + "\x00" + spec.property + "\x00" + value
+				if seen[key] {
+					continue
+				}
+				seen[key] = true
+
+				external := externalResource(spec.targetType, spec.property, value)
+				builder.AddResource(external)
+				ti[external.Type] = append(ti[external.Type], &diagram.Resources[len(diagram.Resources)-1])
+			}
+		}
+	}
+}
+
+func referenceValues(properties map[string]interface{}, path []string) []string {
+	var walk func(interface{}, int) []string
+	walk = func(value interface{}, depth int) []string {
+		if depth == len(path) {
+			switch typed := value.(type) {
+			case string:
+				if len(path) > 0 && path[len(path)-1] == "redrive_policy" {
+					var decoded map[string]interface{}
+					if json.Unmarshal([]byte(typed), &decoded) == nil {
+						return walk(decoded, depth)
+					}
+				}
+				return []string{typed}
+			case []interface{}:
+				var values []string
+				for _, item := range typed {
+					values = append(values, walk(item, depth)...)
+				}
+				return values
+			}
+			return nil
+		}
+
+		switch typed := value.(type) {
+		case map[string]interface{}:
+			if next, ok := typed[path[depth]]; ok {
+				return walk(next, depth+1)
+			}
+		case []interface{}:
+			var values []string
+			for _, item := range typed {
+				values = append(values, walk(item, depth)...)
+			}
+			return values
+		case string:
+			var decoded interface{}
+			if json.Unmarshal([]byte(typed), &decoded) == nil {
+				return walk(decoded, depth)
+			}
+		}
+		return nil
+	}
+
+	return walk(properties, 0)
+}
+
+func externalResource(resourceType models.ResourceType, property, value string) models.Resource {
+	hash := fnv.New64a()
+	_, _ = hash.Write([]byte(string(resourceType) + "\x00" + property + "\x00" + value))
+	name := value
+	if slash := strings.LastIndex(name, "/"); slash >= 0 && slash < len(name)-1 {
+		name = name[slash+1:]
+	}
+
+	resource := models.Resource{
+		ID:          fmt.Sprintf("external-%x", hash.Sum64()),
+		Name:        name,
+		Type:        resourceType,
+		Provider:    "aws",
+		State:       models.ResourceStateUnknown,
+		Properties:  map[string]interface{}{property: value, "referenced_value": value},
+		Tags:        make(map[string]string),
+		Source:      "terraform-reference",
+		InStateFile: false,
+		Group:       "not-in-state-file",
+	}
+	if strings.HasPrefix(value, "arn:") {
+		parts := strings.Split(value, ":")
+		if len(parts) > 4 {
+			resource.Region = parts[3]
+			resource.Account = parts[4]
+		}
+	}
+	return resource
+}
+
 // analyzeResourceConnections dispatches to the appropriate analyzer for a resource.
 func (p *TerraformParser) analyzeResourceConnections(resource *models.Resource, ti typeIndex, builder *models.DiagramBuilder) {
 	switch resource.Type {
 	case models.ResourceTypeEC2Instance:
 		p.analyzeEC2Connections(resource, ti, builder)
+	case models.ResourceTypeSubnet:
+		p.connectToVPC(resource, ti, builder, "Subnet belongs to VPC")
 	case models.ResourceTypeLoadBalancer:
 		p.analyzeLoadBalancerConnections(resource, ti, builder)
+	case models.ResourceTypeCloudFront:
+		p.analyzeCloudFrontConnections(resource, ti, builder)
 	case models.ResourceTypeLBListener:
 		p.analyzeLBListenerConnections(resource, ti, builder)
 	case models.ResourceTypeRDSInstance:
@@ -109,7 +275,7 @@ func (p *TerraformParser) analyzeResourceConnections(resource *models.Resource, 
 		models.ResourceTypeAPIGatewayBasePathMapping,
 		models.ResourceTypeAPIGatewayVPCLink:
 		p.analyzeAPIGatewayConnections(resource, ti, builder)
-	case models.ResourceTypeSNSTopic:
+	case models.ResourceTypeSNSTopic, models.ResourceTypeSNSSubscription:
 		p.analyzeSNSConnections(resource, ti, builder)
 	case models.ResourceTypeSQSQueue:
 		p.analyzeSQSConnections(resource, ti, builder)
@@ -138,11 +304,13 @@ func (p *TerraformParser) analyzeResourceConnections(resource *models.Resource, 
 
 // connectToSecurityGroups creates connections from a resource to its security groups.
 func connectToSecurityGroups(resource *models.Resource, sgIDs []interface{}, ti typeIndex, builder *models.DiagramBuilder, description string) {
+	seen := make(map[string]bool)
 	for _, sgID := range sgIDs {
 		sgIDStr, ok := sgID.(string)
-		if !ok {
+		if !ok || seen[sgIDStr] {
 			continue
 		}
+		seen[sgIDStr] = true
 		if sg := findByProperty(ti, models.ResourceTypeSecurityGroup, "id", sgIDStr); sg != nil {
 			builder.AddConnection(resource.ID, sg.ID, models.ConnectionTypeAccess, description)
 		}
@@ -171,6 +339,13 @@ func (p *TerraformParser) analyzeEC2Connections(resource *models.Resource, ti ty
 	}
 }
 
+func (p *TerraformParser) connectToVPC(resource *models.Resource, ti typeIndex, builder *models.DiagramBuilder, description string) {
+	vpcID, _ := resource.Properties["vpc_id"].(string)
+	if vpc := findByProperty(ti, models.ResourceTypeVPC, "id", vpcID); vpc != nil {
+		builder.AddConnection(resource.ID, vpc.ID, models.ConnectionTypeNetworking, description)
+	}
+}
+
 // analyzeLoadBalancerConnections analyzes load balancer connections.
 func (p *TerraformParser) analyzeLoadBalancerConnections(resource *models.Resource, ti typeIndex, builder *models.DiagramBuilder) {
 	// Connect to subnets.
@@ -187,6 +362,14 @@ func (p *TerraformParser) analyzeLoadBalancerConnections(resource *models.Resour
 	// Connect to security groups.
 	if sgIDs, ok := resource.Properties["security_groups"].([]interface{}); ok {
 		connectToSecurityGroups(resource, sgIDs, ti, builder, "Load balancer uses security group")
+	}
+}
+
+func (p *TerraformParser) analyzeCloudFrontConnections(resource *models.Resource, ti typeIndex, builder *models.DiagramBuilder) {
+	for _, certificateARN := range referenceValues(resource.Properties, []string{"viewer_certificate", "acm_certificate_arn"}) {
+		if certificate := findByProperty(ti, models.ResourceTypeACMCertificate, "arn", certificateARN); certificate != nil {
+			builder.AddConnection(resource.ID, certificate.ID, models.ConnectionTypeAccess, "CloudFront distribution uses ACM certificate")
+		}
 	}
 }
 
@@ -414,6 +597,17 @@ func (p *TerraformParser) connectToRestAPI(resource *models.Resource, ti typeInd
 
 // analyzeSNSConnections analyzes SNS topic connections.
 func (p *TerraformParser) analyzeSNSConnections(resource *models.Resource, ti typeIndex, builder *models.DiagramBuilder) {
+	if resource.Type == models.ResourceTypeSNSSubscription {
+		protocol, _ := resource.Properties["protocol"].(string)
+		endpoint, _ := resource.Properties["endpoint"].(string)
+		if protocol == "sqs" {
+			if queue := findByProperty(ti, models.ResourceTypeSQSQueue, "arn", endpoint); queue != nil {
+				builder.AddConnection(resource.ID, queue.ID, models.ConnectionTypeTrigger, "SNS subscription delivers to SQS queue")
+			}
+		}
+		return
+	}
+
 	topicArn, _ := resource.Properties["arn"].(string)
 	if topicArn == "" {
 		return
@@ -492,6 +686,8 @@ func (p *TerraformParser) analyzeTargetGroupConnections(resource *models.Resourc
 
 // analyzeSecurityGroupConnections analyzes Security Group connections.
 func (p *TerraformParser) analyzeSecurityGroupConnections(resource *models.Resource, ti typeIndex, builder *models.DiagramBuilder) {
+	p.connectToVPC(resource, ti, builder, "Security group belongs to VPC")
+
 	ingress, ok := resource.Properties["ingress"].([]interface{})
 	if !ok {
 		return

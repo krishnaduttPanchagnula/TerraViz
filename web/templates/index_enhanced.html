@@ -700,6 +700,150 @@
             cursor: grabbing;
         }
 
+        /* Diagram / list view switcher */
+        .view-toggle {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            display: flex;
+            padding: 3px;
+            background: rgba(16, 16, 16, 0.9);
+            border: 1px solid var(--sm-border-hover);
+            border-radius: var(--sm-radius-sm);
+            box-shadow: var(--sm-shadow-panel);
+            backdrop-filter: blur(12px);
+            z-index: 110;
+        }
+
+        .view-toggle-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: transparent;
+            border: 0;
+            border-radius: var(--sm-radius-xs);
+            color: var(--sm-text-muted);
+            font: 600 var(--sm-text-sm) var(--sm-font-sans);
+            cursor: pointer;
+            transition: background var(--sm-transition-fast), color var(--sm-transition-fast);
+        }
+
+        .view-toggle-btn svg {
+            width: 15px;
+            height: 15px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.8;
+        }
+
+        .view-toggle-btn.active {
+            background: var(--sm-surface-raised);
+            color: var(--sm-primary);
+        }
+
+        .resource-table-view {
+            position: absolute;
+            inset: 0;
+            display: none;
+            overflow: auto;
+            padding: 72px 20px 88px;
+            background: var(--sm-bg);
+            z-index: 50;
+        }
+
+        .resource-table-view.visible {
+            display: block;
+        }
+
+        .resource-table-shell {
+            width: 100%;
+            min-width: 860px;
+            overflow: hidden;
+            background: var(--sm-surface);
+            border: 1px solid var(--sm-border);
+            border-radius: var(--sm-radius-md);
+            box-shadow: var(--sm-shadow-sm);
+        }
+
+        .resource-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: var(--sm-text-md);
+        }
+
+        .resource-table th {
+            position: sticky;
+            top: 0;
+            padding: 10px 14px;
+            background: var(--sm-surface-raised);
+            color: var(--sm-text-muted);
+            font-size: var(--sm-text-xs);
+            text-align: left;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            z-index: 1;
+        }
+
+        .resource-table td {
+            padding: 11px 14px;
+            border-top: 1px solid var(--sm-border-subtle);
+            color: var(--sm-text-muted);
+            vertical-align: middle;
+        }
+
+        .resource-table tbody tr {
+            cursor: pointer;
+            transition: background var(--sm-transition-fast);
+        }
+
+        .resource-table tbody tr:hover {
+            background: var(--sm-primary-glow);
+        }
+
+        .resource-table-name {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            color: var(--sm-text);
+            font-weight: 600;
+        }
+
+        .resource-table-name img {
+            width: 24px;
+            height: 24px;
+            object-fit: contain;
+        }
+
+        .resource-table-code {
+            font-family: var(--sm-font-mono);
+            font-size: var(--sm-text-sm);
+        }
+
+        .state-file-badge {
+            display: inline-flex;
+            padding: 2px 7px;
+            border: 1px solid rgba(74, 222, 128, 0.25);
+            border-radius: 999px;
+            background: var(--sm-primary-glow);
+            color: var(--sm-primary);
+            font-size: var(--sm-text-xs);
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .state-file-badge.external {
+            border-color: rgba(251, 146, 60, 0.3);
+            background: rgba(251, 146, 60, 0.1);
+            color: var(--sm-warning);
+        }
+
+        .resource-table-empty {
+            padding: 48px !important;
+            text-align: center;
+            color: var(--sm-text-faint) !important;
+        }
+
         /* Empty state */
         .empty-state {
             position: absolute;
@@ -1006,6 +1150,7 @@
         /* Presentation Mode */
         .presentation-mode .filter-sidebar,
         .presentation-mode .sidebar-toggle,
+        .presentation-mode .view-toggle,
         .presentation-mode .floating-toolbar,
         .presentation-mode .minimap {
             opacity: 0;
@@ -1129,6 +1274,19 @@
             .minimap {
                 width: 160px;
                 height: 96px;
+            }
+
+            .view-toggle {
+                top: 10px;
+                right: 10px;
+            }
+
+            .view-toggle-btn span {
+                display: none;
+            }
+
+            .resource-table-view {
+                padding: 60px 10px 84px;
             }
         }
 
@@ -1726,6 +1884,17 @@
                     <span>☰</span>
                 </button>
 
+                <div class="view-toggle" role="group" aria-label="Resource view">
+                    <button id="diagram-view-btn" class="view-toggle-btn active" type="button" aria-pressed="true">
+                        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M10 6.5h4a3.5 3.5 0 0 1 3.5 3.5v4"/></svg>
+                        <span>Diagram</span>
+                    </button>
+                    <button id="list-view-btn" class="view-toggle-btn" type="button" aria-pressed="false">
+                        <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+                        <span>List</span>
+                    </button>
+                </div>
+
                 <!-- Floating Toolbar -->
                 <div class="floating-toolbar">
                     <!-- Zoom In -->
@@ -1792,6 +1961,11 @@
                         <svg viewBox="0 0 24 24"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M9 15l2 2 4-4"/></svg>
                         <span class="toolbar-tooltip">Export SVG</span>
                     </button>
+                    <!-- Export CSV -->
+                    <button class="toolbar-btn" id="export-csv" title="Download all resource information as CSV">
+                        <svg viewBox="0 0 24 24"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M8 13h8M8 17h8"/></svg>
+                        <span class="toolbar-tooltip">Download CSV</span>
+                    </button>
                     <!-- Presentation Mode -->
                     <button class="toolbar-btn" id="presentation-mode" title="Presentation Mode">
                         <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
@@ -1840,6 +2014,26 @@
                 </div>
 
                 <svg id="diagram-canvas" class="diagram-canvas"></svg>
+
+                <div id="resource-table-view" class="resource-table-view" aria-hidden="true">
+                    <div class="resource-table-shell">
+                        <table class="resource-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Provider</th>
+                                    <th>Region</th>
+                                    <th>Account</th>
+                                    <th>State</th>
+                                    <th>Source</th>
+                                    <th>In State File</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resource-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
 
                 <!-- Minimap -->
                 <div id="minimap" class="minimap">

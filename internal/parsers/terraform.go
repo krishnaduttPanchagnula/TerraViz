@@ -83,7 +83,7 @@ func (p *TerraformParser) parseTerraformShowJSON(data []byte) (*models.ScanResul
 		Errors:   errors,
 		Warnings: warnings,
 		Stats: models.ScanStats{
-			ResourceCount:   resourceCount,
+			ResourceCount:   len(diagram.Resources),
 			ConnectionCount: len(diagram.Connections),
 			ErrorCount:      len(errors),
 			WarningCount:    len(warnings),
@@ -179,7 +179,7 @@ func (p *TerraformParser) parseRawStateFile(data []byte, filePath string) (*mode
 		Errors:   errors,
 		Warnings: warnings,
 		Stats: models.ScanStats{
-			ResourceCount:   resourceCount,
+			ResourceCount:   len(diagram.Resources),
 			ConnectionCount: len(diagram.Connections),
 			ErrorCount:      len(errors),
 			WarningCount:    len(warnings),
@@ -247,14 +247,15 @@ func (p *TerraformParser) convertRawTerraformResource(rawResource RawStateResour
 	}
 
 	resource := &models.Resource{
-		ID:         resourceID,
-		Name:       p.extractRawResourceName(rawResource, instance.Attributes),
-		Type:       resourceType,
-		Provider:   p.extractProvider(rawResource.Provider),
-		State:      models.ResourceStateActive, // Assume active if in state
-		Properties: make(map[string]interface{}),
-		Tags:       p.extractTags(instance.Attributes),
-		Source:     "terraform",
+		ID:          resourceID,
+		Name:        p.extractRawResourceName(rawResource, instance.Attributes),
+		Type:        resourceType,
+		Provider:    p.extractProvider(rawResource.Provider),
+		State:       models.ResourceStateActive, // Assume active if in state
+		Properties:  make(map[string]interface{}),
+		Tags:        p.extractTags(instance.Attributes),
+		Source:      "terraform",
+		InStateFile: true,
 	}
 
 	// Extract common attributes
@@ -324,14 +325,15 @@ func (p *TerraformParser) convertTerraformResource(tfResource *tfjson.StateResou
 	}
 
 	resource := &models.Resource{
-		ID:         resourceID,
-		Name:       p.extractResourceName(tfResource),
-		Type:       resourceType,
-		Provider:   p.extractProvider(tfResource.ProviderName),
-		State:      models.ResourceStateActive, // Assume active if in state
-		Properties: make(map[string]interface{}),
-		Tags:       p.extractTags(tfResource.AttributeValues),
-		Source:     "terraform",
+		ID:          resourceID,
+		Name:        p.extractResourceName(tfResource),
+		Type:        resourceType,
+		Provider:    p.extractProvider(tfResource.ProviderName),
+		State:       models.ResourceStateActive, // Assume active if in state
+		Properties:  make(map[string]interface{}),
+		Tags:        p.extractTags(tfResource.AttributeValues),
+		Source:      "terraform",
+		InStateFile: true,
 	}
 
 	// Extract common attributes

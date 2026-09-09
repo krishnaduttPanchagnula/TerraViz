@@ -175,18 +175,40 @@ Starts a local web server to display the interactive diagram. The diagram argume
 - `POST /api/s3/load` — Load a `.tfstate` file from S3 and render it
 - `POST /api/upload` — Upload a local `.tfstate` file (multipart form)
 
-## Supported AWS Resource Types
+## Supported Providers and Services
 
-**Compute:** EC2 instances, Lambda functions, ECS clusters/services/task definitions
-**Storage:** S3 buckets, ECR repositories
-**Database:** RDS instances
-**Networking:** VPCs, subnets, security groups, load balancers (ALB/NLB), listeners, target groups, Route53 zones/records
-**Security:** IAM roles/users/policies, ACM certificates, WAF web ACLs, KMS keys, Secrets Manager
-**Messaging:** SNS topics/subscriptions, SQS queues
-**API:** API Gateway REST APIs, stages, resources, methods, integrations, domain names, usage plans, VPC links
-**CDN:** CloudFront distributions
-**Monitoring:** CloudWatch log groups
-**Service Discovery:** Cloud Map namespaces/services
+<details>
+<summary><strong>List of providers/services</strong></summary>
+
+<details>
+<summary><strong>AWS</strong></summary>
+
+- **Amazon API Gateway:** REST APIs, resources, methods, integrations, method responses, integration responses, deployments, stages, domain names, base path mappings, usage plans, and VPC links
+- **AWS Certificate Manager (ACM):** Certificates and certificate validations
+- **Amazon CloudFront:** Distributions
+- **Amazon CloudWatch Logs:** Log groups
+- **AWS Cloud Map:** Private DNS namespaces and services
+- **Amazon EC2:** Instances
+- **Amazon Elastic Container Registry (ECR):** Repositories
+- **Amazon Elastic Container Service (ECS):** Clusters, services, and task definitions
+- **Elastic Load Balancing (ELB):** Classic load balancers, Application/Network Load Balancers, listeners, listener rules, target groups, and target group attachments
+- **AWS Identity and Access Management (IAM):** Roles, users, policies, and role-policy attachments
+- **AWS Key Management Service (KMS):** Keys
+- **AWS Lambda:** Functions
+- **Amazon Relational Database Service (RDS):** Database instances
+- **Amazon Route 53:** Hosted zones and records
+- **Amazon Simple Notification Service (SNS):** Topics, subscriptions, and topic policies
+- **Amazon Simple Queue Service (SQS):** Queues and queue policies
+- **Amazon Simple Storage Service (S3):** Buckets
+- **AWS Secrets Manager:** Secrets
+- **Amazon VPC:** VPCs, subnets, and security groups
+- **AWS WAF:** Web ACLs, IP sets, and web ACL associations
+
+Terraform state parsing supports all resources listed above. Live AWS account scanning currently covers EC2 instances, VPCs, subnets, security groups, S3 buckets, RDS instances, and Lambda functions.
+
+</details>
+
+</details>
 
 ## Connection Types
 

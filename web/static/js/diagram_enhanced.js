@@ -35,13 +35,16 @@ const LAYER_LABEL_PAD_X = 10;
 const LAYER_LABEL_PAD_Y = 8;
 
 const LAYOUT_PADDING_X = 40;
-const LAYOUT_PADDING_Y = 50;
 const LAYOUT_GAP = 80;
-const SUBGROUP_PADDING_X = 30;
-const SUBGROUP_PADDING_Y = 50;
+const LAYER_CONTENT_PADDING_X = 24;
+const LAYER_HEADER_HEIGHT = 44;
+const LAYER_CONTENT_PADDING_BOTTOM = 24;
+const SUBGROUP_PADDING_X = 24;
+const SUBGROUP_HEADER_HEIGHT = 36;
+const SUBGROUP_PADDING_BOTTOM = 24;
 const SUBGROUP_GAP = 30;
-const NODE_SPACING_X = 150;
-const NODE_SPACING_Y = 140;
+const NODE_GAP_X = 40;
+const NODE_GAP_Y = 40;
 const NODES_PER_ROW = 4;
 const LAYOUT_MIN_CANVAS_WIDTH = 1400;
 const LAYOUT_START_Y = 80;
@@ -73,17 +76,6 @@ const FLOW_DOT2_RADIUS = 2.5;
 const FLOW_DOT_SHORT_DUR = "1.5s";
 const FLOW_DOT_LONG_DUR = "2.5s";
 const FLOW_LONG_DIST = 300;
-
-const LAYER_BOX_PAD = 40;
-const LAYER_BOX_EXTRA_X = 50;
-const LAYER_BOX_EXTRA_Y = 30;
-const LAYER_BOX_MIN_W = 200;
-const LAYER_BOX_MIN_H = 120;
-const SUBGROUP_BOX_PAD = 24;
-const SUBGROUP_BOX_EXTRA_X = 40;
-const SUBGROUP_BOX_EXTRA_Y = 20;
-const SUBGROUP_BOX_MIN_W = 140;
-const SUBGROUP_BOX_MIN_H = 80;
 
 const CONN_CLOSE_DIST = 200;
 const CONN_MED_DIST = 500;
@@ -288,6 +280,7 @@ class EnhancedDiagramViewer {
     this.showFlowAnimations = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.presentationMode = false;
     this.sidebarCollapsed = false;
+    this.currentView = "diagram";
 
     this.resources = [];
     this.connections = [];
@@ -473,6 +466,12 @@ class EnhancedDiagramViewer {
       "security-identity-compliance": {
         name: "Security & Compliance",
         color: "#BE123C",
+        resources: [],
+        subgroups: {},
+      },
+      "not-in-state-file": {
+        name: "Not In State File",
+        color: "#FB923C",
         resources: [],
         subgroups: {},
       },
@@ -673,6 +672,16 @@ class EnhancedDiagramViewer {
     document
       .getElementById("export-svg")
       .addEventListener("click", () => this.exportToSVG());
+    document
+      .getElementById("export-csv")
+      .addEventListener("click", () => this.exportToCSV());
+
+    document
+      .getElementById("diagram-view-btn")
+      .addEventListener("click", () => this.setView("diagram"));
+    document
+      .getElementById("list-view-btn")
+      .addEventListener("click", () => this.setView("list"));
 
     // Toggle Grid
     const gridBtn = document.getElementById("toggle-grid");
@@ -731,6 +740,7 @@ class EnhancedDiagramViewer {
       { value: 'pending', label: 'Pending' },
       { value: 'failed', label: 'Failed' },
       { value: 'terminated', label: 'Terminated' },
+      { value: 'unknown', label: 'Unknown' },
     ]);
     // Populate type/provider/region from already-loaded resources
     this.updateFilters();
@@ -804,7 +814,7 @@ class EnhancedDiagramViewer {
     this.resources.forEach((resource) => {
       // Resource type format: "aws:<service>:<subtype>"
       const parts = resource.type.split(":");
-      let layerKey = parts.length >= 2 ? parts[1] : null;
+      let layerKey = resource.group || (parts.length >= 2 ? parts[1] : null);
       const subgroupKey = parts.length >= 3 ? parts[2] : "default";
 
       // Map type segments to layer keys (handle cloudwatch log group -> logs layer)
@@ -867,40 +877,55 @@ class EnhancedDiagramViewer {
 
       const subgroupKeys = Object.keys(layer.subgroups);
 
-      // First pass: compute grid dimensions for each sub-group
+      // First pass: size each subgroup from its header, node cards, and padding.
       const sgLayouts = {};
       subgroupKeys.forEach((sgKey) => {
         const sgResources = layer.subgroups[sgKey].resources;
         const cols = Math.min(sgResources.length, NODES_PER_ROW);
         const rows = Math.ceil(sgResources.length / NODES_PER_ROW);
-        const innerW = cols * NODE_SPACING_X + SUBGROUP_PADDING_X * 2;
-        const innerH =
-          rows * NODE_SPACING_Y + SUBGROUP_PADDING_Y + SUBGROUP_PADDING_X;
+        const width =
+          SUBGROUP_PADDING_X * 2 +
+          cols * NODE_CARD_W +
+          Math.max(0, cols - 1) * NODE_GAP_X;
+        const height =
+          SUBGROUP_HEADER_HEIGHT +
+          rows * NODE_CARD_H +
+          Math.max(0, rows - 1) * NODE_GAP_Y +
+          SUBGROUP_PADDING_BOTTOM;
         sgLayouts[sgKey] = {
           resources: sgResources,
           cols,
           rows,
-          innerW,
-          innerH,
+          width,
+          height,
         };
       });
 
-      // Second pass: lay out sub-groups side by side, wrapping when too wide
-      const maxLayerWidth = canvasWidth - LAYOUT_PADDING_X * 2;
-      let rowX = LAYOUT_PADDING_X;
-      let rowY = currentY + LAYOUT_PADDING_Y;
+      // Lay out subgroups inside an explicit service container. The stored
+      // rectangles are also used for rendering, so each hierarchy level has
+      // guaranteed clearance from its parent and children.
+      const layerX = LAYOUT_PADDING_X;
+      const layerY = currentY;
+      const contentX = layerX + LAYER_CONTENT_PADDING_X;
+      const contentY = layerY + LAYER_HEADER_HEIGHT;
+      const maxContentWidth =
+        canvasWidth - LAYOUT_PADDING_X * 2 - LAYER_CONTENT_PADDING_X * 2;
+      let rowX = contentX;
+      let rowY = contentY;
       let rowMaxH = 0;
+      let maxRight = contentX;
+      let maxBottom = contentY;
 
       subgroupKeys.forEach((sgKey) => {
         const sg = sgLayouts[sgKey];
 
         // Wrap to next row if this subgroup would overflow
         if (
-          rowX + sg.innerW > LAYOUT_PADDING_X + maxLayerWidth &&
-          rowX > LAYOUT_PADDING_X
+          rowX + sg.width > contentX + maxContentWidth &&
+          rowX > contentX
         ) {
           rowY += rowMaxH + SUBGROUP_GAP;
-          rowX = LAYOUT_PADDING_X;
+          rowX = contentX;
           rowMaxH = 0;
         }
 
@@ -915,25 +940,29 @@ class EnhancedDiagramViewer {
           resource.x =
             rowX +
             SUBGROUP_PADDING_X +
-            col * NODE_SPACING_X +
-            NODE_SPACING_X / 2;
+            NODE_CARD_W / 2 +
+            col * (NODE_CARD_W + NODE_GAP_X);
           resource.y =
             rowY +
-            SUBGROUP_PADDING_Y +
-            row * NODE_SPACING_Y +
-            NODE_SPACING_Y / 2;
+            SUBGROUP_HEADER_HEIGHT +
+            NODE_CARD_H / 2 +
+            row * (NODE_CARD_H + NODE_GAP_Y);
         });
 
-        rowX += sg.innerW + SUBGROUP_GAP;
-        rowMaxH = Math.max(rowMaxH, sg.innerH);
+        maxRight = Math.max(maxRight, rowX + sg.width);
+        maxBottom = Math.max(maxBottom, rowY + sg.height);
+        rowX += sg.width + SUBGROUP_GAP;
+        rowMaxH = Math.max(rowMaxH, sg.height);
       });
 
-      // Track how far down this layer extends
-      const maxY = safeMax(layer.resources.map((r) => r.y));
-      currentY = maxY + LAYOUT_PADDING_Y + LAYOUT_GAP;
-
-      // Store layout metadata for renderLayers
-      layer._layout = { sgLayouts, subgroupKeys };
+      const layerBounds = {
+        x: layerX,
+        y: layerY,
+        width: maxRight - layerX + LAYER_CONTENT_PADDING_X,
+        height: maxBottom - layerY + LAYER_CONTENT_PADDING_BOTTOM,
+      };
+      currentY = layerY + layerBounds.height + LAYOUT_GAP;
+      layer._layout = { sgLayouts, subgroupKeys, bounds: layerBounds };
     });
   }
 
@@ -1047,29 +1076,14 @@ class EnhancedDiagramViewer {
       const visible = layer.resources.filter((r) => filteredSet.has(r));
       if (visible.length === 0) return;
 
-      const minX =
-        safeMin(visible.map((r) => r.x)) -
-        LAYER_BOX_PAD -
-        LAYER_BOX_EXTRA_X;
-      const maxX =
-        safeMax(visible.map((r) => r.x)) +
-        LAYER_BOX_PAD +
-        LAYER_BOX_EXTRA_X;
-      const minY =
-        safeMin(visible.map((r) => r.y)) -
-        LAYER_BOX_PAD -
-        LAYER_BOX_EXTRA_Y;
-      const maxY =
-        safeMax(visible.map((r) => r.y)) +
-        LAYER_BOX_PAD +
-        LAYER_BOX_EXTRA_Y;
+      const bounds = layer._layout.bounds;
 
       // Outer service box — dashed border (AWS architecture style)
       const serviceBox = svgEl("rect", {
-        x: minX,
-        y: minY,
-        width: Math.max(maxX - minX, LAYER_BOX_MIN_W),
-        height: Math.max(maxY - minY, LAYER_BOX_MIN_H),
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
         fill: `url(#gradient-${layerKey})`,
         stroke: layer.color,
         "stroke-width": "1.5",
@@ -1085,8 +1099,8 @@ class EnhancedDiagramViewer {
         labelText.length * 7.5 + LAYER_LABEL_PAD_X * 2;
 
       const labelBadge = svgEl("rect", {
-        x: minX + 8,
-        y: minY + 6,
+        x: bounds.x + 8,
+        y: bounds.y + 6,
         width: labelWidth,
         height: LAYER_LABEL_H,
         rx: LAYER_LABEL_RX,
@@ -1099,8 +1113,8 @@ class EnhancedDiagramViewer {
       layersGroup.appendChild(labelBadge);
 
       const serviceLabel = svgEl("text", {
-        x: minX + 8 + labelWidth / 2,
-        y: minY + 6 + LAYER_LABEL_H / 2 + 1,
+        x: bounds.x + 8 + labelWidth / 2,
+        y: bounds.y + 6 + LAYER_LABEL_H / 2 + 1,
         fill: layer.color,
         "font-size": String(LAYER_LABEL_FONT_SIZE),
         "font-weight": "700",
@@ -1118,28 +1132,13 @@ class EnhancedDiagramViewer {
           const sgVisible = sg.resources.filter((r) => filteredSet.has(r));
           if (sgVisible.length === 0) return;
 
-          const sgMinX =
-            safeMin(sgVisible.map((r) => r.x)) -
-            SUBGROUP_BOX_PAD -
-            SUBGROUP_BOX_EXTRA_X;
-          const sgMaxX =
-            safeMax(sgVisible.map((r) => r.x)) +
-            SUBGROUP_BOX_PAD +
-            SUBGROUP_BOX_EXTRA_X;
-          const sgMinY =
-            safeMin(sgVisible.map((r) => r.y)) -
-            SUBGROUP_BOX_PAD -
-            SUBGROUP_BOX_EXTRA_Y;
-          const sgMaxY =
-            safeMax(sgVisible.map((r) => r.y)) +
-            SUBGROUP_BOX_PAD +
-            SUBGROUP_BOX_EXTRA_Y;
+          const sgBounds = layer._layout.sgLayouts[sgKey];
 
           const sgBox = svgEl("rect", {
-            x: sgMinX,
-            y: sgMinY,
-            width: Math.max(sgMaxX - sgMinX, SUBGROUP_BOX_MIN_W),
-            height: Math.max(sgMaxY - sgMinY, SUBGROUP_BOX_MIN_H),
+            x: sgBounds.x,
+            y: sgBounds.y,
+            width: sgBounds.width,
+            height: sgBounds.height,
             fill: layer.color,
             "fill-opacity": "0.06",
             stroke: layer.color,
@@ -1151,8 +1150,8 @@ class EnhancedDiagramViewer {
 
           // Sub-group label
           const sgLabel = svgEl("text", {
-            x: sgMinX + 10,
-            y: sgMinY + 16,
+            x: sgBounds.x + 10,
+            y: sgBounds.y + 20,
             fill: layer.color,
             "font-size": "10",
             "font-weight": "600",
@@ -1206,6 +1205,8 @@ class EnhancedDiagramViewer {
       const dx = target.x - source.x;
       const dy = target.y - source.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
+      const perpDx = -dy / dist;
+      const perpDy = dx / dist;
 
       // Multi-edge offset: fan out parallel edges between the same node pair
       const pairKey =
@@ -1472,6 +1473,10 @@ class EnhancedDiagramViewer {
         "stroke-width": "1.5",
         "stroke-opacity": "0.4",
       });
+      if (resource.in_state_file === false) {
+        cardBg.setAttribute("stroke-dasharray", "6,3");
+        cardBg.setAttribute("stroke-width", "2");
+      }
       nodeGroup.appendChild(cardBg);
 
       // Icon (centered horizontally, positioned in upper portion of card)
@@ -2062,6 +2067,64 @@ class EnhancedDiagramViewer {
     });
 
     resourceList.appendChild(fragment);
+    this.updateResourceTable();
+  }
+
+  updateResourceTable() {
+    const body = document.getElementById("resource-table-body");
+    while (body.firstChild) body.removeChild(body.firstChild);
+
+    if (this.filteredResources.length === 0) {
+      const row = body.insertRow();
+      const cell = row.insertCell();
+      cell.colSpan = 8;
+      cell.className = "resource-table-empty";
+      cell.textContent = "No resources match the current filters.";
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    this.filteredResources.forEach((resource) => {
+      const row = document.createElement("tr");
+      row.addEventListener("click", () => this.selectResource(resource, false));
+
+      const nameCell = document.createElement("td");
+      const name = document.createElement("div");
+      name.className = "resource-table-name";
+      const icon = document.createElement("img");
+      icon.src = resource.icon_url || this.getResourceIconPath(resource.type);
+      icon.alt = "";
+      name.appendChild(icon);
+      name.appendChild(document.createTextNode(resource.name || ""));
+      nameCell.appendChild(name);
+      row.appendChild(nameCell);
+
+      ["type", "provider", "region", "account", "state", "source"].forEach((key) => {
+        const cell = document.createElement("td");
+        cell.textContent = resource[key] || "-";
+        if (key === "type" || key === "account") cell.className = "resource-table-code";
+        row.appendChild(cell);
+      });
+      const presenceCell = document.createElement("td");
+      const presenceBadge = document.createElement("span");
+      presenceBadge.className = `state-file-badge${resource.in_state_file === false ? " external" : ""}`;
+      presenceBadge.textContent = resource.in_state_file === false ? "No" : "Yes";
+      presenceCell.appendChild(presenceBadge);
+      row.appendChild(presenceCell);
+      fragment.appendChild(row);
+    });
+    body.appendChild(fragment);
+  }
+
+  setView(view) {
+    this.currentView = view;
+    const listVisible = view === "list";
+    document.getElementById("resource-table-view").classList.toggle("visible", listVisible);
+    document.getElementById("resource-table-view").setAttribute("aria-hidden", String(!listVisible));
+    document.getElementById("diagram-view-btn").classList.toggle("active", !listVisible);
+    document.getElementById("diagram-view-btn").setAttribute("aria-pressed", String(!listVisible));
+    document.getElementById("list-view-btn").classList.toggle("active", listVisible);
+    document.getElementById("list-view-btn").setAttribute("aria-pressed", String(listVisible));
   }
 
   updateStats() {
@@ -2071,7 +2134,7 @@ class EnhancedDiagramViewer {
 
   // ─── Selection & Dependencies ──────────────────────────────────────
 
-  selectResource(resource) {
+  selectResource(resource, panToResource = true) {
     if (this.selectedResource) {
       document.querySelectorAll(".resource-item.selected").forEach((item) => {
         item.classList.remove("selected");
@@ -2090,7 +2153,7 @@ class EnhancedDiagramViewer {
 
     this.highlightDependencies(resource);
     this.updateResourceDetailsPanel(resource);
-    this.panToResource(resource);
+    if (panToResource) this.panToResource(resource);
   }
 
   panToResource(resource) {
@@ -2279,6 +2342,11 @@ class EnhancedDiagramViewer {
     stateDiv.className = "resource-state";
     stateDiv.textContent = `State: ${resource.state || "Unknown"}`;
     infoDiv.appendChild(stateDiv);
+
+    const presenceDiv = document.createElement("div");
+    presenceDiv.className = "resource-state";
+    presenceDiv.textContent = `In state file: ${resource.in_state_file === false ? "No" : "Yes"}`;
+    infoDiv.appendChild(presenceDiv);
 
     panel.appendChild(infoDiv);
 
@@ -2556,6 +2624,46 @@ class EnhancedDiagramViewer {
     link.href = url;
 
     // Capture the URL before triggering the download, then revoke async
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  exportToCSV() {
+    const headers = [
+      "id", "name", "type", "provider", "region", "account", "state", "source",
+      "in_state_file", "created_at", "updated_at", "icon_url", "x", "y", "hidden", "tags", "properties",
+      "incoming_connections", "outgoing_connections",
+    ];
+    const rows = this.resources.map((resource) => {
+      const incoming = [];
+      const outgoing = [];
+      this.connections.forEach((connection) => {
+        const sourceId = connection.source_id || connection.source;
+        const targetId = connection.target_id || connection.target;
+        const summary = {
+          ...connection,
+          connected_resource_id: sourceId === resource.id ? targetId : sourceId,
+        };
+        if (targetId === resource.id) incoming.push(summary);
+        if (sourceId === resource.id) outgoing.push(summary);
+      });
+      return [
+        resource.id, resource.name, resource.type, resource.provider, resource.region,
+        resource.account, resource.state, resource.source, resource.in_state_file !== false, resource.created_at,
+        resource.updated_at, resource.icon_url, resource.x, resource.y,
+        Boolean(resource.hidden), resource.tags || {}, resource.properties || {},
+        incoming, outgoing,
+      ];
+    });
+    const escapeCSV = (value) => {
+      const text = typeof value === "object" ? JSON.stringify(value) : String(value ?? "");
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+    const csv = [headers, ...rows].map((row) => row.map(escapeCSV).join(",")).join("\r\n");
+    const url = URL.createObjectURL(new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.download = "architecture-resources.csv";
+    link.href = url;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }

@@ -110,19 +110,21 @@ const (
 
 // Resource represents a cloud infrastructure resource
 type Resource struct {
-	ID         string                 `json:"id"`
-	Name       string                 `json:"name"`
-	Type       ResourceType           `json:"type"`
-	Provider   string                 `json:"provider"` // aws, azure, gcp
-	Region     string                 `json:"region"`
-	Account    string                 `json:"account"`
-	State      ResourceState          `json:"state"`
-	Properties map[string]interface{} `json:"properties"`
-	Tags       map[string]string      `json:"tags"`
-	CreatedAt  *time.Time             `json:"created_at,omitempty"`
-	UpdatedAt  *time.Time             `json:"updated_at,omitempty"`
-	Source     string                 `json:"source"`   // terraform, cloudformation, live, repo
-	IconURL    string                 `json:"icon_url"` // URL to service icon
+	ID          string                 `json:"id"`
+	Name        string                 `json:"name"`
+	Type        ResourceType           `json:"type"`
+	Provider    string                 `json:"provider"` // aws, azure, gcp
+	Region      string                 `json:"region"`
+	Account     string                 `json:"account"`
+	State       ResourceState          `json:"state"`
+	Properties  map[string]interface{} `json:"properties"`
+	Tags        map[string]string      `json:"tags"`
+	CreatedAt   *time.Time             `json:"created_at,omitempty"`
+	UpdatedAt   *time.Time             `json:"updated_at,omitempty"`
+	Source      string                 `json:"source"`   // terraform, cloudformation, live, repo
+	IconURL     string                 `json:"icon_url"` // URL to service icon
+	InStateFile bool                   `json:"in_state_file"`
+	Group       string                 `json:"group,omitempty"`
 
 	// UI Properties
 	X      float64 `json:"x"`      // X coordinate in diagram
