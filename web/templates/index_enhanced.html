@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.title}} - {{.diagram_name}}</title>
+    <script>
+        try {
+            document.documentElement.dataset.theme = localStorage.getItem('terraviz-theme') || 'dark';
+        } catch (_) {
+            document.documentElement.dataset.theme = 'dark';
+        }
+    </script>
     <style>
         /* Geist Sans — geometric sans-serif (CDN, variable weight) */
         @font-face {
@@ -70,6 +77,15 @@
             --sm-text-muted: rgba(232, 232, 232, 0.55);
             --sm-text-faint: rgba(232, 232, 232, 0.28);
             --sm-terminal-bg: #141414;
+            --sm-toolbar-bg: rgba(16, 16, 16, 0.9);
+            --sm-overlay-bg: rgba(16, 16, 16, 0.95);
+            --sm-card-bg: rgba(24, 24, 24, 0.85);
+            --sm-toolbar-text: rgba(255, 255, 255, 0.55);
+            --sm-toolbar-text-hover: rgba(255, 255, 255, 0.9);
+            --sm-tooltip-bg: rgba(0, 0, 0, 0.85);
+            --sm-tooltip-text: rgba(255, 255, 255, 0.85);
+            --sm-node-label: #f5f5f7;
+            --sm-node-type: rgba(245, 245, 247, 0.6);
 
             /* Dot-grid blueprint pattern */
             --sm-grid-dot: rgba(255, 255, 255, 0.08);
@@ -122,6 +138,94 @@
             --sm-shadow-panel: var(--sm-shadow-sm);
             --sm-shadow-elevated: var(--sm-shadow-md);
             --sm-shadow-overlay: var(--sm-shadow-lg);
+        }
+
+        :root[data-theme="aurora"] {
+            --sm-bg: #071918;
+            --sm-surface: #0d2422;
+            --sm-surface-raised: #14312e;
+            --sm-border: rgba(125, 211, 190, 0.14);
+            --sm-border-hover: rgba(125, 211, 190, 0.25);
+            --sm-border-subtle: rgba(125, 211, 190, 0.08);
+            --sm-primary: #5EEAD4;
+            --sm-primary-glow: rgba(94, 234, 212, 0.14);
+            --sm-secondary: #7DD3FC;
+            --sm-tertiary: #A5B4FC;
+            --sm-warning: #FBBF24;
+            --sm-text: #E2F5F1;
+            --sm-text-muted: rgba(226, 245, 241, 0.62);
+            --sm-text-faint: rgba(226, 245, 241, 0.34);
+            --sm-terminal-bg: #091f1d;
+            --sm-grid-dot: rgba(94, 234, 212, 0.11);
+            --sm-toolbar-bg: rgba(7, 25, 24, 0.92);
+            --sm-overlay-bg: rgba(7, 25, 24, 0.97);
+            --sm-card-bg: rgba(13, 36, 34, 0.88);
+            --sm-node-label: #E2F5F1;
+            --sm-node-type: rgba(226, 245, 241, 0.62);
+        }
+
+        :root[data-theme="light"] {
+            --sm-bg: #F4F6F8;
+            --sm-surface: #FFFFFF;
+            --sm-surface-raised: #E9EEF2;
+            --sm-border: rgba(15, 23, 42, 0.12);
+            --sm-border-hover: rgba(15, 23, 42, 0.22);
+            --sm-border-subtle: rgba(15, 23, 42, 0.07);
+            --sm-primary: #16803A;
+            --sm-primary-glow: rgba(22, 128, 58, 0.11);
+            --sm-secondary: #0369A1;
+            --sm-tertiary: #7E22CE;
+            --sm-warning: #C2410C;
+            --sm-danger: #B91C1C;
+            --sm-text: #172033;
+            --sm-text-muted: rgba(23, 32, 51, 0.65);
+            --sm-text-faint: rgba(23, 32, 51, 0.4);
+            --sm-terminal-bg: #EDF1F5;
+            --sm-grid-dot: rgba(15, 23, 42, 0.1);
+            --sm-toolbar-bg: rgba(255, 255, 255, 0.94);
+            --sm-overlay-bg: rgba(255, 255, 255, 0.98);
+            --sm-card-bg: rgba(255, 255, 255, 0.9);
+            --sm-toolbar-text: rgba(23, 32, 51, 0.62);
+            --sm-toolbar-text-hover: #172033;
+            --sm-tooltip-bg: rgba(23, 32, 51, 0.94);
+            --sm-tooltip-text: #FFFFFF;
+            --sm-node-label: #172033;
+            --sm-node-type: rgba(23, 32, 51, 0.65);
+            --sm-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.12);
+            --sm-shadow-md: 0 8px 32px rgba(15, 23, 42, 0.16);
+            --sm-shadow-lg: 0 24px 64px rgba(15, 23, 42, 0.2);
+        }
+
+        :root[data-theme="sand"] {
+            --sm-bg: #EDE4D3;
+            --sm-surface: #F8F1E5;
+            --sm-surface-raised: #E7DAC5;
+            --sm-border: rgba(75, 52, 35, 0.14);
+            --sm-border-hover: rgba(75, 52, 35, 0.25);
+            --sm-border-subtle: rgba(75, 52, 35, 0.08);
+            --sm-primary: #9A4F24;
+            --sm-primary-glow: rgba(154, 79, 36, 0.12);
+            --sm-secondary: #356C72;
+            --sm-tertiary: #77538A;
+            --sm-warning: #B45309;
+            --sm-danger: #A8332A;
+            --sm-text: #3B2E25;
+            --sm-text-muted: rgba(59, 46, 37, 0.66);
+            --sm-text-faint: rgba(59, 46, 37, 0.4);
+            --sm-terminal-bg: #E8DDCB;
+            --sm-grid-dot: rgba(75, 52, 35, 0.11);
+            --sm-toolbar-bg: rgba(248, 241, 229, 0.95);
+            --sm-overlay-bg: rgba(248, 241, 229, 0.98);
+            --sm-card-bg: rgba(248, 241, 229, 0.9);
+            --sm-toolbar-text: rgba(59, 46, 37, 0.62);
+            --sm-toolbar-text-hover: #3B2E25;
+            --sm-tooltip-bg: rgba(59, 46, 37, 0.94);
+            --sm-tooltip-text: #FFF9EF;
+            --sm-node-label: #3B2E25;
+            --sm-node-type: rgba(59, 46, 37, 0.66);
+            --sm-shadow-sm: 0 1px 3px rgba(75, 52, 35, 0.13);
+            --sm-shadow-md: 0 8px 32px rgba(75, 52, 35, 0.17);
+            --sm-shadow-lg: 0 24px 64px rgba(75, 52, 35, 0.22);
         }
 
         * {
@@ -182,7 +286,7 @@
             padding: 40px 48px;
             border-radius: var(--sm-radius-lg);
             border: 1px solid var(--sm-border);
-            background: rgba(24, 24, 24, 0.85);
+            background: var(--sm-card-bg);
             box-shadow: var(--sm-shadow-overlay);
             backdrop-filter: blur(16px);
         }
@@ -707,7 +811,7 @@
             right: 16px;
             display: flex;
             padding: 3px;
-            background: rgba(16, 16, 16, 0.9);
+            background: var(--sm-toolbar-bg);
             border: 1px solid var(--sm-border-hover);
             border-radius: var(--sm-radius-sm);
             box-shadow: var(--sm-shadow-panel);
@@ -870,7 +974,7 @@
             padding: 48px 56px;
             border-radius: var(--sm-radius-lg);
             border: 1px solid var(--sm-border);
-            background: rgba(24, 24, 24, 0.7);
+            background: var(--sm-card-bg);
             backdrop-filter: blur(20px);
             box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
             max-width: 440px;
@@ -966,7 +1070,7 @@
             background: rgba(16, 16, 16, 0.9);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.12);
+            border: 1px solid var(--sm-border-hover);
             border-radius: 999px;
             box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
             z-index: 100;
@@ -975,7 +1079,7 @@
         .toolbar-divider {
             width: 1px;
             height: 20px;
-            background: rgba(255, 255, 255, 0.1);
+            background: var(--sm-border-hover);
             margin: 0 4px;
         }
 
@@ -985,7 +1089,7 @@
             background: transparent;
             border: none;
             border-radius: 50%;
-            color: rgba(255, 255, 255, 0.55);
+            color: var(--sm-toolbar-text);
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -1005,8 +1109,8 @@
         }
 
         .toolbar-btn:hover {
-            background: rgba(255, 255, 255, 0.08);
-            color: rgba(255, 255, 255, 0.9);
+            background: var(--sm-border);
+            color: var(--sm-toolbar-text-hover);
         }
 
         .toolbar-btn:active {
@@ -1027,8 +1131,8 @@
             left: 50%;
             transform: translateX(-50%);
             padding: 4px 8px;
-            background: rgba(0, 0, 0, 0.85);
-            color: rgba(255, 255, 255, 0.85);
+            background: var(--sm-tooltip-bg);
+            color: var(--sm-tooltip-text);
             font-family: var(--sm-font-sans);
             font-size: 11px;
             white-space: nowrap;
@@ -1088,6 +1192,82 @@
             height: 3px;
             border-radius: 2px;
         }
+
+        /* Settings / theme popover */
+        .settings-popover {
+            position: absolute;
+            right: 0;
+            bottom: calc(100% + 12px);
+            display: none;
+            width: 260px;
+            padding: 14px;
+            background: var(--sm-overlay-bg);
+            border: 1px solid var(--sm-border-hover);
+            border-radius: var(--sm-radius-md);
+            box-shadow: var(--sm-shadow-md);
+            backdrop-filter: blur(16px);
+            color: var(--sm-text);
+            z-index: 102;
+        }
+
+        .settings-popover.visible { display: block; }
+
+        .settings-heading {
+            margin-bottom: 3px;
+            font-size: var(--sm-text-md);
+            font-weight: 700;
+        }
+
+        .settings-description {
+            margin-bottom: 12px;
+            color: var(--sm-text-muted);
+            font-size: var(--sm-text-sm);
+        }
+
+        .theme-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 7px;
+        }
+
+        .theme-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            background: transparent;
+            border: 1px solid var(--sm-border);
+            border-radius: var(--sm-radius-sm);
+            color: var(--sm-text-muted);
+            font: 600 var(--sm-text-sm) var(--sm-font-sans);
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .theme-option:hover {
+            border-color: var(--sm-border-hover);
+            background: var(--sm-surface-raised);
+            color: var(--sm-text);
+        }
+
+        .theme-option.active {
+            border-color: var(--sm-primary);
+            color: var(--sm-primary);
+            box-shadow: 0 0 0 2px var(--sm-primary-glow);
+        }
+
+        .theme-swatch {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+            border: 1px solid rgba(127, 127, 127, 0.3);
+            border-radius: 50%;
+        }
+
+        .theme-swatch.dark { background: linear-gradient(135deg, #101010 50%, #4ADE80 50%); }
+        .theme-swatch.aurora { background: linear-gradient(135deg, #071918 50%, #5EEAD4 50%); }
+        .theme-swatch.light { background: linear-gradient(135deg, #F4F6F8 50%, #16803A 50%); }
+        .theme-swatch.sand { background: linear-gradient(135deg, #EDE4D3 50%, #9A4F24 50%); }
 
         /* Toggle Button */
         .sidebar-toggle {
@@ -1184,7 +1364,7 @@
         .resource-label {
             font-family: var(--sm-font-sans);
             font-size: 11px;
-            fill: #f5f5f7;
+            fill: var(--sm-node-label);
             text-anchor: middle;
             pointer-events: none;
             font-weight: 500;
@@ -1971,6 +2151,25 @@
                         <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
                         <span class="toolbar-tooltip">Present</span>
                     </button>
+
+                    <div class="toolbar-divider"></div>
+
+                    <!-- Settings -->
+                    <button class="toolbar-btn" id="toggle-settings" title="Settings" aria-expanded="false" aria-controls="settings-popover">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H10.4v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3v-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.5V3h4v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.5 1h.1v4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+                        <span class="toolbar-tooltip">Settings</span>
+                    </button>
+
+                    <div class="settings-popover" id="settings-popover" role="dialog" aria-label="Display settings">
+                        <div class="settings-heading">Theme</div>
+                        <div class="settings-description">Saved automatically in this browser.</div>
+                        <div class="theme-options" role="radiogroup" aria-label="Theme">
+                            <button class="theme-option" type="button" data-theme-value="dark" role="radio"><span class="theme-swatch dark"></span>Dark</button>
+                            <button class="theme-option" type="button" data-theme-value="aurora" role="radio"><span class="theme-swatch aurora"></span>Aurora</button>
+                            <button class="theme-option" type="button" data-theme-value="light" role="radio"><span class="theme-swatch light"></span>Light</button>
+                            <button class="theme-option" type="button" data-theme-value="sand" role="radio"><span class="theme-swatch sand"></span>Sand</button>
+                        </div>
+                    </div>
 
                     <!-- Legend Popover -->
                     <div class="legend-popover" id="legend-popover">

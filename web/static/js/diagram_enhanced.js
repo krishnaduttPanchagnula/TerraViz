@@ -24,7 +24,6 @@ const TYPE_LABEL_Y_OFFSET = 36;
 const LABEL_MAX_CHARS = 14;
 const TYPE_LABEL_MAX_CHARS = 20;
 const TYPE_LABEL_FONT_SIZE = "9";
-const TYPE_LABEL_COLOR = "rgba(245, 245, 247, 0.6)";
 const TYPE_LABEL_FONT = "'JetBrains Mono', monospace";
 
 // Layer label badge dimensions
@@ -83,8 +82,6 @@ const CONN_CURVE_FACTOR = 0.2;
 const CONN_ELBOW_RADIUS = 12;
 
 const EXPORT_SCALE = 2;
-const EXPORT_BG_COLOR = "#0a0a0f";
-
 const RESIZE_DEBOUNCE_MS = 150;
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -683,6 +680,8 @@ class EnhancedDiagramViewer {
       .getElementById("list-view-btn")
       .addEventListener("click", () => this.setView("list"));
 
+    this.setupThemeSettings();
+
     // Toggle Grid
     const gridBtn = document.getElementById("toggle-grid");
     if (gridBtn) {
@@ -690,7 +689,7 @@ class EnhancedDiagramViewer {
         const root = document.documentElement;
         const current = getComputedStyle(root).getPropertyValue('--sm-grid-dot').trim();
         if (current === 'transparent') {
-          root.style.setProperty('--sm-grid-dot', 'rgba(255,255,255,0.08)');
+          root.style.removeProperty('--sm-grid-dot');
           gridBtn.classList.add('active');
         } else {
           root.style.setProperty('--sm-grid-dot', 'transparent');
@@ -723,6 +722,48 @@ class EnhancedDiagramViewer {
         diffBtn.classList.toggle('diff-active');
       });
     }
+  }
+
+  setupThemeSettings() {
+    const settingsBtn = document.getElementById("toggle-settings");
+    const popover = document.getElementById("settings-popover");
+    const options = [...document.querySelectorAll("[data-theme-value]")];
+    const validThemes = new Set(options.map((option) => option.dataset.themeValue));
+    const currentTheme = validThemes.has(document.documentElement.dataset.theme)
+      ? document.documentElement.dataset.theme
+      : "dark";
+
+    const applyTheme = (theme) => {
+      document.documentElement.dataset.theme = theme;
+      options.forEach((option) => {
+        const selected = option.dataset.themeValue === theme;
+        option.classList.toggle("active", selected);
+        option.setAttribute("aria-checked", String(selected));
+      });
+      try {
+        localStorage.setItem("terraviz-theme", theme);
+      } catch (_) {
+        // Theme still applies when browser storage is unavailable.
+      }
+    };
+
+    applyTheme(currentTheme);
+    settingsBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const visible = popover.classList.toggle("visible");
+      settingsBtn.classList.toggle("active", visible);
+      settingsBtn.setAttribute("aria-expanded", String(visible));
+    });
+    options.forEach((option) => {
+      option.addEventListener("click", () => applyTheme(option.dataset.themeValue));
+    });
+    document.addEventListener("click", (event) => {
+      if (!settingsBtn.contains(event.target) && !popover.contains(event.target)) {
+        popover.classList.remove("visible");
+        settingsBtn.classList.remove("active");
+        settingsBtn.setAttribute("aria-expanded", "false");
+      }
+    });
   }
 
   setupFilters() {
@@ -1358,7 +1399,7 @@ class EnhancedDiagramViewer {
           width: String(textWidth),
           height: String(CONN_LABEL_HEIGHT),
           rx: "4",
-          fill: "#12121a",
+          fill: "var(--sm-terminal-bg)",
           "fill-opacity": "0.85",
           stroke: style.color,
           "stroke-width": "0.5",
@@ -1508,7 +1549,7 @@ class EnhancedDiagramViewer {
           y: String(TYPE_LABEL_Y_OFFSET),
           "text-anchor": "middle",
           "font-size": TYPE_LABEL_FONT_SIZE,
-          fill: TYPE_LABEL_COLOR,
+          fill: "var(--sm-node-type)",
           "font-family": TYPE_LABEL_FONT,
         });
         typeLabel.textContent = truncateText(
@@ -2507,6 +2548,9 @@ class EnhancedDiagramViewer {
 
   _createExportSvg() {
     const clone = this.svg.cloneNode(true);
+    const exportBackground = getComputedStyle(document.documentElement)
+      .getPropertyValue("--sm-bg")
+      .trim();
 
     clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
     clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
@@ -2516,7 +2560,7 @@ class EnhancedDiagramViewer {
     const bgRect = svgEl("rect", {
       width: "100%",
       height: "100%",
-      fill: EXPORT_BG_COLOR,
+      fill: exportBackground,
     });
     clone.insertBefore(bgRect, clone.firstChild);
 
@@ -2580,6 +2624,9 @@ class EnhancedDiagramViewer {
 
   exportToPNG() {
     const exportSvg = this._createExportSvg();
+    const exportBackground = getComputedStyle(document.documentElement)
+      .getPropertyValue("--sm-bg")
+      .trim();
     const svgData = new XMLSerializer().serializeToString(exportSvg);
     const svgBlob = new Blob([svgData], {
       type: "image/svg+xml;charset=utf-8",
@@ -2593,7 +2640,7 @@ class EnhancedDiagramViewer {
 
     const img = new Image();
     img.onload = () => {
-      ctx.fillStyle = EXPORT_BG_COLOR;
+      ctx.fillStyle = exportBackground;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
