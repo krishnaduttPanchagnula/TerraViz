@@ -136,13 +136,18 @@ Click any resource to see its properties, connections, and metadata.
 ### Interactive Web Diagrams
 - SVG-based rendering with zoom, pan, and fit-to-view
 - **Floating toolbar** — zoom, grid, labels, minimap, flow animation, legend, export, presentation, and display settings
+- **Relation-aware layout** — services and resources are ordered by their position in the dependency graph instead of a fixed list, so the busiest paths sit close together
+- **AWS-style containment** — VPCs, subnets and the resources inside them are drawn as nested containers
 - Filter by resource type, provider, region, or state
 - Real-time search by resource name or ID
 - Toggle between the architecture diagram and a full resource table
 - Show referenced AWS resources that are not managed in the loaded Terraform state
 - Export architecture diagrams as PNG or SVG and all resource data as CSV
+- **Mermaid and Graphviz DOT export** — download the relation graph as a `.mmd` flowchart or a `.dot` file for documentation
+- **Edge tooltips** — hover an edge to see its type, description, protocol/ports and every merged reason
 - Hide/show individual resources; add or delete connections at runtime
 - Hover tooltips with resource details
+- **Multi-hop dependency trace** — selecting a resource highlights everything it reaches and everything that reaches it, with a selectable trace depth (1, 2, 3 or all hops)
 - **Resizable sidebar** with collapsible sections (Search & Filter, Files, Filters, Resources) and vertical scrolling
 - **Connection legend** — popover showing all 6 connection type colors
 - Browser UI served at `/` with REST endpoints under `/api/`
@@ -254,7 +259,9 @@ Starts a local web server to display the interactive diagram. The diagram argume
 - **Amazon VPC:** VPCs, subnets, and security groups
 - **AWS WAF:** Web ACLs, IP sets, and web ACL associations
 
-Terraform state parsing supports all resources listed above. Live AWS account scanning currently covers EC2 instances, VPCs, subnets, security groups, S3 buckets, RDS instances, and Lambda functions.
+Terraform state parsing supports all resources listed above. Live AWS account scanning currently covers EC2 instances, VPCs, subnets, security groups, S3 buckets, RDS instances, and Lambda functions. Both sources share the same relationship inference, so a live scan produces the same VPC, subnet and security group edges as the state file.
+
+Resources whose Terraform type is not mapped to a specific AWS service (for example `aws_dynamodb_table` or `aws_eks_cluster`) are still kept in the diagram as generic resources, with their Terraform type recorded in `properties.terraform_type`, so the graph stays complete.
 
 </details>
 
@@ -264,6 +271,8 @@ Terraform state parsing supports all resources listed above. Live AWS account sc
 
 Connections between resources are automatically inferred from Terraform state attributes (e.g., `vpc_id`, `subnet_id`, security group references, IAM role ARNs, target group attachments, SNS/SQS subscriptions).
 
+Terraform's own dependency graph (`depends_on` / `dependencies` in the state file) is used as the base layer, so resources that have no dedicated analyser still get an edge. Semantic analysers refine those edges with a more precise type; where both exist, the semantic edge wins.
+
 | Type | Description |
 |------|-------------|
 | `networking` | Network-level (VPC, subnet, security group) |
@@ -272,6 +281,8 @@ Connections between resources are automatically inferred from Terraform state at
 | `trigger` | Event-driven connections |
 | `dependency` | Resource dependencies |
 | `reference` | Logical references |
+
+Connections carry extra metadata in `properties` when it is known — for example `protocol` and `port` for load balancer targets, `protocol`/`from_port`/`to_port`/`cidr_blocks` for security group rules. When two relations describe the same pair of resources they are merged into a single connection; the primary description stays in `description` and every reason is listed in `properties.reasons`. `dependency` and `reference` connections are marked `bidirectional`, because their direction is arbitrary rather than a flow.
 
 ## Frequently Asked Questions
 

@@ -11,6 +11,8 @@ Go CLI tool that parses Terraform `.tfstate` files (v4 raw or `terraform show -j
 ```bash
 go build -o terraviz ./cmd/main.go   # Build (from project root)
 go vet ./...                                       # Static analysis
+go test ./...                                      # Go unit tests (models, parsers)
+node scripts/check-diagram-js.js                   # Frontend layout/trace self-check
 ```
 
 With version info:
@@ -19,7 +21,7 @@ go build -ldflags "-s -w -X main.version=dev -X main.commit=$(git rev-parse HEAD
   -o terraviz ./cmd/main.go
 ```
 
-There are no unit tests yet. Verify changes by building and running `go vet`.
+There are Go unit tests under `internal/models` and `internal/parsers`. The frontend has no test framework; `scripts/check-diagram-js.js` runs the layout and trace logic in a vm sandbox with a DOM stub.
 
 ## Project Layout
 
@@ -33,7 +35,10 @@ internal/
     utils.go                        DiagramBuilder, CompareDiagrams, search/filter, FNV-1a ID generation
   parsers/
     terraform.go                    Terraform state parser (auto-detects raw v4 vs terraform-json)
-    connections.go                  Connection inference from Terraform attributes (30+ analyzers)
+    connections.go                  Connection inference from Terraform attributes + state dependency graph
+    relations_test.go               Tests for dependency edges and the new relationship analysers
+  relations/
+    relations.go                    Shared edge collector + generic analysers (VPC/subnet/security group)
   scanners/
     aws.go                          Live AWS scanner (EC2, S3, RDS, Lambda via aws-sdk-go-v2)
   server/
@@ -44,6 +49,8 @@ web/
   static/js/                        Frontend JS (diagram.js, diagram_enhanced.js)
   static/fonts/                     Bundled WOFF2 fonts (Inter, JetBrains Mono) -- no CDN at runtime
   icons/                            Full AWS icon packs (~620 SVGs, served at /icons, used by both UIs)
+scripts/
+  check-diagram-js.js               Self-check for the frontend layout, containment and trace logic
 docs/
   screenshots/                      UI screenshots for README (enhanced-ui, basic-ui, resource-details)
 .goreleaser.yml                     GoReleaser v2 config (linux/darwin/windows x amd64/arm64)
@@ -116,8 +123,13 @@ Global flags: `--output` / `-o` (default `diagram.json`), `--verbose` / `-v`, `-
 - `DiagramBuilder.AddResource` stores resources in a slice and keeps a pointer map (`resourceMap`) pointing into that slice. The pointer is set to `&db.diagram.Resources[len(...)-1]` after append to avoid stale pointers.
 - `DiagramBuilder.AddResource` auto-populates `Resource.IconURL` via `GetResourceIcon()` when empty
 - `Server.diagram` is protected by `sync.RWMutex` -- read handlers use `RLock`, mutation handlers (hide/show, create/delete connection) use `Lock`
-- Connection analyzers in `connections.go` use helper functions: `findByProperty`, `findAllByProperty`, `findAllByType`, `findByPropertyContains`, `connectToSecurityGroups`
+- Connection analyzers in `connections.go` use helper functions: `findByProperty`, `findAllByProperty`, `findAllByType`, `connectToSecurityGroups`
 - `terraformTypeMap` and `resourceIconMap` are package-level vars (not rebuilt per call)
+- Unmapped Terraform types are kept as `ResourceTypeUnknown` with `Properties["terraform_type"]` set (AWS providers only); the frontend groups them by that value
+- Edges point from the referencing resource to the referenced one. Containment edges (instance -> subnet -> VPC) are rendered as nesting, not as arrows
+- A semantic edge wins over the generic Terraform dependency edge for the same pair (`relations.Collector.AddDependency`)
+- `internal/relations` is shared by the Terraform parser and the live AWS scanner: `AnalyzeGeneric` derives the VPC/subnet/security group edges from normalized property keys (`id`, `vpc_id`, `subnet_id`, `vpc_security_group_ids`, `ingress`), so both sources produce the same edges
+- `relations.Collector` keeps one edge per unordered pair: extra reasons go to `Properties["reasons"]`, opposite directions set `Bidirectional`
 
 ### Icon System
 - `resourceIconMap` in `models.go` maps 50+ `ResourceType` constants to `/icons/` paths (matching the embedded `web/icons/` AWS icon packs)
