@@ -54,6 +54,21 @@ const GRID_START_X = 100;
 const GRID_START_Y = 150;
 const GRID_ROW_HEIGHT = 160;
 
+// Nested AWS-style boxes (VPC > subnet > cards)
+const VPC_BOX_PAD_X = 22;
+const VPC_BOX_PAD_TOP = 40;
+const VPC_BOX_PAD_BOTTOM = 18;
+const VPC_BOX_MIN_WIDTH = 260;
+const SUBNET_BOX_PAD_X = 16;
+const SUBNET_BOX_PAD_TOP = 34;
+const SUBNET_BOX_PAD_BOTTOM = 14;
+const SUBNET_BOX_MIN_WIDTH = 170;
+const SUBNET_BOX_MIN_HEIGHT = 58;
+const BOX_CARD_GAP_X = 24;
+const BOX_CARD_GAP_Y = 18;
+const BOX_GAP = 26;
+const BOX_MEMBER_GAP = 18;
+
 const MINIMAP_WIDTH = 200;
 const MINIMAP_HEIGHT = 120;
 const MINIMAP_PADDING = 50;
@@ -128,6 +143,1057 @@ function safeMin(arr) {
 }
 function safeMax(arr) {
   return arr.reduce((a, b) => (a > b ? a : b), -Infinity);
+}
+
+/** Trigger the download of a text file generated in the browser. */
+function downloadTextFile(filename, text, mimeType) {
+  const url = URL.createObjectURL(new Blob([text], { type: mimeType }));
+  const link = document.createElement("a");
+  link.download = filename;
+  link.href = url;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ─── Layout model ─────────────────────────────────────────────────────────────
+// The functions below are pure: they take resources/connections and return the
+// geometry of the diagram. Nothing here touches the DOM, so the layout maths
+// can be exercised without a browser.
+
+const TYPE_VPC = "aws:ec2:vpc";
+const TYPE_SUBNET = "aws:ec2:subnet";
+const TYPE_SECURITY_GROUP = "aws:ec2:securitygroup";
+
+/**
+ * Resource types that describe a network container. An edge pointing at one of
+ * them is a containment edge: it describes nesting, not traffic flow.
+ */
+const CONTAINER_TYPES = new Set([TYPE_VPC, TYPE_SUBNET, TYPE_SECURITY_GROUP]);
+
+const TERRAFORM_PROVIDER_PREFIXES = new Set([
+  "aws",
+  "google",
+  "azurerm",
+  "kubernetes",
+  "helm",
+  "null",
+  "tls",
+  "random",
+  "time",
+  "local",
+  "vault",
+  "datadog",
+]);
+
+// Service segment -> layer key, for segments that do not match a layer name.
+const LAYER_ALIASES = {
+  cloudfront: "ec2",
+  kms: "iam",
+  step: "sfn",
+  steps: "sfn",
+  stepfunctions: "sfn",
+  apigw: "apigateway",
+  lb: "elb",
+  alb: "elb",
+  nlb: "elb",
+  cw: "cloudwatch",
+  dynamo: "dynamodb",
+};
+
+/** True when the layer definition really owns that key (no prototype hits). */
+function hasLayer(layerDefs, key) {
+  return !!key && Object.prototype.hasOwnProperty.call(layerDefs, key);
+}
+
+/** Strip the provider prefix of a Terraform type ("aws_dynamodb_table"). */
+function stripProviderPrefix(tfType) {
+  const idx = tfType.indexOf("_");
+  if (
+    idx > 0 &&
+    TERRAFORM_PROVIDER_PREFIXES.has(tfType.slice(0, idx).toLowerCase())
+  ) {
+    return tfType.slice(idx + 1);
+  }
+  return tfType;
+}
+
+/** Service segment of a Terraform type ("aws_dynamodb_table" -> "dynamodb"). */
+function terraformServiceSegment(resource) {
+  const tf = resource.properties && resource.properties.terraform_type;
+  if (typeof tf !== "string" || !tf.trim()) return null;
+  const segment = stripProviderPrefix(tf.trim()).split("_")[0].toLowerCase();
+  return segment || null;
+}
+
+/** Resource kind of a Terraform type ("aws_dynamodb_table" -> "table"). */
+function terraformResourceKind(resource) {
+  const tf = resource.properties && resource.properties.terraform_type;
+  if (typeof tf !== "string" || !tf.trim()) return null;
+  const parts = stripProviderPrefix(tf.trim()).split("_").map((p) => p.toLowerCase());
+  return parts.length > 1 ? parts[parts.length - 1] : parts[0];
+}
+
+/**
+ * Map a resource onto its service layer and sub-group.
+ *
+ * Resources with an unknown type are grouped by the service segment of their
+ * Terraform type ("aws_dynamodb_table" -> dynamodb) instead of falling back
+ * into the EC2 bucket.
+ */
+function classifyResource(resource, layerDefs) {
+  const type = resource.type || "";
+  const parts = type.split(":");
+
+  if (type === "unknown" || parts.length < 2) {
+    const segment = terraformServiceSegment(resource);
+    let layerKey = segment;
+    if (layerKey && !hasLayer(layerDefs, layerKey)) {
+      layerKey = LAYER_ALIASES[layerKey];
+    }
+    if (!hasLayer(layerDefs, layerKey)) layerKey = "other";
+    return {
+      layer: layerKey,
+      subgroup: terraformResourceKind(resource) || "default",
+    };
+  }
+
+  let layerKey = resource.group || parts[1];
+  const subgroupKey = parts.length >= 3 ? parts[2] : "default";
+  if (!hasLayer(layerDefs, layerKey)) {
+    layerKey = LAYER_ALIASES[layerKey] || "ec2";
+  }
+  if (!hasLayer(layerDefs, layerKey)) layerKey = "other";
+  return { layer: layerKey, subgroup: subgroupKey };
+}
+
+/**
+ * Longest-path layering over the flow edges.
+ *
+ * The rank of a resource is the length of the longest flow path that ends on
+ * it, so rank 0 is the most upstream resource (top of the canvas).
+ *
+ * The graph may contain cycles (IAM role <-> instance profile), so the
+ * traversal is iterative and keeps an in-progress marker: an edge back to a
+ * node that is still on the stack is ignored instead of looping forever.
+ *
+ * @param {Array} resources
+ * @param {Map} flowIn predecessors of every resource (target -> sources)
+ */
+function computeFlowRanks(resources, flowIn) {
+  const rank = new Map();
+  const state = new Map(); // 0 = unvisited, 1 = in progress, 2 = done
+  resources.forEach((r) => {
+    rank.set(r.id, 0);
+    state.set(r.id, 0);
+  });
+
+  for (const root of resources) {
+    if (state.get(root.id) !== 0) continue;
+    state.set(root.id, 1);
+    const stack = [{ id: root.id, i: 0, pending: null }];
+
+    while (stack.length) {
+      const frame = stack[stack.length - 1];
+
+      if (frame.pending !== null) {
+        const child = frame.pending;
+        frame.pending = null;
+        rank.set(
+          frame.id,
+          Math.max(rank.get(frame.id) || 0, (rank.get(child) || 0) + 1),
+        );
+      }
+
+      const outs = flowIn.get(frame.id) || [];
+      if (frame.i < outs.length) {
+        const next = outs[frame.i++];
+        const st = state.get(next) || 0;
+        if (st === 1) continue; // back edge: ignore it, the cycle is broken here
+        if (st === 2) {
+          rank.set(
+            frame.id,
+            Math.max(rank.get(frame.id) || 0, (rank.get(next) || 0) + 1),
+          );
+          continue;
+        }
+        state.set(next, 1);
+        frame.pending = next;
+        stack.push({ id: next, i: 0, pending: null });
+        continue;
+      }
+
+      state.set(frame.id, 2);
+      stack.pop();
+    }
+  }
+
+  return rank;
+}
+
+/**
+ * Order resources with the barycentre heuristic: resources are grouped by
+ * their flow rank and, inside a rank, sorted by the average position of the
+ * neighbours that were placed already. A few sweeps remove most crossings.
+ */
+function orderResourcesByBarycenter(resources, ranks, flowOut, flowIn) {
+  const initial = new Map();
+  resources.forEach((r, i) => initial.set(r.id, i));
+
+  let order = resources
+    .slice()
+    .sort(
+      (a, b) =>
+        (ranks.get(a.id) || 0) - (ranks.get(b.id) || 0) ||
+        initial.get(a.id) - initial.get(b.id),
+    );
+
+  for (let sweep = 0; sweep < 3; sweep++) {
+    const pos = new Map();
+    order.forEach((r, i) => pos.set(r.id, i));
+
+    const groups = new Map();
+    order.forEach((r) => {
+      const rank = ranks.get(r.id) || 0;
+      if (!groups.has(rank)) groups.set(rank, []);
+      groups.get(rank).push(r);
+    });
+
+    const next = [];
+    Array.from(groups.keys())
+      .sort((a, b) => a - b)
+      .forEach((rank) => {
+        const scored = groups.get(rank).map((r) => {
+          const nb = (flowOut.get(r.id) || [])
+            .concat(flowIn.get(r.id) || [])
+            .filter((id) => (ranks.get(id) || 0) < rank && pos.has(id));
+          const bary = nb.length
+            ? nb.reduce((acc, id) => acc + pos.get(id), 0) / nb.length
+            : pos.get(r.id);
+          return { r, bary, tie: pos.get(r.id) };
+        });
+        scored.sort((a, b) => a.bary - b.bary || a.tie - b.tie);
+        scored.forEach((s) => next.push(s.r));
+      });
+    order = next;
+  }
+
+  return order;
+}
+
+/** Re-sort a list of resources by the barycentre of their neighbours. */
+function refineWithBarycenter(list, posOf, neighboursOf, sweeps) {
+  let current = list.slice();
+  for (let sweep = 0; sweep < sweeps; sweep++) {
+    const scored = current.map((r) => {
+      const nb = neighboursOf(r)
+        .map((id) => posOf.get(id))
+        .filter((v) => v !== undefined);
+      const bary = nb.length
+        ? nb.reduce((a, b) => a + b, 0) / nb.length
+        : posOf.get(r.id) || 0;
+      return { r, bary, tie: posOf.get(r.id) || 0 };
+    });
+    scored.sort((a, b) => a.bary - b.bary || a.tie - b.tie);
+    current = scored.map((s) => s.r);
+  }
+  return current;
+}
+
+/** Label shown on a VPC box. */
+function vpcLabel(resource) {
+  return resource.name || resource.id;
+}
+
+/** Secondary line of a VPC box (CIDR range). */
+function vpcSubLabel(resource) {
+  const props = resource.properties || {};
+  const cidr = props.cidr_block || props.cidr;
+  return cidr ? String(cidr) : "";
+}
+
+/** Label shown on a subnet box. */
+function subnetLabel(resource) {
+  return resource.name || resource.id;
+}
+
+/** "Public" / "Private" hint for a subnet, when it can be derived. */
+function subnetTier(resource) {
+  const props = resource.properties || {};
+  if (props.tier) return String(props.tier);
+  if (props.public === true || props.public === "true") return "Public";
+  if (
+    props.map_public_ip_on_launch === true ||
+    props.map_public_ip_on_launch === "true"
+  ) {
+    return "Public";
+  }
+  const name = String(resource.name || "").toLowerCase();
+  if (name.includes("public")) return "Public";
+  if (name.includes("private")) return "Private";
+  return "";
+}
+
+/** Colour of a subnet box, based on its tier when it can be derived. */
+function subnetColor(resource) {
+  const tier = subnetTier(resource);
+  if (tier === "Public") return "#4ADE80";
+  if (tier === "Private") return "#60A5FA";
+  return "#38BDF8";
+}
+
+/** Secondary line of a subnet box (availability zone, tier, CIDR). */
+function subnetSubLabel(resource) {
+  const props = resource.properties || {};
+  const bits = [];
+  const az =
+    props.availability_zone ||
+    props.availability_zone_id ||
+    props.availabilityZone;
+  if (az) bits.push(String(az));
+  const tier = subnetTier(resource);
+  if (tier) bits.push(tier);
+  if (props.cidr_block) bits.push(String(props.cidr_block));
+  return bits.join(" · ");
+}
+
+/**
+ * Compute the complete diagram layout.
+ *
+ * @param {Array} resources
+ * @param {Array} connections
+ * @param {Object} layerDefs layer key -> {name, color}
+ * @param {number} canvasWidth
+ * @returns {Object} positions, container boxes, layer layouts and the
+ *                   containment hierarchy the renderer works with.
+ */
+function computeDiagramLayout(resources, connections, layerDefs, canvasWidth) {
+  const resById = new Map();
+  resources.forEach((r) => resById.set(r.id, r));
+
+  const assignment = new Map();
+  resources.forEach((r) =>
+    assignment.set(r.id, classifyResource(r, layerDefs)),
+  );
+
+  // ── edges ────────────────────────────────────────────────────────────────
+  const flowOut = new Map();
+  const flowIn = new Map();
+  const containEdges = [];
+  const addTo = (map, key, value) => {
+    let list = map.get(key);
+    if (!list) {
+      list = [];
+      map.set(key, list);
+    }
+    list.push(value);
+  };
+
+  (connections || []).forEach((c) => {
+    const source = c.source_id || c.source;
+    const target = c.target_id || c.target;
+    if (!source || !target) return;
+    if (!resById.has(source) || !resById.has(target)) return;
+    if (CONTAINER_TYPES.has(resById.get(target).type)) {
+      // containment: nesting, not flow
+      containEdges.push({ source, target });
+      return;
+    }
+    addTo(flowOut, source, target);
+    addTo(flowIn, target, source);
+  });
+
+  const ranks = computeFlowRanks(resources, flowIn);
+  const order = orderResourcesByBarycenter(resources, ranks, flowOut, flowIn);
+  const orderIndex = new Map();
+  order.forEach((r, i) => orderIndex.set(r.id, i));
+  const neighboursOf = (r) =>
+    (flowOut.get(r.id) || []).concat(flowIn.get(r.id) || []);
+
+  // ── containment hierarchy ────────────────────────────────────────────────
+  const subnetCandidates = new Map();
+  const vpcParent = new Map();
+  containEdges.forEach((edge) => {
+    const targetType = resById.get(edge.target).type;
+    if (targetType === TYPE_SUBNET) addTo(subnetCandidates, edge.source, edge.target);
+    else if (targetType === TYPE_VPC) vpcParent.set(edge.source, edge.target);
+  });
+
+  // placement: resource id -> {container, kind}
+  const placement = new Map();
+  resources.forEach((r) => {
+    if (r.type === TYPE_VPC || r.type === TYPE_SUBNET) return;
+    const candidates = subnetCandidates.get(r.id);
+    if (candidates && candidates.length === 1) {
+      const subnet = resById.get(candidates[0]);
+      const declared = (r.properties || {}).subnet_id;
+      const subnetAwsId = (subnet.properties || {}).id;
+      if (!declared || declared === subnetAwsId || declared === subnet.id) {
+        placement.set(r.id, { container: subnet.id, kind: "subnet" });
+        return;
+      }
+    }
+    const vpc = vpcParent.get(r.id);
+    if (vpc) placement.set(r.id, { container: vpc, kind: "vpc" });
+  });
+
+  const subnetParent = new Map();
+  resources.forEach((r) => {
+    if (r.type !== TYPE_SUBNET) return;
+    const vpc = vpcParent.get(r.id);
+    if (vpc) subnetParent.set(r.id, vpc);
+  });
+
+  const subnetMembers = new Map();
+  resources.forEach((r) => {
+    const p = placement.get(r.id);
+    if (!p || p.kind !== "subnet") return;
+    if (!subnetMembers.has(p.container)) subnetMembers.set(p.container, []);
+    subnetMembers.get(p.container).push(r);
+  });
+  subnetMembers.forEach((list) =>
+    list.sort((a, b) => orderIndex.get(a.id) - orderIndex.get(b.id)),
+  );
+
+  // ── network hierarchy ───────────────────────────────────────────────────
+  const networkIds = new Set();
+  const containerChildren = new Map();
+  const networkEntries = [];
+
+  resources.forEach((vpc) => {
+    if (vpc.type !== TYPE_VPC) return;
+    networkEntries.push({
+      kind: "vpc",
+      resource: vpc,
+      subnets: resources.filter(
+        (s) => s.type === TYPE_SUBNET && subnetParent.get(s.id) === vpc.id,
+      ),
+      members: resources.filter((m) => {
+        const p = placement.get(m.id);
+        return (
+          p && p.kind === "vpc" && p.container === vpc.id && m.type !== TYPE_SECURITY_GROUP
+        );
+      }),
+      securityGroups: resources.filter((m) => {
+        const p = placement.get(m.id);
+        return p && p.kind === "vpc" && p.container === vpc.id && m.type === TYPE_SECURITY_GROUP;
+      }),
+    });
+  });
+
+  resources.forEach((subnet) => {
+    if (subnet.type !== TYPE_SUBNET || subnetParent.has(subnet.id)) return;
+    networkEntries.push({
+      kind: "subnet",
+      resource: subnet,
+      members: (subnetMembers.get(subnet.id) || []).slice(),
+    });
+  });
+
+  const minRank = (list) =>
+    list.reduce((acc, r) => Math.min(acc, ranks.get(r.id) || 0), Infinity);
+
+  networkEntries.forEach((entry) => {
+    if (entry.kind !== "vpc") return;
+    entry.subnets.sort((a, b) => {
+      const ra = minRank(subnetMembers.get(a.id) || []);
+      const rb = minRank(subnetMembers.get(b.id) || []);
+      if (ra !== rb) {
+        if (ra === Infinity) return 1;
+        if (rb === Infinity) return -1;
+        return ra - rb;
+      }
+      return String(a.name || "").localeCompare(String(b.name || ""));
+    });
+  });
+
+  networkEntries.forEach((entry) => {
+    networkIds.add(entry.resource.id);
+    const children = [];
+    if (entry.kind === "vpc") {
+      entry.subnets.forEach((subnet) => {
+        networkIds.add(subnet.id);
+        children.push(subnet.id);
+        const members = subnetMembers.get(subnet.id) || [];
+        members.forEach((m) => {
+          networkIds.add(m.id);
+          children.push(m.id);
+        });
+        containerChildren.set(
+          subnet.id,
+          members.map((m) => m.id),
+        );
+      });
+      entry.members.forEach((m) => {
+        networkIds.add(m.id);
+        children.push(m.id);
+      });
+      entry.securityGroups.forEach((m) => {
+        networkIds.add(m.id);
+        children.push(m.id);
+      });
+    } else {
+      entry.members.forEach((m) => {
+        networkIds.add(m.id);
+        children.push(m.id);
+      });
+    }
+    containerChildren.set(entry.resource.id, children);
+  });
+
+  // Cards that live inside a network box (used for the section ranking).
+  const entryResources = (entry) => {
+    if (entry.kind !== "vpc") return entry.members;
+    const list = entry.members.concat(entry.securityGroups);
+    entry.subnets.forEach((s) => {
+      (subnetMembers.get(s.id) || []).forEach((m) => list.push(m));
+    });
+    return list;
+  };
+
+  const avgRank = (list) => {
+    if (!list.length) return 0;
+    return (
+      list.reduce((acc, r) => acc + (ranks.get(r.id) || 0), 0) / list.length
+    );
+  };
+
+  networkEntries.sort(
+    (a, b) =>
+      avgRank(entryResources(a)) - avgRank(entryResources(b)) ||
+      String(a.resource.name || "").localeCompare(String(b.resource.name || "")),
+  );
+
+  // ── service layer sections ──────────────────────────────────────────────
+  const layerSections = [];
+  Object.keys(layerDefs).forEach((key) => {
+    const members = resources.filter((r) => {
+      const a = assignment.get(r.id);
+      return (
+        a.layer === key &&
+        !networkIds.has(r.id) &&
+        r.type !== TYPE_VPC &&
+        r.type !== TYPE_SUBNET
+      );
+    });
+    if (!members.length) return;
+
+    const subgroups = new Map();
+    members.forEach((r) => {
+      const sg = assignment.get(r.id).subgroup;
+      if (!subgroups.has(sg)) subgroups.set(sg, []);
+      subgroups.get(sg).push(r);
+    });
+
+    const sgKeys = Array.from(subgroups.keys()).sort((a, b) => {
+      const ra = minRank(subgroups.get(a));
+      const rb = minRank(subgroups.get(b));
+      if (ra !== rb) return ra === Infinity ? 1 : rb === Infinity ? -1 : ra - rb;
+      return String(a).localeCompare(String(b));
+    });
+
+    sgKeys.forEach((sg) => {
+      subgroups.set(
+        sg,
+        refineWithBarycenter(subgroups.get(sg), orderIndex, neighboursOf, 2),
+      );
+    });
+
+    layerSections.push({
+      kind: "layer",
+      key,
+      name: layerDefs[key].name,
+      color: layerDefs[key].color,
+      subgroups,
+      sgKeys,
+      resources: members,
+    });
+  });
+
+  // ── sections, ordered by rank (most upstream first) ─────────────────────
+  const sections = [];
+  if (networkEntries.length) {
+    const leaves = [];
+    networkEntries.forEach((entry) => {
+      entryResources(entry).forEach((r) => leaves.push(r));
+    });
+    sections.push({ kind: "network", entries: networkEntries, resources: leaves });
+  }
+  layerSections.forEach((s) => sections.push(s));
+  sections.forEach((s, i) => {
+    s.index = i;
+    s.rank = avgRank(s.resources);
+  });
+  sections.sort((a, b) => a.rank - b.rank || a.index - b.index);
+
+  // ── geometry ────────────────────────────────────────────────────────────
+  const positions = new Map();
+  const containerBoxes = new Map();
+  const layerLayouts = {};
+  const maxContentWidth =
+    Math.max(canvasWidth, LAYOUT_MIN_CANVAS_WIDTH) -
+    LAYOUT_PADDING_X * 2 -
+    LAYER_CONTENT_PADDING_X * 2;
+
+  const sizeSubnetBox = (members) => {
+    const count = members.length;
+    if (!count) {
+      return {
+        cols: 1,
+        rows: 1,
+        width: SUBNET_BOX_MIN_WIDTH,
+        height: SUBNET_BOX_MIN_HEIGHT,
+      };
+    }
+    const cols = Math.min(count, NODES_PER_ROW);
+    const rows = Math.ceil(count / NODES_PER_ROW);
+    const width =
+      SUBNET_BOX_PAD_X * 2 +
+      cols * NODE_CARD_W +
+      Math.max(0, cols - 1) * BOX_CARD_GAP_X;
+    const height =
+      SUBNET_BOX_PAD_TOP +
+      rows * NODE_CARD_H +
+      Math.max(0, rows - 1) * BOX_CARD_GAP_Y +
+      SUBNET_BOX_PAD_BOTTOM;
+    return {
+      cols,
+      rows,
+      width: Math.max(width, SUBNET_BOX_MIN_WIDTH),
+      height: Math.max(height, SUBNET_BOX_MIN_HEIGHT),
+    };
+  };
+
+  const sizeNetworkEntry = (entry) => {
+    if (entry.kind === "subnet") return sizeSubnetBox(entry.members);
+
+    const subnetSizes = entry.subnets.map((s) =>
+      sizeSubnetBox(subnetMembers.get(s.id) || []),
+    );
+    let subnetRowWidth = 0;
+    let subnetRowHeight = 0;
+    subnetSizes.forEach((s, i) => {
+      subnetRowWidth += s.width + (i ? BOX_GAP : 0);
+      subnetRowHeight = Math.max(subnetRowHeight, s.height);
+    });
+
+    const direct = entry.members.concat(entry.securityGroups);
+    const cols = Math.max(1, Math.min(direct.length, NODES_PER_ROW));
+    const rows = Math.max(1, Math.ceil(direct.length / NODES_PER_ROW));
+    const membersWidth =
+      cols * NODE_CARD_W + Math.max(0, cols - 1) * BOX_CARD_GAP_X;
+    const membersHeight =
+      rows * NODE_CARD_H + Math.max(0, rows - 1) * BOX_CARD_GAP_Y;
+
+    const width = Math.max(subnetRowWidth, membersWidth) + VPC_BOX_PAD_X * 2;
+    const height =
+      VPC_BOX_PAD_TOP +
+      subnetRowHeight +
+      (direct.length ? BOX_MEMBER_GAP + membersHeight : 0) +
+      VPC_BOX_PAD_BOTTOM;
+
+    return {
+      width: Math.max(width, VPC_BOX_MIN_WIDTH),
+      height,
+      subnetSizes,
+      cols,
+      rows,
+      subnetRowHeight,
+    };
+  };
+
+  const placeNetworkEntry = (entry, size, originX, originY) => {
+    if (entry.kind === "subnet") {
+      containerBoxes.set(entry.resource.id, {
+        kind: "subnet",
+        width: size.width,
+        height: size.height,
+        label: subnetLabel(entry.resource),
+        sublabel: subnetSubLabel(entry.resource),
+      });
+      positions.set(entry.resource.id, {
+        x: originX + size.width / 2,
+        y: originY + size.height / 2,
+      });
+      entry.members.forEach((r, idx) => {
+        const col = idx % size.cols;
+        const row = Math.floor(idx / size.cols);
+        positions.set(r.id, {
+          x:
+            originX +
+            SUBNET_BOX_PAD_X +
+            NODE_CARD_W / 2 +
+            col * (NODE_CARD_W + BOX_CARD_GAP_X),
+          y:
+            originY +
+            SUBNET_BOX_PAD_TOP +
+            NODE_CARD_H / 2 +
+            row * (NODE_CARD_H + BOX_CARD_GAP_Y),
+        });
+      });
+      return;
+    }
+
+    containerBoxes.set(entry.resource.id, {
+      kind: "vpc",
+      width: size.width,
+      height: size.height,
+      label: vpcLabel(entry.resource),
+      sublabel: vpcSubLabel(entry.resource),
+    });
+    positions.set(entry.resource.id, {
+      x: originX + size.width / 2,
+      y: originY + size.height / 2,
+    });
+
+    const subnetsTop = originY + VPC_BOX_PAD_TOP;
+    let x = originX + VPC_BOX_PAD_X;
+    entry.subnets.forEach((subnet, i) => {
+      const ssize = size.subnetSizes[i];
+      containerBoxes.set(subnet.id, {
+        kind: "subnet",
+        width: ssize.width,
+        height: ssize.height,
+        label: subnetLabel(subnet),
+        sublabel: subnetSubLabel(subnet),
+      });
+      positions.set(subnet.id, {
+        x: x + ssize.width / 2,
+        y: subnetsTop + ssize.height / 2,
+      });
+      const members = subnetMembers.get(subnet.id) || [];
+      members.forEach((r, idx) => {
+        const col = idx % ssize.cols;
+        const row = Math.floor(idx / ssize.cols);
+        positions.set(r.id, {
+          x:
+            x +
+            SUBNET_BOX_PAD_X +
+            NODE_CARD_W / 2 +
+            col * (NODE_CARD_W + BOX_CARD_GAP_X),
+          y:
+            subnetsTop +
+            SUBNET_BOX_PAD_TOP +
+            NODE_CARD_H / 2 +
+            row * (NODE_CARD_H + BOX_CARD_GAP_Y),
+        });
+      });
+      x += ssize.width + BOX_GAP;
+    });
+
+    const direct = entry.members.concat(entry.securityGroups);
+    if (direct.length) {
+      const top = subnetsTop + size.subnetRowHeight + BOX_MEMBER_GAP;
+      direct.forEach((r, idx) => {
+        const col = idx % size.cols;
+        const row = Math.floor(idx / size.cols);
+        positions.set(r.id, {
+          x:
+            originX +
+            VPC_BOX_PAD_X +
+            NODE_CARD_W / 2 +
+            col * (NODE_CARD_W + BOX_CARD_GAP_X),
+          y:
+            top +
+            NODE_CARD_H / 2 +
+            row * (NODE_CARD_H + BOX_CARD_GAP_Y),
+        });
+      });
+    }
+  };
+
+  let currentY = LAYOUT_START_Y;
+  let networkLayout = null;
+
+  sections.forEach((section) => {
+    if (section.kind === "network") {
+      const sizes = section.entries.map(sizeNetworkEntry);
+      let rowX = LAYOUT_PADDING_X;
+      let rowY = currentY;
+      let rowMaxH = 0;
+      let maxRight = rowX;
+      let maxBottom = rowY;
+
+      sizes.forEach((size, i) => {
+        if (
+          rowX + size.width > LAYOUT_PADDING_X + maxContentWidth &&
+          rowX > LAYOUT_PADDING_X
+        ) {
+          rowY += rowMaxH + BOX_GAP;
+          rowX = LAYOUT_PADDING_X;
+          rowMaxH = 0;
+        }
+        placeNetworkEntry(section.entries[i], size, rowX, rowY);
+        maxRight = Math.max(maxRight, rowX + size.width);
+        maxBottom = Math.max(maxBottom, rowY + size.height);
+        rowX += size.width + BOX_GAP;
+        rowMaxH = Math.max(rowMaxH, size.height);
+      });
+
+      section.bounds = {
+        x: LAYOUT_PADDING_X,
+        y: currentY,
+        width: maxRight - LAYOUT_PADDING_X + LAYER_CONTENT_PADDING_X,
+        height: maxBottom - currentY + LAYER_CONTENT_PADDING_BOTTOM,
+      };
+      currentY = section.bounds.y + section.bounds.height + LAYOUT_GAP;
+      networkLayout = { bounds: section.bounds, entries: section.entries };
+      return;
+    }
+
+    // service layer box
+    const sgLayouts = {};
+    section.sgKeys.forEach((sgKey) => {
+      const list = section.subgroups.get(sgKey) || [];
+      const cols = Math.max(1, Math.min(list.length, NODES_PER_ROW));
+      const rows = Math.max(1, Math.ceil(list.length / NODES_PER_ROW));
+      sgLayouts[sgKey] = {
+        resources: list,
+        cols,
+        rows,
+        width:
+          SUBGROUP_PADDING_X * 2 +
+          cols * NODE_CARD_W +
+          Math.max(0, cols - 1) * NODE_GAP_X,
+        height:
+          SUBGROUP_HEADER_HEIGHT +
+          rows * NODE_CARD_H +
+          Math.max(0, rows - 1) * NODE_GAP_Y +
+          SUBGROUP_PADDING_BOTTOM,
+      };
+    });
+
+    const layerX = LAYOUT_PADDING_X;
+    const layerY = currentY;
+    const contentX = layerX + LAYER_CONTENT_PADDING_X;
+    const contentY = layerY + LAYER_HEADER_HEIGHT;
+    let rowX = contentX;
+    let rowY = contentY;
+    let rowMaxH = 0;
+    let maxRight = contentX;
+    let maxBottom = contentY;
+
+    section.sgKeys.forEach((sgKey) => {
+      const sg = sgLayouts[sgKey];
+
+      if (
+        rowX + sg.width > contentX + maxContentWidth &&
+        rowX > contentX
+      ) {
+        rowY += rowMaxH + SUBGROUP_GAP;
+        rowX = contentX;
+        rowMaxH = 0;
+      }
+
+      sg.x = rowX;
+      sg.y = rowY;
+
+      sg.resources.forEach((resource, idx) => {
+        const col = idx % NODES_PER_ROW;
+        const row = Math.floor(idx / NODES_PER_ROW);
+        positions.set(resource.id, {
+          x:
+            rowX +
+            SUBGROUP_PADDING_X +
+            NODE_CARD_W / 2 +
+            col * (NODE_CARD_W + NODE_GAP_X),
+          y:
+            rowY +
+            SUBGROUP_HEADER_HEIGHT +
+            NODE_CARD_H / 2 +
+            row * (NODE_CARD_H + NODE_GAP_Y),
+        });
+      });
+
+      maxRight = Math.max(maxRight, rowX + sg.width);
+      maxBottom = Math.max(maxBottom, rowY + sg.height);
+      rowX += sg.width + SUBGROUP_GAP;
+      rowMaxH = Math.max(rowMaxH, sg.height);
+    });
+
+    const bounds = {
+      x: layerX,
+      y: layerY,
+      width: maxRight - layerX + LAYER_CONTENT_PADDING_X,
+      height: maxBottom - layerY + LAYER_CONTENT_PADDING_BOTTOM,
+    };
+    currentY = layerY + bounds.height + LAYOUT_GAP;
+    layerLayouts[section.key] = {
+      sgLayouts,
+      subgroupKeys: section.sgKeys,
+      bounds,
+    };
+  });
+
+  // safety net: every resource needs a finite position
+  let fallback = 0;
+  resources.forEach((r) => {
+    if (positions.has(r.id)) return;
+    positions.set(r.id, {
+      x: GRID_START_X + (fallback % GRID_MIN_COLS) * GRID_SPACING,
+      y: currentY + Math.floor(fallback / GRID_MIN_COLS) * GRID_ROW_HEIGHT,
+    });
+    fallback++;
+  });
+
+  return {
+    positions,
+    containerBoxes,
+    containerChildren,
+    layerLayouts,
+    network: networkLayout,
+    networkIds,
+    assignment,
+    ranks,
+    order,
+  };
+}
+
+// ─── Export builders ──────────────────────────────────────────────────────────
+// Pure functions: they take the visible resources plus the connections and
+// return the text of an export file. Nothing here touches the DOM, so the
+// generated files can be asserted without a browser.
+
+// Characters that would break out of a Mermaid node or edge label.
+const MERMAID_ESCAPES = {
+  "&": "&amp;",
+  '"': "#quot;",
+  "#": "#35;",
+  ";": "#59;",
+  "{": "#123;",
+  "}": "#125;",
+  "[": "#91;",
+  "]": "#93;",
+  "(": "#40;",
+  ")": "#41;",
+  "|": "#124;",
+};
+
+/** Escape a label so quotes or braces cannot break the Mermaid file. */
+function escapeMermaidLabel(text) {
+  return String(text == null ? "" : text)
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[&"#;{}()|[\]]/g, (ch) => MERMAID_ESCAPES[ch]);
+}
+
+/** Mermaid node ids allow only alphanumerics and underscores. */
+function mermaidNodeId(resourceId, used) {
+  const base = "n_" + String(resourceId).replace(/[^A-Za-z0-9_]/g, "_");
+  let id = base;
+  let suffix = 2;
+  while (used.has(id)) id = `${base}_${suffix++}`;
+  used.add(id);
+  return id;
+}
+
+/**
+ * Build a Mermaid flowchart: one node per resource, one edge per connection.
+ * The link label is the connection type.
+ */
+function buildMermaid(resources, connections) {
+  const used = new Set();
+  const ids = new Map();
+  const lines = ["graph TD"];
+
+  resources.forEach((resource) => {
+    const id = mermaidNodeId(resource.id, used);
+    ids.set(resource.id, id);
+    lines.push(`  ${id}["${escapeMermaidLabel(resource.name || resource.id)}"]`);
+  });
+
+  connections.forEach((connection) => {
+    const sourceId = connection.source_id || connection.source;
+    const targetId = connection.target_id || connection.target;
+    const from = ids.get(sourceId);
+    const to = ids.get(targetId);
+    if (!from || !to) return;
+    const label = escapeMermaidLabel(connection.type || "default");
+    lines.push(`  ${from} -->|"${label}"| ${to}`);
+  });
+
+  return lines.join("\n") + "\n";
+}
+
+/** Escape a string so it can live inside a quoted Graphviz string. */
+function escapeDotString(text) {
+  return String(text == null ? "" : text)
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\r?\n/g, "\\n");
+}
+
+/**
+ * Build a Graphviz DOT digraph: one box per resource (label = name + type)
+ * and one labelled edge per connection.
+ */
+function buildDot(resources, connections) {
+  const ids = new Set(resources.map((r) => r.id));
+  const lines = ['digraph "architecture" {'];
+
+  resources.forEach((resource) => {
+    const id = escapeDotString(resource.id);
+    const label =
+      escapeDotString(resource.name || resource.id) +
+      "\\n" +
+      escapeDotString(resource.type || "");
+    lines.push(`  "${id}" [label="${label}", shape=box];`);
+  });
+
+  connections.forEach((connection) => {
+    const sourceId = connection.source_id || connection.source;
+    const targetId = connection.target_id || connection.target;
+    if (!ids.has(sourceId) || !ids.has(targetId)) return;
+    const label = escapeDotString(connection.type || "default");
+    lines.push(
+      `  "${escapeDotString(sourceId)}" -> "${escapeDotString(targetId)}" [label="${label}"];`,
+    );
+  });
+
+  lines.push("}");
+  return lines.join("\n") + "\n";
+}
+
+/** Rows of the edge tooltip: the metadata of a connection. */
+function buildEdgeTooltipRows(connection) {
+  const props = connection.properties || {};
+  const rows = [];
+
+  if (connection.description) {
+    rows.push({ label: "Description", value: connection.description });
+  }
+  if (props.protocol) {
+    rows.push({ label: "Protocol", value: String(props.protocol) });
+  }
+  if (props.port !== undefined && props.port !== null && props.port !== "") {
+    rows.push({ label: "Port", value: String(props.port) });
+  }
+  if (props.from_port !== undefined && props.from_port !== null) {
+    rows.push({ label: "From Port", value: String(props.from_port) });
+  }
+  if (props.to_port !== undefined && props.to_port !== null) {
+    rows.push({ label: "To Port", value: String(props.to_port) });
+  }
+  if (Array.isArray(props.cidr_blocks) && props.cidr_blocks.length) {
+    rows.push({ label: "CIDR", value: props.cidr_blocks.join(", ") });
+  }
+
+  const reasons = Array.isArray(props.reasons)
+    ? props.reasons.filter((r) => typeof r === "string" && r.trim())
+    : [];
+  if (reasons.length > 1 || (reasons.length === 1 && !connection.description)) {
+    reasons.forEach((reason, index) => {
+      rows.push({
+        label: reasons.length > 1 ? `Reason ${index + 1}` : "Reason",
+        value: reason,
+      });
+    });
+  }
+
+  if (connection.bidirectional) {
+    rows.push({ label: "Direction", value: "bidirectional" });
+  }
+
+  return rows;
 }
 
 // ─── Searchable Dropdown ───────────────────────────────────────────────────────
@@ -272,6 +1338,7 @@ class EnhancedDiagramViewer {
     this.panY = 0;
     this.isDragging = false;
     this.selectedResource = null;
+    this._tooltipOwner = null;
     this.showLabels = true;
     this.showMinimap = true;
     this.showFlowAnimations = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -285,6 +1352,20 @@ class EnhancedDiagramViewer {
 
     // Fast lookup map: resource id -> resource object (built after data load)
     this._resourceMap = new Map();
+
+    // Adjacency index of the relation graph: id -> [neighbour ids].
+    // Rebuilt whenever the connections change.
+    this._graphOut = new Map();
+    this._graphIn = new Map();
+
+    // How many hops the dependency trace follows (1 = direct neighbours).
+    this.traceDepth = 2;
+
+    // Layout output: nested container boxes and their children
+    this._containerBoxes = null;
+    this._containerChildren = new Map();
+    this._networkLayout = null;
+    this._layoutResult = null;
 
     // StackMap-inspired edge style config per connection type
     this.edgeStyles = {
@@ -374,6 +1455,19 @@ class EnhancedDiagramViewer {
       dynamodb: {
         name: "DynamoDB",
         color: "#2563EB",
+        resources: [],
+        subgroups: {},
+      },
+      eks: { name: "EKS", color: "#F3A13B", resources: [], subgroups: {} },
+      apigatewayv2: {
+        name: "API Gateway v2",
+        color: "#C084FC",
+        resources: [],
+        subgroups: {},
+      },
+      sfn: {
+        name: "Step Functions",
+        color: "#E7157B",
         resources: [],
         subgroups: {},
       },
@@ -472,6 +1566,7 @@ class EnhancedDiagramViewer {
         resources: [],
         subgroups: {},
       },
+      other: { name: "Other", color: "#64748B", resources: [], subgroups: {} },
     };
 
     this.init();
@@ -533,6 +1628,7 @@ class EnhancedDiagramViewer {
         this.connections = [];
         this.filteredResources = [];
         this._resourceMap.clear();
+        this.buildGraphIndex();
         console.log("No diagram loaded yet");
         this.updateEmptyState();
         return;
@@ -548,6 +1644,8 @@ class EnhancedDiagramViewer {
     // Build fast lookup map
     this._resourceMap.clear();
     this.resources.forEach((r) => this._resourceMap.set(r.id, r));
+
+    this.buildGraphIndex();
 
     console.log(
       `Loaded ${this.resources.length} resources and ${this.connections.length} connections`,
@@ -672,6 +1770,12 @@ class EnhancedDiagramViewer {
     document
       .getElementById("export-csv")
       .addEventListener("click", () => this.exportToCSV());
+    document
+      .getElementById("export-mermaid")
+      .addEventListener("click", () => this.exportToMermaid());
+    document
+      .getElementById("export-dot")
+      .addEventListener("click", () => this.exportToDOT());
 
     document
       .getElementById("diagram-view-btn")
@@ -853,22 +1957,16 @@ class EnhancedDiagramViewer {
     });
 
     this.resources.forEach((resource) => {
-      // Resource type format: "aws:<service>:<subtype>"
-      const parts = resource.type.split(":");
-      let layerKey = resource.group || (parts.length >= 2 ? parts[1] : null);
-      const subgroupKey = parts.length >= 3 ? parts[2] : "default";
-
-      // Map type segments to layer keys (handle cloudwatch log group -> logs layer)
-      if (!this.layers[layerKey]) {
-        // Fallback: check common aliases
-        const aliases = {
-          cloudfront: "ec2",
-          kms: "iam",
-        };
-        layerKey = aliases[layerKey] || "ec2";
-      }
+      // Resource type format: "aws:<service>:<subtype>". Resources with an
+      // unknown type are grouped by the service segment of their Terraform
+      // type (aws_dynamodb_table -> dynamodb).
+      const { layer: layerKey, subgroup: subgroupKey } = classifyResource(
+        resource,
+        this.layers,
+      );
 
       const layer = this.layers[layerKey];
+      if (!layer) return;
 
       // Add to flat resources list
       layer.resources.push(resource);
@@ -893,117 +1991,78 @@ class EnhancedDiagramViewer {
   // ─── Layout ────────────────────────────────────────────────────────
 
   /**
-   * Container-first hierarchical grid layout (AWS architecture diagram style).
+   * Graph-aware layout (AWS architecture diagram style).
    *
-   * 1. Compute grid dimensions for each subgroup
-   * 2. Lay out subgroups side-by-side within each layer
-   * 3. Position resources at grid cells within their subgroup
-   * 4. Layers stack top-to-bottom
+   * computeDiagramLayout() does the work:
+   *  1. ranks the resources over the flow edges (containment edges excluded)
+   *  2. derives the VPC / subnet nesting from the containment edges
+   *  3. orders the service layers, their sub-groups and their cards by rank
+   *     and by the barycentre of the already placed neighbours
+   *  4. stacks the sections top to bottom, most upstream first
    */
   autoLayout() {
     const canvasWidth = Math.max(this.width, LAYOUT_MIN_CANVAS_WIDTH);
 
-    const hasLayeredResources = Object.values(this.layers).some(
-      (l) => l.resources.length > 0,
-    );
-    if (!hasLayeredResources) {
+    if (this.resources.length === 0) {
       this.simpleGridLayout();
       return;
     }
 
-    let currentY = LAYOUT_START_Y;
+    const layout = computeDiagramLayout(
+      this.resources,
+      this.connections,
+      this.layers,
+      canvasWidth,
+    );
 
-    Object.entries(this.layers).forEach(([, layer]) => {
-      if (layer.resources.length === 0) return;
+    this.resources.forEach((resource) => {
+      const p = layout.positions.get(resource.id);
+      if (!p) return;
+      resource.x = p.x;
+      resource.y = p.y;
+    });
 
-      const subgroupKeys = Object.keys(layer.subgroups);
+    this._containerBoxes = layout.containerBoxes;
+    this._containerChildren = layout.containerChildren;
+    this._networkLayout = layout.network;
+    this._layoutResult = layout;
 
-      // First pass: size each subgroup from its header, node cards, and padding.
-      const sgLayouts = {};
-      subgroupKeys.forEach((sgKey) => {
-        const sgResources = layer.subgroups[sgKey].resources;
-        const cols = Math.min(sgResources.length, NODES_PER_ROW);
-        const rows = Math.ceil(sgResources.length / NODES_PER_ROW);
-        const width =
-          SUBGROUP_PADDING_X * 2 +
-          cols * NODE_CARD_W +
-          Math.max(0, cols - 1) * NODE_GAP_X;
-        const height =
-          SUBGROUP_HEADER_HEIGHT +
-          rows * NODE_CARD_H +
-          Math.max(0, rows - 1) * NODE_GAP_Y +
-          SUBGROUP_PADDING_BOTTOM;
-        sgLayouts[sgKey] = {
-          resources: sgResources,
-          cols,
-          rows,
-          width,
-          height,
-        };
-      });
+    this.applyLayerLayouts(layout);
+  }
 
-      // Lay out subgroups inside an explicit service container. The stored
-      // rectangles are also used for rendering, so each hierarchy level has
-      // guaranteed clearance from its parent and children.
-      const layerX = LAYOUT_PADDING_X;
-      const layerY = currentY;
-      const contentX = layerX + LAYER_CONTENT_PADDING_X;
-      const contentY = layerY + LAYER_HEADER_HEIGHT;
-      const maxContentWidth =
-        canvasWidth - LAYOUT_PADDING_X * 2 - LAYER_CONTENT_PADDING_X * 2;
-      let rowX = contentX;
-      let rowY = contentY;
-      let rowMaxH = 0;
-      let maxRight = contentX;
-      let maxBottom = contentY;
+  /**
+   * Rebuild the layer membership from the computed layout: resources drawn
+   * inside a VPC / subnet box do not belong to a service layer box.
+   */
+  applyLayerLayouts(layout) {
+    Object.values(this.layers).forEach((layer) => {
+      layer.resources = [];
+      layer.subgroups = {};
+    });
 
-      subgroupKeys.forEach((sgKey) => {
-        const sg = sgLayouts[sgKey];
+    this.resources.forEach((resource) => {
+      const assignment = layout.assignment.get(resource.id);
+      if (!assignment) return;
+      resource.layer = assignment.layer;
+      resource.subgroup = assignment.subgroup;
 
-        // Wrap to next row if this subgroup would overflow
-        if (
-          rowX + sg.width > contentX + maxContentWidth &&
-          rowX > contentX
-        ) {
-          rowY += rowMaxH + SUBGROUP_GAP;
-          rowX = contentX;
-          rowMaxH = 0;
-        }
+      if (layout.networkIds.has(resource.id)) return;
 
-        // Store subgroup position
-        sg.x = rowX;
-        sg.y = rowY;
+      const layer = this.layers[assignment.layer];
+      if (!layer) return;
+      layer.resources.push(resource);
+      if (!layer.subgroups[assignment.subgroup]) {
+        layer.subgroups[assignment.subgroup] = { resources: [] };
+      }
+      layer.subgroups[assignment.subgroup].resources.push(resource);
+    });
 
-        // Position each resource within the sub-group grid
-        sg.resources.forEach((resource, idx) => {
-          const col = idx % NODES_PER_ROW;
-          const row = Math.floor(idx / NODES_PER_ROW);
-          resource.x =
-            rowX +
-            SUBGROUP_PADDING_X +
-            NODE_CARD_W / 2 +
-            col * (NODE_CARD_W + NODE_GAP_X);
-          resource.y =
-            rowY +
-            SUBGROUP_HEADER_HEIGHT +
-            NODE_CARD_H / 2 +
-            row * (NODE_CARD_H + NODE_GAP_Y);
-        });
-
-        maxRight = Math.max(maxRight, rowX + sg.width);
-        maxBottom = Math.max(maxBottom, rowY + sg.height);
-        rowX += sg.width + SUBGROUP_GAP;
-        rowMaxH = Math.max(rowMaxH, sg.height);
-      });
-
-      const layerBounds = {
-        x: layerX,
-        y: layerY,
-        width: maxRight - layerX + LAYER_CONTENT_PADDING_X,
-        height: maxBottom - layerY + LAYER_CONTENT_PADDING_BOTTOM,
+    Object.entries(this.layers).forEach(([key, layer]) => {
+      layer._layout = layout.layerLayouts[key] || {
+        sgLayouts: {},
+        subgroupKeys: [],
+        bounds: null,
       };
-      currentY = layerY + layerBounds.height + LAYOUT_GAP;
-      layer._layout = { sgLayouts, subgroupKeys, bounds: layerBounds };
     });
   }
 
@@ -1111,13 +2170,17 @@ class EnhancedDiagramViewer {
     // Build a Set for fast filtered-resource membership checks
     const filteredSet = new Set(this.filteredResources);
 
+    // Nested VPC / subnet boxes sit behind the service boxes and the nodes.
+    this.renderContainerBoxes(layersGroup, filteredSet);
+
     Object.entries(this.layers).forEach(([layerKey, layer]) => {
       if (layer.resources.length === 0) return;
 
       const visible = layer.resources.filter((r) => filteredSet.has(r));
       if (visible.length === 0) return;
 
-      const bounds = layer._layout.bounds;
+      const bounds = layer._layout && layer._layout.bounds;
+      if (!bounds) return;
 
       // Outer service box — dashed border (AWS architecture style)
       const serviceBox = svgEl("rect", {
@@ -1207,6 +2270,105 @@ class EnhancedDiagramViewer {
     });
   }
 
+  /**
+   * Draw the nested AWS-style boxes (VPC > subnet > cards).
+   *
+   * A VPC or subnet is drawn as a box instead of a card, so the resource
+   * itself stays selectable: the box carries the resource id.
+   */
+  renderContainerBoxes(layersGroup, filteredSet) {
+    if (!this._containerBoxes) return;
+    const vpcColor = (this.layers.vpc && this.layers.vpc.color) || "#248814";
+
+    this._containerBoxes.forEach((box, id) => {
+      const resource = this._resourceMap.get(id);
+      if (!resource) return;
+      if (
+        !filteredSet.has(id) &&
+        !this.hasVisibleDescendant(id, filteredSet)
+      ) {
+        return;
+      }
+
+      const isVpc = box.kind === "vpc";
+      const color = isVpc ? vpcColor : subnetColor(resource);
+      const strokeWidth = isVpc ? "1.5" : "1";
+      const strokeOpacity = isVpc ? "0.5" : "0.35";
+      const x = resource.x - box.width / 2;
+      const y = resource.y - box.height / 2;
+
+      const group = svgEl("g", { "data-id": id });
+      group.classList.add("container-box");
+      group.classList.add(isVpc ? "vpc-box" : "subnet-box");
+      group.dataset.baseStrokeWidth = strokeWidth;
+      group.dataset.baseStrokeOpacity = strokeOpacity;
+
+      group.appendChild(
+        svgEl("rect", {
+          x: String(x),
+          y: String(y),
+          width: String(box.width),
+          height: String(box.height),
+          rx: String(isVpc ? 14 : 10),
+          fill: color,
+          "fill-opacity": isVpc ? "0.05" : "0.08",
+          stroke: color,
+          "stroke-width": strokeWidth,
+          "stroke-opacity": strokeOpacity,
+          "stroke-dasharray": isVpc ? "" : "4,3",
+        }),
+      );
+
+      const label = svgEl("text", {
+        x: String(x + 12),
+        y: String(y + (isVpc ? 20 : 17)),
+        fill: color,
+        "font-size": isVpc ? "12" : "10",
+        "font-weight": "700",
+        "font-family": "'Inter', sans-serif",
+        opacity: "0.9",
+        "pointer-events": "none",
+      });
+      label.textContent = truncateText(box.label, 32);
+      group.appendChild(label);
+
+      if (box.sublabel) {
+        const sub = svgEl("text", {
+          x: String(x + 12),
+          y: String(y + (isVpc ? 33 : 28)),
+          fill: color,
+          "font-size": "9",
+          "font-family": TYPE_LABEL_FONT,
+          opacity: "0.7",
+          "pointer-events": "none",
+        });
+        sub.textContent = truncateText(box.sublabel, 40);
+        group.appendChild(sub);
+      }
+
+      group.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.selectResource(resource);
+      });
+      group.addEventListener("mouseenter", (e) =>
+        this.showTooltip(e, resource, group),
+      );
+      group.addEventListener("mouseleave", () => this.hideTooltip(group));
+
+      layersGroup.appendChild(group);
+    });
+  }
+
+  /** True when a nested resource of the container is currently visible. */
+  hasVisibleDescendant(id, filteredSet) {
+    const children = this._containerChildren && this._containerChildren.get(id);
+    if (!children || !children.length) return false;
+    return children.some((childId) => {
+      if (filteredSet.has(childId)) return true;
+      return this.hasVisibleDescendant(childId, filteredSet);
+    });
+  }
+
   renderConnections(connectionsGroup) {
     // Build a Set of filtered resource IDs for fast membership checks
     const filteredIds = new Set(this.filteredResources.map((r) => r.id));
@@ -1240,8 +2402,11 @@ class EnhancedDiagramViewer {
       if (!filteredIds.has(sourceId) || !filteredIds.has(targetId)) return;
       if (source.x === target.x && source.y === target.y) return;
 
-      const edgeType = connection.type || "default";
-      const style = this.edgeStyles[edgeType] || this.edgeStyles.default;
+      const edgeType =
+        connection.type && this.edgeStyles[connection.type]
+          ? connection.type
+          : "default";
+      const style = this.edgeStyles[edgeType];
 
       const dx = target.x - source.x;
       const dy = target.y - source.y;
@@ -1269,6 +2434,14 @@ class EnhancedDiagramViewer {
       const halfW = NODE_CARD_W / 2;
       const halfH = NODE_CARD_H / 2;
 
+      // Nested containers are boxes: anchor the edge on their border.
+      const sourceBox = this._containerBoxes && this._containerBoxes.get(sourceId);
+      const targetBox = this._containerBoxes && this._containerBoxes.get(targetId);
+      const srcHalfW = sourceBox ? sourceBox.width / 2 : halfW;
+      const srcHalfH = sourceBox ? sourceBox.height / 2 : halfH;
+      const tgtHalfW = targetBox ? targetBox.width / 2 : halfW;
+      const tgtHalfH = targetBox ? targetBox.height / 2 : halfH;
+
       // Compute anchor points on card edges (rect intersection)
       // For orthogonal routing we pick the nearest horizontal or vertical edge
       const absDx = Math.abs(dx);
@@ -1277,16 +2450,16 @@ class EnhancedDiagramViewer {
       let sx, sy, tx, ty;
       if (absDx > absDy) {
         // Primarily horizontal: exit from left/right edges
-        sx = source.x + Math.sign(dx) * halfW;
+        sx = source.x + Math.sign(dx) * srcHalfW;
         sy = source.y + offsetAmount;
-        tx = target.x - Math.sign(dx) * halfW;
+        tx = target.x - Math.sign(dx) * tgtHalfW;
         ty = target.y + offsetAmount;
       } else {
         // Primarily vertical: exit from top/bottom edges
         sx = source.x + offsetAmount;
-        sy = source.y + Math.sign(dy) * halfH;
+        sy = source.y + Math.sign(dy) * srcHalfH;
         tx = target.x + offsetAmount;
-        ty = target.y - Math.sign(dy) * halfH;
+        ty = target.y - Math.sign(dy) * tgtHalfH;
       }
 
       let pathData;
@@ -1359,6 +2532,26 @@ class EnhancedDiagramViewer {
       }
       connectionsGroup.appendChild(line);
 
+      // Invisible wide path on top of the edge: it makes the thin edge
+      // hoverable and carries the edge tooltip.
+      const hitArea = svgEl("path", {
+        d: pathData,
+        fill: "none",
+        stroke: "transparent",
+        "stroke-width": "14",
+        "pointer-events": "stroke",
+      });
+      hitArea.classList.add("connection-hit");
+      hitArea.addEventListener("mouseenter", (e) =>
+        this.showEdgeTooltip(e, connection, hitArea),
+      );
+      hitArea.addEventListener("mouseleave", () => this.hideTooltip(hitArea));
+      hitArea.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.showEdgeTooltip(e, connection, hitArea);
+      });
+      connectionsGroup.appendChild(hitArea);
+
       // Edge label with collision avoidance
       if (connection.description) {
         let labelX = (source.x + target.x) / 2;
@@ -1404,6 +2597,7 @@ class EnhancedDiagramViewer {
           stroke: style.color,
           "stroke-width": "0.5",
           "stroke-opacity": "0.4",
+          "pointer-events": "none",
         });
         connectionsGroup.appendChild(labelBg);
 
@@ -1428,6 +2622,7 @@ class EnhancedDiagramViewer {
           r: String(FLOW_DOT_RADIUS),
           fill: style.dotColor,
           opacity: "0.9",
+          "pointer-events": "none",
         });
         dot.classList.add("flow-dot");
 
@@ -1452,6 +2647,7 @@ class EnhancedDiagramViewer {
             r: String(FLOW_DOT2_RADIUS),
             fill: style.dotColor,
             opacity: "0.6",
+            "pointer-events": "none",
           });
           dot2.classList.add("flow-dot");
 
@@ -1477,6 +2673,9 @@ class EnhancedDiagramViewer {
 
   renderNodes(nodesGroup) {
     this.filteredResources.forEach((resource) => {
+      // VPCs and subnets are drawn as boxes, not as cards.
+      if (this._containerBoxes && this._containerBoxes.has(resource.id)) return;
+
       const nodeGroup = svgEl("g", {
         transform: `translate(${resource.x}, ${resource.y})`,
         "data-id": resource.id,
@@ -1564,9 +2763,9 @@ class EnhancedDiagramViewer {
         this.selectResource(resource);
       });
       nodeGroup.addEventListener("mouseenter", (e) =>
-        this.showTooltip(e, resource),
+        this.showTooltip(e, resource, nodeGroup),
       );
-      nodeGroup.addEventListener("mouseleave", () => this.hideTooltip());
+      nodeGroup.addEventListener("mouseleave", () => this.hideTooltip(nodeGroup));
 
       nodesGroup.appendChild(nodeGroup);
     });
@@ -1837,14 +3036,26 @@ class EnhancedDiagramViewer {
   fitToView() {
     if (this.filteredResources.length === 0) return;
 
-    const minX =
-      safeMin(this.filteredResources.map((r) => r.x)) - FIT_VIEW_MARGIN;
-    const maxX =
-      safeMax(this.filteredResources.map((r) => r.x)) + FIT_VIEW_MARGIN;
-    const minY =
-      safeMin(this.filteredResources.map((r) => r.y)) - FIT_VIEW_MARGIN;
-    const maxY =
-      safeMax(this.filteredResources.map((r) => r.y)) + FIT_VIEW_MARGIN;
+    // Nested containers are bigger than their centre point, so the box
+    // extents have to be part of the fitted area.
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    this.filteredResources.forEach((resource) => {
+      const box = this._containerBoxes && this._containerBoxes.get(resource.id);
+      const halfW = box ? box.width / 2 : 0;
+      const halfH = box ? box.height / 2 : 0;
+      minX = Math.min(minX, resource.x - halfW);
+      maxX = Math.max(maxX, resource.x + halfW);
+      minY = Math.min(minY, resource.y - halfH);
+      maxY = Math.max(maxY, resource.y + halfH);
+    });
+
+    minX -= FIT_VIEW_MARGIN;
+    maxX += FIT_VIEW_MARGIN;
+    minY -= FIT_VIEW_MARGIN;
+    maxY += FIT_VIEW_MARGIN;
 
     const contentWidth = maxX - minX;
     const contentHeight = maxY - minY;
@@ -1917,6 +3128,13 @@ class EnhancedDiagramViewer {
       const deltaY = (e.clientY - this.lastMouseY) / this.zoom;
       this._draggingNode.x += deltaX;
       this._draggingNode.y += deltaY;
+      // A dragged VPC / subnet takes its nested resources with it
+      this.moveNestedResources(
+        this._draggingNode.id,
+        deltaX,
+        deltaY,
+        new Set([this._draggingNode.id]),
+      );
       this.lastMouseX = e.clientX;
       this.lastMouseY = e.clientY;
 
@@ -1962,6 +3180,21 @@ class EnhancedDiagramViewer {
     }
     this.isDragging = false;
     this.svg.style.cursor = "grab";
+  }
+
+  /** Move the resources nested inside a dragged container along with it. */
+  moveNestedResources(id, deltaX, deltaY, seen) {
+    const children = this._containerChildren && this._containerChildren.get(id);
+    if (!children || !children.length) return;
+    children.forEach((childId) => {
+      if (seen.has(childId)) return;
+      seen.add(childId);
+      const child = this._resourceMap.get(childId);
+      if (!child) return;
+      child.x += deltaX;
+      child.y += deltaY;
+      this.moveNestedResources(childId, deltaX, deltaY, seen);
+    });
   }
 
   onWheel(e) {
@@ -2208,7 +3441,7 @@ class EnhancedDiagramViewer {
   }
 
   highlightDependencies(resource) {
-    const connectedResources = this.getConnectedResources(resource);
+    const trace = this.getTrace(resource);
 
     // Build lookup maps for DOM elements to avoid querySelector per resource/connection
     const nodeElements = new Map();
@@ -2220,8 +3453,9 @@ class EnhancedDiagramViewer {
       connElements.set(el.getAttribute("data-connection"), el);
     });
 
-    const upstreamIds = new Set(connectedResources.upstream.map((r) => r.id));
-    const downstreamIds = new Set(connectedResources.downstream.map((r) => r.id));
+    const upstreamIds = trace.upstreamIds;
+    const downstreamIds = trace.downstreamIds;
+    const tracedIds = new Set([resource.id, ...upstreamIds, ...downstreamIds]);
 
     this.resources.forEach((r) => {
       const nodeElement = nodeElements.get(r.id);
@@ -2230,14 +3464,7 @@ class EnhancedDiagramViewer {
       if (r.id === resource.id) {
         nodeElement.classList.add("selected-resource");
         // Apply selection glow directly to avoid full re-render
-        const rects = nodeElement.querySelectorAll("rect");
-        if (rects.length >= 2) {
-          // First rect is glow ring, second is card background
-          rects[0].setAttribute("stroke-width", "1");
-          rects[0].setAttribute("stroke-opacity", "0.5");
-          rects[1].setAttribute("stroke-width", "2.5");
-          rects[1].setAttribute("stroke-opacity", "1");
-        }
+        this.applySelectedStyle(nodeElement, true);
       } else if (upstreamIds.has(r.id)) {
         nodeElement.classList.add("upstream-dependency");
       } else if (downstreamIds.has(r.id)) {
@@ -2251,7 +3478,11 @@ class EnhancedDiagramViewer {
       const pathElement = connElements.get(conn.id);
       if (!pathElement) return;
 
-      if (conn.source_id === resource.id || conn.target_id === resource.id) {
+      // Every edge inside the traced subgraph stays lit, the rest fades.
+      if (
+        tracedIds.has(conn.source_id) &&
+        tracedIds.has(conn.target_id)
+      ) {
         pathElement.classList.add("highlighted-connection");
       } else {
         pathElement.classList.add("dimmed-connection");
@@ -2259,18 +3490,42 @@ class EnhancedDiagramViewer {
     });
   }
 
+  /**
+   * Selection glow for a node. Cards use a glow ring plus a card background,
+   * nested container boxes only have a single rectangle.
+   */
+  applySelectedStyle(element, selected) {
+    if (element.classList.contains("container-box")) {
+      const rect = element.querySelector("rect");
+      if (rect) {
+        rect.setAttribute(
+          "stroke-width",
+          selected ? "2.5" : element.dataset.baseStrokeWidth || "1.5",
+        );
+        rect.setAttribute(
+          "stroke-opacity",
+          selected ? "1" : element.dataset.baseStrokeOpacity || "0.45",
+        );
+      }
+      return;
+    }
+
+    const rects = element.querySelectorAll("rect");
+    if (rects.length >= 2) {
+      // First rect is glow ring, second is card background
+      rects[0].setAttribute("stroke-width", selected ? "1" : "0.5");
+      rects[0].setAttribute("stroke-opacity", selected ? "0.5" : "0.15");
+      rects[1].setAttribute("stroke-width", selected ? "2.5" : "1.5");
+      rects[1].setAttribute("stroke-opacity", selected ? "1" : "0.4");
+    }
+  }
+
   clearDependencyHighlighting() {
     document
       .querySelectorAll(".selected-resource")
       .forEach((el) => {
         // Reset selection glow attributes to defaults
-        const rects = el.querySelectorAll("rect");
-        if (rects.length >= 2) {
-          rects[0].setAttribute("stroke-width", "0.5");
-          rects[0].setAttribute("stroke-opacity", "0.15");
-          rects[1].setAttribute("stroke-width", "1.5");
-          rects[1].setAttribute("stroke-opacity", "0.4");
-        }
+        this.applySelectedStyle(el, false);
       });
 
     document
@@ -2293,22 +3548,69 @@ class EnhancedDiagramViewer {
       });
   }
 
-  getConnectedResources(resource) {
-    const upstream = [];
-    const downstream = [];
-
+  /** Build the adjacency index of the relation graph. */
+  buildGraphIndex() {
+    this._graphOut = new Map();
+    this._graphIn = new Map();
     this.connections.forEach((conn) => {
-      if (conn.target_id === resource.id) {
-        const sourceResource = this._resourceMap.get(conn.source_id);
-        if (sourceResource) upstream.push(sourceResource);
-      }
-      if (conn.source_id === resource.id) {
-        const targetResource = this._resourceMap.get(conn.target_id);
-        if (targetResource) downstream.push(targetResource);
-      }
+      const source = conn.source_id || conn.source;
+      const target = conn.target_id || conn.target;
+      if (!source || !target) return;
+      if (!this._graphOut.has(source)) this._graphOut.set(source, []);
+      if (!this._graphIn.has(target)) this._graphIn.set(target, []);
+      this._graphOut.get(source).push(target);
+      this._graphIn.get(target).push(source);
     });
+  }
 
-    return { upstream, downstream };
+  /**
+   * Walk the relation graph in one direction, breadth first, up to `depth` hops.
+   * Returns the ids that were reached (the start node is never included).
+   */
+  traceDirection(startId, neighbours, depth) {
+    const seen = new Set([startId]);
+    const reached = new Set();
+    let frontier = [startId];
+
+    for (let hop = 0; hop < depth; hop++) {
+      const next = [];
+      frontier.forEach((id) => {
+        (neighbours.get(id) || []).forEach((other) => {
+          if (seen.has(other)) return;
+          seen.add(other);
+          reached.add(other);
+          next.push(other);
+        });
+      });
+      if (!next.length) break;
+      frontier = next;
+    }
+
+    return reached;
+  }
+
+  /**
+   * Multi hop trace around the selected resource: everything that reaches it
+   * (upstream) and everything it reaches (downstream), up to `depth` hops.
+   */
+  getTrace(resource, depth = this.traceDepth) {
+    // depth 0 means "follow every hop".
+    const hops = depth === 0 ? Infinity : depth;
+    const upstreamIds = this.traceDirection(resource.id, this._graphIn, hops);
+    const downstreamIds = this.traceDirection(resource.id, this._graphOut, hops);
+
+    const toResources = (ids) =>
+      Array.from(ids)
+        .map((id) => this._resourceMap.get(id))
+        .filter(Boolean);
+
+    return {
+      upstream: toResources(upstreamIds),
+      downstream: toResources(downstreamIds),
+      upstreamIds,
+      downstreamIds,
+      depth,
+    };
   }
 
   /**
@@ -2322,7 +3624,7 @@ class EnhancedDiagramViewer {
       panel = this.createResourceDetailsPanel();
     }
 
-    const connectedResources = this.getConnectedResources(resource);
+    const trace = this.getTrace(resource);
 
     // Clear panel
     while (panel.firstChild) panel.removeChild(panel.firstChild);
@@ -2399,6 +3701,33 @@ class EnhancedDiagramViewer {
     depsH4.textContent = "Dependencies";
     depsSection.appendChild(depsH4);
 
+    // ── Trace depth control ──
+    const depthRow = document.createElement("div");
+    depthRow.className = "trace-depth";
+
+    const depthLabel = document.createElement("span");
+    depthLabel.className = "trace-depth-label";
+    depthLabel.textContent = "Trace depth";
+    depthRow.appendChild(depthLabel);
+
+    // 0 means "follow every hop".
+    [1, 2, 3, 0].forEach((depth) => {
+      const btn = document.createElement("button");
+      btn.className = "trace-depth-btn";
+      btn.textContent = depth === 0 ? "All" : String(depth);
+      if ((this.traceDepth === 0 ? 0 : this.traceDepth) === depth) {
+        btn.classList.add("active");
+      }
+      btn.onclick = () => {
+        this.traceDepth = depth;
+        this.highlightDependencies(resource);
+        this.updateResourceDetailsPanel(resource);
+      };
+      depthRow.appendChild(btn);
+    });
+
+    depsSection.appendChild(depthRow);
+
     // Helper to create a dependency group
     const createDepGroup = (label, items, direction) => {
       const group = document.createElement("div");
@@ -2446,10 +3775,10 @@ class EnhancedDiagramViewer {
     };
 
     depsSection.appendChild(
-      createDepGroup("Upstream", connectedResources.upstream, "upstream"),
+      createDepGroup("Upstream", trace.upstream, "upstream"),
     );
     depsSection.appendChild(
-      createDepGroup("Downstream", connectedResources.downstream, "downstream"),
+      createDepGroup("Downstream", trace.downstream, "downstream"),
     );
     panel.appendChild(depsSection);
 
@@ -2502,45 +3831,81 @@ class EnhancedDiagramViewer {
 
   // ─── Tooltip ───────────────────────────────────────────────────────
 
-  showTooltip(event, resource) {
+  showTooltip(event, resource, owner) {
+    const rows = [];
+    if (resource.provider) {
+      rows.push({ label: "Provider", value: resource.provider });
+    }
+    if (resource.region) {
+      rows.push({ label: "Region", value: resource.region });
+    }
+    if (resource.state) {
+      rows.push({ label: "State", value: resource.state });
+    }
+    this.renderTooltip(event, {
+      title: resource.name,
+      subtitle: resource.type,
+      rows,
+    });
+    this._tooltipOwner = owner || null;
+  }
+
+  /** Tooltip of an edge: its endpoints, its type and the connection metadata. */
+  showEdgeTooltip(event, connection, owner) {
+    const sourceId = connection.source_id || connection.source;
+    const targetId = connection.target_id || connection.target;
+    const source = this._resourceMap.get(sourceId);
+    const target = this._resourceMap.get(targetId);
+    this.renderTooltip(event, {
+      title: `${source ? source.name : sourceId} → ${target ? target.name : targetId}`,
+      subtitle: connection.type || "default",
+      rows: buildEdgeTooltipRows(connection),
+    });
+    this._tooltipOwner = owner || null;
+  }
+
+  /** Render a "title + rows" payload into the tooltip element. */
+  renderTooltip(event, payload) {
     const tooltip = document.getElementById("tooltip");
 
     // Build tooltip content safely using DOM API (no innerHTML with user data)
     while (tooltip.firstChild) tooltip.removeChild(tooltip.firstChild);
 
     const strong = document.createElement("strong");
-    strong.textContent = resource.name;
+    strong.textContent = payload.title;
     tooltip.appendChild(strong);
-    tooltip.appendChild(document.createElement("br"));
 
-    const typeSpan = document.createElement("span");
-    typeSpan.style.color = "rgba(245,245,247,0.6)";
-    typeSpan.textContent = resource.type;
-    tooltip.appendChild(typeSpan);
-    tooltip.appendChild(document.createElement("br"));
+    if (payload.subtitle) {
+      tooltip.appendChild(document.createElement("br"));
 
-    if (resource.provider) {
-      tooltip.appendChild(
-        document.createTextNode(`Provider: ${resource.provider}`),
-      );
+      const subtitleSpan = document.createElement("span");
+      subtitleSpan.style.color = "rgba(245,245,247,0.6)";
+      subtitleSpan.textContent = payload.subtitle;
+      tooltip.appendChild(subtitleSpan);
+    }
+
+    (payload.rows || []).forEach((row) => {
       tooltip.appendChild(document.createElement("br"));
-    }
-    if (resource.region) {
-      tooltip.appendChild(
-        document.createTextNode(`Region: ${resource.region}`),
-      );
-      tooltip.appendChild(document.createElement("br"));
-    }
-    if (resource.state) {
-      tooltip.appendChild(document.createTextNode(`State: ${resource.state}`));
-    }
+
+      const labelSpan = document.createElement("span");
+      labelSpan.style.color = "rgba(245,245,247,0.6)";
+      labelSpan.textContent = `${row.label}: `;
+      tooltip.appendChild(labelSpan);
+
+      tooltip.appendChild(document.createTextNode(String(row.value)));
+    });
 
     tooltip.style.left = event.pageX + 10 + "px";
     tooltip.style.top = event.pageY + 10 + "px";
     tooltip.classList.add("show");
   }
 
-  hideTooltip() {
+  hideTooltip(owner) {
+    // Moving the pointer from one element to another can deliver the leave
+    // event after the enter event: only the owner of the visible tooltip may
+    // hide it, otherwise the new tooltip would disappear right away.
+    if (owner && this._tooltipOwner && this._tooltipOwner !== owner) return;
+    this._tooltipOwner = null;
     document.getElementById("tooltip").classList.remove("show");
   }
 
@@ -2715,6 +4080,20 @@ class EnhancedDiagramViewer {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  exportToMermaid() {
+    const mermaid = buildMermaid(this.filteredResources, this.connections);
+    downloadTextFile(
+      "architecture-diagram.mmd",
+      mermaid,
+      "text/plain;charset=utf-8",
+    );
+  }
+
+  exportToDOT() {
+    const dot = buildDot(this.filteredResources, this.connections);
+    downloadTextFile("architecture-diagram.dot", dot, "text/plain;charset=utf-8");
+  }
+
   // ─── Utility ───────────────────────────────────────────────────────
 
   showError(message) {
@@ -2744,3 +4123,14 @@ class EnhancedDiagramViewer {
 
 // Alias for backward compatibility (HTML references EnhancedDiagram)
 const EnhancedDiagram = EnhancedDiagramViewer;
+
+// Expose the pure layout helpers so the layout maths can be driven from the
+// console or from a test harness without instantiating the viewer.
+EnhancedDiagramViewer.computeDiagramLayout = computeDiagramLayout;
+EnhancedDiagramViewer.classifyResource = classifyResource;
+EnhancedDiagramViewer.computeFlowRanks = computeFlowRanks;
+EnhancedDiagramViewer.orderResourcesByBarycenter = orderResourcesByBarycenter;
+EnhancedDiagramViewer.buildMermaid = buildMermaid;
+EnhancedDiagramViewer.buildDot = buildDot;
+EnhancedDiagramViewer.buildEdgeTooltipRows = buildEdgeTooltipRows;
+EnhancedDiagramViewer.escapeMermaidLabel = escapeMermaidLabel;

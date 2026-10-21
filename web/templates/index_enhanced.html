@@ -1649,6 +1649,41 @@
             font-family: var(--sm-font-mono);
         }
 
+        .trace-depth {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 10px;
+        }
+
+        .trace-depth-label {
+            font-size: 10px;
+            color: var(--sm-text-muted);
+            margin-right: 4px;
+        }
+
+        .trace-depth-btn {
+            padding: 2px 8px;
+            font-size: 10px;
+            font-family: var(--sm-font-mono);
+            color: var(--sm-text-muted);
+            background: transparent;
+            border: 1px solid var(--sm-border-subtle);
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        .trace-depth-btn:hover {
+            color: var(--sm-text);
+            border-color: var(--sm-border);
+        }
+
+        .trace-depth-btn.active {
+            color: var(--sm-text);
+            border-color: var(--sm-accent, #3B82F6);
+            background: rgba(59, 130, 246, 0.12);
+        }
+
         .property-item {
             display: flex;
             margin-bottom: 6px;
@@ -2145,6 +2180,16 @@
                     <button class="toolbar-btn" id="export-csv" title="Download all resource information as CSV">
                         <svg viewBox="0 0 24 24"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M8 13h8M8 17h8"/></svg>
                         <span class="toolbar-tooltip">Download CSV</span>
+                    </button>
+                    <!-- Export Mermaid -->
+                    <button class="toolbar-btn" id="export-mermaid" title="Export Mermaid flowchart">
+                        <svg viewBox="0 0 24 24"><rect x="2" y="3" width="7" height="5" rx="1"/><rect x="15" y="16" width="7" height="5" rx="1"/><path d="M5.5 8v9a2 2 0 0 0 2 2h7.5"/></svg>
+                        <span class="toolbar-tooltip">Export Mermaid</span>
+                    </button>
+                    <!-- Export Graphviz DOT -->
+                    <button class="toolbar-btn" id="export-dot" title="Export Graphviz DOT">
+                        <svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M7 7.5l9.5 9"/><path d="M12 12h-3.5"/></svg>
+                        <span class="toolbar-tooltip">Export DOT</span>
                     </button>
                     <!-- Presentation Mode -->
                     <button class="toolbar-btn" id="presentation-mode" title="Presentation Mode">
