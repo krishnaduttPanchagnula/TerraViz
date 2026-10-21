@@ -45,14 +45,14 @@ internal/
     server.go                       Gin HTTP server, REST API, sync.RWMutex-protected diagram state
 web/
   embed.go                          go:embed directive -- embeds templates, static, icons into binary
-  templates/                        Go HTML templates (index.html, index_enhanced.html, error.html)
-  static/js/                        Frontend JS (diagram.js, diagram_enhanced.js)
+  templates/                        Go HTML templates (index_enhanced.html, error.html)
+  static/js/                        Frontend JS (diagram_enhanced.js)
   static/fonts/                     Bundled WOFF2 fonts (Inter, JetBrains Mono) -- no CDN at runtime
   icons/                            Full AWS icon packs (~620 SVGs, served at /icons, used by both UIs)
 scripts/
   check-diagram-js.js               Self-check for the frontend layout, containment and trace logic
 docs/
-  screenshots/                      UI screenshots for README (enhanced-ui, basic-ui, resource-details)
+  screenshots/                      UI screenshots for README (enhanced-ui, resource-details)
 .goreleaser.yml                     GoReleaser v2 config (linux/darwin/windows x amd64/arm64)
 .github/workflows/release.yml      GitHub Actions -- triggers on v* tags, runs GoReleaser
 .gitignore                          Covers binaries, JSON artifacts, .tfstate, IDE files, node_modules
@@ -134,7 +134,7 @@ Global flags: `--output` / `-o` (default `diagram.json`), `--verbose` / `-v`, `-
 ### Icon System
 - `resourceIconMap` in `models.go` maps 50+ `ResourceType` constants to `/icons/` paths (matching the embedded `web/icons/` AWS icon packs)
 - `DefaultResourceIcon` = `/icons/General-Icons/Marketplace_Dark.svg`
-- Both JS frontends (`diagram.js`, `diagram_enhanced.js`) prefer `resource.icon_url` from the API, falling back to their own local icon maps
+- The JS frontend (`diagram_enhanced.js`) prefers `resource.icon_url` from the API, falling back to its own local icon map
 - Icons are served from the embedded filesystem at `/icons/`
 
 ### Types to Know
@@ -145,7 +145,7 @@ Global flags: `--output` / `-o` (default `diagram.json`), `--verbose` / `-v`, `-
 - `models.ConnectionType` -- One of: `networking`, `access`, `data`, `trigger`, `dependency`, `reference`
 
 ### Server Routes
-Enhanced UI is at `/enhanced` (recommended). Basic UI at `/`.
+The enhanced UI is served at `/` (it is the only UI; `server.go:handleEnhancedIndex`).
 API routes are under `/api/` -- see `server.go:setupRoutes()` for full list.
 
 ## Dependencies

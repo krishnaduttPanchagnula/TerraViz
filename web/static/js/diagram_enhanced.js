@@ -1343,7 +1343,10 @@ class EnhancedDiagramViewer {
     this.showMinimap = true;
     this.showFlowAnimations = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.presentationMode = false;
-    this.sidebarCollapsed = false;
+    // On narrow screens the sidebar starts collapsed so it does not eat the
+    // canvas; the toggle brings it back.
+    this.sidebarCollapsed = window.innerWidth <= 768;
+    this.applySidebarState();
     this.currentView = "diagram";
 
     this.resources = [];
@@ -2592,7 +2595,9 @@ class EnhancedDiagramViewer {
           width: String(textWidth),
           height: String(CONN_LABEL_HEIGHT),
           rx: "4",
-          fill: "var(--sm-terminal-bg)",
+          // var() only resolves in inline styles, not in SVG presentation
+          // attributes, so the fill has to go through the style attribute.
+          style: "fill: var(--sm-terminal-bg);",
           "fill-opacity": "0.85",
           stroke: style.color,
           "stroke-width": "0.5",
@@ -2748,7 +2753,7 @@ class EnhancedDiagramViewer {
           y: String(TYPE_LABEL_Y_OFFSET),
           "text-anchor": "middle",
           "font-size": TYPE_LABEL_FONT_SIZE,
-          fill: "var(--sm-node-type)",
+          style: "fill: var(--sm-node-type);",
           "font-family": TYPE_LABEL_FONT,
         });
         typeLabel.textContent = truncateText(
@@ -2956,10 +2961,18 @@ class EnhancedDiagramViewer {
   // ─── UI Controls ───────────────────────────────────────────────────
 
   toggleSidebar() {
+    this.sidebarCollapsed = !this.sidebarCollapsed;
+    this.applySidebarState();
+
+    // Recalculate canvas dimensions after sidebar change
+    this.onResize();
+  }
+
+  /** Apply the collapsed state of the sidebar to the DOM. */
+  applySidebarState() {
     const sidebar = document.getElementById("filter-sidebar");
     const toggle = document.getElementById("sidebar-toggle");
-
-    this.sidebarCollapsed = !this.sidebarCollapsed;
+    if (!sidebar || !toggle) return;
 
     if (this.sidebarCollapsed) {
       sidebar.classList.add("collapsed");
@@ -2978,9 +2991,6 @@ class EnhancedDiagramViewer {
       sidebar.style.borderRight = "";
       toggle.textContent = "\u2715"; // multiplication sign (close)
     }
-
-    // Recalculate canvas dimensions after sidebar change
-    this.onResize();
   }
 
   toggleLabels() {

@@ -248,4 +248,24 @@ const conn = (source, target) => ({ id: `${source}->${target}`, source_id: sourc
   assert.strictEqual(byLabel.get("Direction"), "bidirectional");
 }
 
+// ── var() must not be used in SVG presentation attributes ───────────────────
+// Browsers do not substitute custom properties in presentation attributes, so
+// such a fill silently falls back to black.
+{
+  assert.ok(
+    !/fill: "var\(|stroke: "var\(/.test(source),
+    "no var() in SVG presentation attributes",
+  );
+  assert.ok(
+    source.includes('style: "fill: var(--sm-node-type);"'),
+    "the node type label uses an inline style",
+  );
+}
+
+// ── the sidebar can be collapsed and reopened ───────────────────────────────
+{
+  assert.strictEqual(typeof Viewer.prototype.applySidebarState, "function");
+  assert.strictEqual(typeof Viewer.prototype.toggleSidebar, "function");
+}
+
 console.log("all diagram JS checks passed");
