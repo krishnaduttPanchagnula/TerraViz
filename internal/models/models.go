@@ -80,6 +80,9 @@ const (
 	// Additional WAF types
 	ResourceTypeWAFWebACLAssociation ResourceType = "aws:waf:webaclassociation"
 
+	// Additional Lambda types
+	ResourceTypeLambdaEventSourceMapping ResourceType = "aws:lambda:eventsourcemapping"
+
 	// Generic Types
 	ResourceTypeUnknown ResourceType = "unknown"
 )
@@ -126,6 +129,11 @@ type Resource struct {
 	InStateFile bool                   `json:"in_state_file"`
 	Group       string                 `json:"group,omitempty"`
 
+	// Dependencies holds the absolute Terraform addresses of the resources this
+	// resource depends on, as recorded by Terraform itself (state "dependencies"
+	// / "depends_on"). Empty for resources that come from other sources.
+	Dependencies []string `json:"dependencies,omitempty"`
+
 	// UI Properties
 	X      float64 `json:"x"`      // X coordinate in diagram
 	Y      float64 `json:"y"`      // Y coordinate in diagram
@@ -143,9 +151,7 @@ type Connection struct {
 	Bidirectional bool                   `json:"bidirectional"`
 
 	// UI Properties
-	Hidden bool   `json:"hidden"` // Whether connection is hidden in UI
-	Color  string `json:"color"`  // Line color
-	Style  string `json:"style"`  // Line style (solid, dashed, dotted)
+	Hidden bool `json:"hidden"` // Whether connection is hidden in UI
 }
 
 // Diagram represents the complete infrastructure diagram
@@ -231,8 +237,9 @@ const DefaultResourceIcon = "/icons/General-Icons/Marketplace_Dark.svg"
 // All paths point to the embedded AWS icon pack served at /icons/.
 var resourceIconMap = map[ResourceType]string{
 	// Compute
-	ResourceTypeEC2Instance:    "/icons/Compute/EC2.svg",
-	ResourceTypeLambdaFunction: "/icons/Compute/Lambda.svg",
+	ResourceTypeEC2Instance:              "/icons/Compute/EC2.svg",
+	ResourceTypeLambdaFunction:           "/icons/Compute/Lambda.svg",
+	ResourceTypeLambdaEventSourceMapping: "/icons/Compute/Lambda.svg",
 
 	// Containers
 	ResourceTypeECSCluster:        "/icons/Containers/Elastic-Container-Service.svg",

@@ -20,6 +20,7 @@ import (
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	"terraviz/internal/models"
+	"terraviz/internal/relations"
 )
 
 const (
@@ -320,6 +321,7 @@ func (s *AWSScanner) convertVPCToResource(vpc ec2types.Vpc, region string, tags 
 		Region:   region,
 		State:    s.convertVPCState(vpc.State),
 		Properties: map[string]interface{}{
+			"id":              aws.ToString(vpc.VpcId),
 			"vpc_id":          aws.ToString(vpc.VpcId),
 			"cidr_block":      aws.ToString(vpc.CidrBlock),
 			"state":           string(vpc.State),
@@ -345,6 +347,7 @@ func (s *AWSScanner) convertSubnetToResource(subnet ec2types.Subnet, region stri
 		Region:   region,
 		State:    s.convertSubnetState(subnet.State),
 		Properties: map[string]interface{}{
+			"id":                     aws.ToString(subnet.SubnetId),
 			"subnet_id":              aws.ToString(subnet.SubnetId),
 			"vpc_id":                 aws.ToString(subnet.VpcId),
 			"cidr_block":             aws.ToString(subnet.CidrBlock),
@@ -371,10 +374,12 @@ func (s *AWSScanner) convertSecurityGroupToResource(sg ec2types.SecurityGroup, r
 		Region:   region,
 		State:    models.ResourceStateActive,
 		Properties: map[string]interface{}{
+			"id":          aws.ToString(sg.GroupId),
 			"group_id":    aws.ToString(sg.GroupId),
 			"group_name":  aws.ToString(sg.GroupName),
 			"description": aws.ToString(sg.Description),
 			"vpc_id":      aws.ToString(sg.VpcId),
+			"ingress":     securityGroupIngress(sg),
 		},
 		Tags:   tags,
 		Source: "aws",
@@ -400,6 +405,7 @@ func (s *AWSScanner) convertInstanceToResource(instance ec2types.Instance, regio
 		Region:   region,
 		State:    s.convertInstanceState(instance.State),
 		Properties: map[string]interface{}{
+			"id":                 aws.ToString(instance.InstanceId),
 			"instance_id":        aws.ToString(instance.InstanceId),
 			"instance_type":      string(instance.InstanceType),
 			"image_id":           aws.ToString(instance.ImageId),
@@ -409,7 +415,9 @@ func (s *AWSScanner) convertInstanceToResource(instance ec2types.Instance, regio
 			"public_ip_address":  aws.ToString(instance.PublicIpAddress),
 			"availability_zone":  aws.ToString(instance.Placement.AvailabilityZone),
 			"security_groups":    sgIDs,
-			"state":              string(instance.State.Name),
+			// The shared analyzers read the security groups from this key.
+			"vpc_security_group_ids": sgIDs,
+			"state":                  string(instance.State.Name),
 		},
 		Tags:   tags,
 		Source: "aws",
@@ -425,6 +433,7 @@ func (s *AWSScanner) convertS3BucketToResource(bucket s3types.Bucket, region str
 		Region:   region,
 		State:    models.ResourceStateActive,
 		Properties: map[string]interface{}{
+			"id":            aws.ToString(bucket.Name),
 			"bucket_name":   aws.ToString(bucket.Name),
 			"creation_date": bucket.CreationDate,
 		},
@@ -435,6 +444,7 @@ func (s *AWSScanner) convertS3BucketToResource(bucket s3types.Bucket, region str
 
 func (s *AWSScanner) convertRDSInstanceToResource(instance rdstypes.DBInstance, region string) *models.Resource {
 	props := map[string]interface{}{
+		"id":                     aws.ToString(instance.DBInstanceIdentifier),
 		"db_instance_identifier": aws.ToString(instance.DBInstanceIdentifier),
 		"db_instance_class":      aws.ToString(instance.DBInstanceClass),
 		"engine":                 aws.ToString(instance.Engine),
@@ -478,6 +488,7 @@ func (s *AWSScanner) convertLambdaFunctionToResource(function lambdatypes.Functi
 		Region:   region,
 		State:    s.convertLambdaState(string(function.State)),
 		Properties: map[string]interface{}{
+			"id":            aws.ToString(function.FunctionName),
 			"function_name": aws.ToString(function.FunctionName),
 			"function_arn":  aws.ToString(function.FunctionArn),
 			"runtime":       string(function.Runtime),
@@ -572,59 +583,59 @@ func (s *AWSScanner) extractEC2Tags(ec2Tags []ec2types.Tag) map[string]string {
 
 // --- Connection analysis ---
 
-// createConnections analyzes AWS resources and creates connections between them.
+// createConnections analyzes AWS resources and creates connections between
+// them. The same shared analyzers as the Terraform parser are used, so both
+// sources produce the same edges.
 func (s *AWSScanner) createConnections(diagram *models.Diagram, builder *models.DiagramBuilder) {
-	rm := make(map[string]*models.Resource, len(diagram.Resources))
-	for i := range diagram.Resources {
-		r := &diagram.Resources[i]
-		rm[r.ID] = r
+	collector := relations.NewCollector()
+
+	for _, edge := range relations.AnalyzeGeneric(diagram.Resources) {
+		collector.Add(edge.Source, edge.Target, edge.Type, edge.Description, edge.Properties)
 	}
 
-	for i := range diagram.Resources {
-		r := &diagram.Resources[i]
-		s.analyzeAWSResourceConnections(r, rm, builder)
-	}
-}
-
-func (s *AWSScanner) analyzeAWSResourceConnections(resource *models.Resource, rm map[string]*models.Resource, builder *models.DiagramBuilder) {
-	switch resource.Type {
-	case models.ResourceTypeEC2Instance:
-		s.analyzeEC2InstanceConnections(resource, rm, builder)
-	case models.ResourceTypeSubnet:
-		s.analyzeSubnetConnections(resource, rm, builder)
+	for _, edge := range collector.Edges() {
+		builder.AddConnectionWithProperties(edge.Source, edge.Target, edge.Type, edge.Description, edge.Properties, edge.Bidirectional)
 	}
 }
 
-func (s *AWSScanner) analyzeEC2InstanceConnections(resource *models.Resource, rm map[string]*models.Resource, builder *models.DiagramBuilder) {
-	if vpcID, ok := resource.Properties["vpc_id"].(string); ok && vpcID != "" {
-		vpcResourceID := fmt.Sprintf("vpc-%s-%s", resource.Region, vpcID)
-		if _, exists := rm[vpcResourceID]; exists {
-			builder.AddConnection(resource.ID, vpcResourceID, models.ConnectionTypeNetworking, "EC2 instance in VPC")
-		}
-	}
+// securityGroupIngress converts the ingress permissions of a security group
+// into the normalized rule format used by the shared analyzers.
+func securityGroupIngress(sg ec2types.SecurityGroup) []interface{} {
+	rules := make([]interface{}, 0, len(sg.IpPermissions))
+	for _, permission := range sg.IpPermissions {
+		rule := make(map[string]interface{})
 
-	if subnetID, ok := resource.Properties["subnet_id"].(string); ok && subnetID != "" {
-		subnetResourceID := fmt.Sprintf("subnet-%s-%s", resource.Region, subnetID)
-		if _, exists := rm[subnetResourceID]; exists {
-			builder.AddConnection(resource.ID, subnetResourceID, models.ConnectionTypeNetworking, "EC2 instance in subnet")
+		if permission.IpProtocol != nil {
+			rule["protocol"] = aws.ToString(permission.IpProtocol)
 		}
-	}
+		if permission.FromPort != nil {
+			rule["from_port"] = int64(aws.ToInt32(permission.FromPort))
+		}
+		if permission.ToPort != nil {
+			rule["to_port"] = int64(aws.ToInt32(permission.ToPort))
+		}
 
-	if sgIDs, ok := resource.Properties["security_groups"].([]string); ok {
-		for _, sgID := range sgIDs {
-			sgResourceID := fmt.Sprintf("sg-%s-%s", resource.Region, sgID)
-			if _, exists := rm[sgResourceID]; exists {
-				builder.AddConnection(resource.ID, sgResourceID, models.ConnectionTypeAccess, "EC2 instance uses security group")
+		cidrs := make([]string, 0, len(permission.IpRanges))
+		for _, ipRange := range permission.IpRanges {
+			if cidr := aws.ToString(ipRange.CidrIp); cidr != "" {
+				cidrs = append(cidrs, cidr)
 			}
 		}
-	}
-}
-
-func (s *AWSScanner) analyzeSubnetConnections(resource *models.Resource, rm map[string]*models.Resource, builder *models.DiagramBuilder) {
-	if vpcID, ok := resource.Properties["vpc_id"].(string); ok && vpcID != "" {
-		vpcResourceID := fmt.Sprintf("vpc-%s-%s", resource.Region, vpcID)
-		if _, exists := rm[vpcResourceID]; exists {
-			builder.AddConnection(resource.ID, vpcResourceID, models.ConnectionTypeNetworking, "Subnet in VPC")
+		if len(cidrs) > 0 {
+			rule["cidr_blocks"] = cidrs
 		}
+
+		groups := make([]string, 0, len(permission.UserIdGroupPairs))
+		for _, pair := range permission.UserIdGroupPairs {
+			if groupID := aws.ToString(pair.GroupId); groupID != "" {
+				groups = append(groups, groupID)
+			}
+		}
+		if len(groups) > 0 {
+			rule["security_groups"] = groups
+		}
+
+		rules = append(rules, rule)
 	}
+	return rules
 }

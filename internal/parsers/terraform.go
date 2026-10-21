@@ -110,12 +110,13 @@ type RawStateFile struct {
 
 // RawStateResource represents a single resource block in a raw .tfstate file (v4).
 type RawStateResource struct {
-	Module    string                     `json:"module,omitempty"`
-	Mode      string                     `json:"mode"`
-	Type      string                     `json:"type"`
-	Name      string                     `json:"name"`
-	Provider  string                     `json:"provider"`
-	Instances []RawStateResourceInstance `json:"instances"`
+	Module       string                     `json:"module,omitempty"`
+	Mode         string                     `json:"mode"`
+	Type         string                     `json:"type"`
+	Name         string                     `json:"name"`
+	Provider     string                     `json:"provider"`
+	Dependencies []string                   `json:"dependencies,omitempty"`
+	Instances    []RawStateResourceInstance `json:"instances"`
 }
 
 // RawStateResourceInstance represents a single instance of a resource in a raw .tfstate file.
@@ -123,6 +124,7 @@ type RawStateResourceInstance struct {
 	SchemaVersion int                    `json:"schema_version"`
 	Attributes    map[string]interface{} `json:"attributes"`
 	IndexKey      interface{}            `json:"index_key,omitempty"`
+	Dependencies  []string               `json:"dependencies,omitempty"`
 }
 
 // parseRawStateFile parses raw .tfstate format (version 4)
@@ -160,9 +162,11 @@ func (p *TerraformParser) parseRawStateFile(data []byte, filePath string) (*mode
 			if resource != nil {
 				builder.AddResource(*resource)
 				resourceCount++
-			} else {
-				warnings = append(warnings, fmt.Sprintf("Unsupported resource type: %s", rawResource.Type))
 			}
+		}
+
+		if p.mapTerraformType(rawResource.Type) == models.ResourceTypeUnknown {
+			warnings = append(warnings, fmt.Sprintf("Unsupported resource type: %s", rawResource.Type))
 		}
 	}
 
@@ -205,7 +209,8 @@ func (p *TerraformParser) processModule(module *tfjson.StateModule, builder *mod
 		if tfResource != nil {
 			builder.AddResource(*tfResource)
 			*resourceCount++
-		} else {
+		}
+		if p.mapTerraformType(resource.Type) == models.ResourceTypeUnknown {
 			*warnings = append(*warnings, fmt.Sprintf("Unsupported resource type: %s", resource.Type))
 		}
 	}
@@ -225,9 +230,6 @@ func (p *TerraformParser) processModule(module *tfjson.StateModule, builder *mod
 func (p *TerraformParser) convertRawTerraformResource(rawResource RawStateResource, instance RawStateResourceInstance, instanceIdx int) (*models.Resource, error) {
 	// Map Terraform resource types to our internal types
 	resourceType := p.mapTerraformType(rawResource.Type)
-	if resourceType == models.ResourceTypeUnknown {
-		return nil, nil // Skip unknown types
-	}
 
 	// Build resource ID from module path and resource address
 	var resourceID string
@@ -246,16 +248,37 @@ func (p *TerraformParser) convertRawTerraformResource(rawResource RawStateResour
 		}
 	}
 
+	// Unmapped AWS types are kept in the diagram as generic resources so they are
+	// not silently dropped; non-AWS providers are still skipped.
+	if resourceType == models.ResourceTypeUnknown {
+		if !isAWSProvider(rawResource.Provider) {
+			return nil, nil
+		}
+		return &models.Resource{
+			ID:           resourceID,
+			Name:         rawResource.Name,
+			Type:         models.ResourceTypeUnknown,
+			Provider:     p.extractProvider(rawResource.Provider),
+			State:        models.ResourceStateActive,
+			Properties:   map[string]interface{}{"terraform_type": rawResource.Type},
+			Tags:         p.extractTags(instance.Attributes),
+			Source:       "terraform",
+			InStateFile:  true,
+			Dependencies: p.mergeDependencies(rawResource.Dependencies, instance.Dependencies),
+		}, nil
+	}
+
 	resource := &models.Resource{
-		ID:          resourceID,
-		Name:        p.extractRawResourceName(rawResource, instance.Attributes),
-		Type:        resourceType,
-		Provider:    p.extractProvider(rawResource.Provider),
-		State:       models.ResourceStateActive, // Assume active if in state
-		Properties:  make(map[string]interface{}),
-		Tags:        p.extractTags(instance.Attributes),
-		Source:      "terraform",
-		InStateFile: true,
+		ID:           resourceID,
+		Name:         p.extractRawResourceName(rawResource, instance.Attributes),
+		Type:         resourceType,
+		Provider:     p.extractProvider(rawResource.Provider),
+		State:        models.ResourceStateActive, // Assume active if in state
+		Properties:   make(map[string]interface{}),
+		Tags:         p.extractTags(instance.Attributes),
+		Source:       "terraform",
+		InStateFile:  true,
+		Dependencies: p.mergeDependencies(rawResource.Dependencies, instance.Dependencies),
 	}
 
 	// Extract common attributes
@@ -320,20 +343,38 @@ func (p *TerraformParser) convertTerraformResource(tfResource *tfjson.StateResou
 
 	// Map Terraform resource types to our internal types
 	resourceType := p.mapTerraformType(tfResource.Type)
+
+	// Unmapped AWS types are kept in the diagram as generic resources so they are
+	// not silently dropped; non-AWS providers are still skipped.
 	if resourceType == models.ResourceTypeUnknown {
-		return nil, nil // Skip unknown types
+		if !isAWSProvider(tfResource.ProviderName) {
+			return nil, nil
+		}
+		return &models.Resource{
+			ID:           resourceID,
+			Name:         tfResource.Name,
+			Type:         models.ResourceTypeUnknown,
+			Provider:     p.extractProvider(tfResource.ProviderName),
+			State:        models.ResourceStateActive,
+			Properties:   map[string]interface{}{"terraform_type": tfResource.Type},
+			Tags:         p.extractTags(tfResource.AttributeValues),
+			Source:       "terraform",
+			InStateFile:  true,
+			Dependencies: tfResource.DependsOn,
+		}, nil
 	}
 
 	resource := &models.Resource{
-		ID:          resourceID,
-		Name:        p.extractResourceName(tfResource),
-		Type:        resourceType,
-		Provider:    p.extractProvider(tfResource.ProviderName),
-		State:       models.ResourceStateActive, // Assume active if in state
-		Properties:  make(map[string]interface{}),
-		Tags:        p.extractTags(tfResource.AttributeValues),
-		Source:      "terraform",
-		InStateFile: true,
+		ID:           resourceID,
+		Name:         p.extractResourceName(tfResource),
+		Type:         resourceType,
+		Provider:     p.extractProvider(tfResource.ProviderName),
+		State:        models.ResourceStateActive, // Assume active if in state
+		Properties:   make(map[string]interface{}),
+		Tags:         p.extractTags(tfResource.AttributeValues),
+		Source:       "terraform",
+		InStateFile:  true,
+		Dependencies: tfResource.DependsOn,
 	}
 
 	// Extract common attributes
@@ -432,6 +473,9 @@ var terraformTypeMap = map[string]models.ResourceType{
 
 	// Additional WAF types
 	"aws_wafv2_web_acl_association": models.ResourceTypeWAFWebACLAssociation,
+
+	// Additional Lambda types
+	"aws_lambda_event_source_mapping": models.ResourceTypeLambdaEventSourceMapping,
 }
 
 // mapTerraformType maps a Terraform resource type string to an internal ResourceType.
@@ -444,12 +488,48 @@ func (p *TerraformParser) mapTerraformType(tfType string) models.ResourceType {
 
 // extractProvider extracts the provider name from the provider string
 func (p *TerraformParser) extractProvider(providerName string) string {
-	// Provider name format is usually "registry.terraform.io/hashicorp/aws" or just "aws"
-	parts := strings.Split(providerName, "/")
+	parts := strings.Split(unwrapProviderName(providerName), "/")
 	if len(parts) > 0 {
 		return parts[len(parts)-1]
 	}
 	return providerName
+}
+
+// isAWSProvider reports whether a Terraform provider string refers to the AWS provider.
+func isAWSProvider(providerName string) bool {
+	name := unwrapProviderName(providerName)
+	return name == "aws" || strings.HasSuffix(name, "/aws")
+}
+
+// unwrapProviderName strips the provider["..."] wrapper that raw state files
+// use, leaving a plain provider address such as registry.terraform.io/hashicorp/aws.
+func unwrapProviderName(providerName string) string {
+	start := strings.Index(providerName, "\"")
+	if start < 0 {
+		return providerName
+	}
+	name := providerName[start+1:]
+	if end := strings.Index(name, "\""); end >= 0 {
+		name = name[:end]
+	}
+	return strings.TrimSuffix(name, "/")
+}
+
+// mergeDependencies combines resource-level and instance-level Terraform dependencies.
+func (p *TerraformParser) mergeDependencies(resourceDeps, instanceDeps []string) []string {
+	if len(resourceDeps) == 0 && len(instanceDeps) == 0 {
+		return nil
+	}
+	deps := make([]string, 0, len(resourceDeps)+len(instanceDeps))
+	seen := make(map[string]bool, len(resourceDeps)+len(instanceDeps))
+	for _, dep := range append(append([]string{}, resourceDeps...), instanceDeps...) {
+		if dep == "" || seen[dep] {
+			continue
+		}
+		seen[dep] = true
+		deps = append(deps, dep)
+	}
+	return deps
 }
 
 // extractResourceName extracts a meaningful name from the resource

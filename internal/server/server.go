@@ -24,12 +24,6 @@ import (
 )
 
 const (
-	// DefaultConnectionColor is the default color for user-created connections.
-	DefaultConnectionColor = "#666666"
-
-	// DefaultConnectionStyle is the default line style for user-created connections.
-	DefaultConnectionStyle = "dashed"
-
 	// maxUploadSize is the maximum allowed size for uploaded state files (50 MB).
 	maxUploadSize = 50 << 20
 
@@ -383,14 +377,13 @@ func (s *Server) handleCreateConnection(c *gin.Context) {
 	}
 
 	conn := models.Connection{
-		ID:          fmt.Sprintf("user-%s-%s", req.SourceID, req.TargetID),
-		SourceID:    req.SourceID,
-		TargetID:    req.TargetID,
-		Type:        connType,
-		Description: req.Description,
-		Properties:  make(map[string]interface{}),
-		Color:       DefaultConnectionColor,
-		Style:       DefaultConnectionStyle,
+		ID:            fmt.Sprintf("user-%s-%s", req.SourceID, req.TargetID),
+		SourceID:      req.SourceID,
+		TargetID:      req.TargetID,
+		Type:          connType,
+		Description:   req.Description,
+		Properties:    make(map[string]interface{}),
+		Bidirectional: connType == models.ConnectionTypeDependency || connType == models.ConnectionTypeReference,
 	}
 
 	d.Diagram.Connections = append(d.Diagram.Connections, conn)

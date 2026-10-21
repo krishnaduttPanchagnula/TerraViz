@@ -58,6 +58,13 @@ func (db *DiagramBuilder) AddResource(resource Resource) {
 // AddConnection adds a connection between two resources.
 // Returns false if either the source or target resource does not exist.
 func (db *DiagramBuilder) AddConnection(sourceID, targetID string, connType ConnectionType, description string) bool {
+	return db.AddConnectionWithProperties(sourceID, targetID, connType, description, nil, false)
+}
+
+// AddConnectionWithProperties adds a connection between two resources with
+// known properties and a direction flag.
+// Returns false if either the source or target resource does not exist.
+func (db *DiagramBuilder) AddConnectionWithProperties(sourceID, targetID string, connType ConnectionType, description string, properties map[string]interface{}, bidirectional bool) bool {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
@@ -69,12 +76,16 @@ func (db *DiagramBuilder) AddConnection(sourceID, targetID string, connType Conn
 	}
 
 	conn := Connection{
-		ID:          generateID(sourceID + targetID + string(connType) + description),
-		SourceID:    sourceID,
-		TargetID:    targetID,
-		Type:        connType,
-		Description: description,
-		Properties:  make(map[string]interface{}),
+		ID:            generateID(sourceID + targetID + string(connType) + description),
+		SourceID:      sourceID,
+		TargetID:      targetID,
+		Type:          connType,
+		Description:   description,
+		Properties:    make(map[string]interface{}),
+		Bidirectional: bidirectional,
+	}
+	for key, value := range properties {
+		conn.Properties[key] = value
 	}
 
 	db.diagram.Connections = append(db.diagram.Connections, conn)
