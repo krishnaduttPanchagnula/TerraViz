@@ -125,6 +125,49 @@
             --sm-shadow-glow-primary: 0 0 20px rgba(74, 222, 128, 0.25);
             --sm-shadow-glow-secondary: 0 0 20px rgba(56, 189, 248, 0.2);
 
+            /* Canvas palette — the diagram is themed, not hardcoded */
+            --sm-edge-networking: #38BDF8;
+            --sm-edge-access: #ef4444;
+            --sm-edge-data: #4ADE80;
+            --sm-edge-trigger: #FB923C;
+            --sm-edge-dependency: #C084FC;
+            --sm-edge-reference: #888888;
+            --sm-edge-default: #888888;
+
+            --sm-layer-ec2: #FF9900;
+            --sm-layer-ecs: #ED7100;
+            --sm-layer-ecr: #E86100;
+            --sm-layer-lambda: #F59E0B;
+            --sm-layer-apigateway: #A855F7;
+            --sm-layer-elb: #8B5CF6;
+            --sm-layer-s3: #3F891A;
+            --sm-layer-rds: #3F48CC;
+            --sm-layer-dynamodb: #2563EB;
+            --sm-layer-eks: #F3A13B;
+            --sm-layer-apigatewayv2: #C084FC;
+            --sm-layer-sfn: #E7157B;
+            --sm-layer-sns: #B7CA9D;
+            --sm-layer-sqs: #D97706;
+            --sm-layer-logs: #759C3E;
+            --sm-layer-cloudwatch: #5B9A42;
+            --sm-layer-iam: #DD344C;
+            --sm-layer-vpc: #248814;
+            --sm-layer-route53: #F58536;
+            --sm-layer-acm: #0EA5E9;
+            --sm-layer-waf: #E11D48;
+            --sm-layer-secretsmanager: #DC2626;
+            --sm-layer-servicediscovery: #E5729D;
+            --sm-layer-other: #64748B;
+
+            --sm-node-fill: #1e1e1e;
+            --sm-container-vpc: #248814;
+            --sm-subnet-public: #4ADE80;
+            --sm-subnet-private: #60A5FA;
+            --sm-subnet-default: #38BDF8;
+
+            /* Focus */
+            --sm-focus-ring: 0 0 0 2px var(--sm-bg), 0 0 0 4px var(--sm-secondary);
+
             /* Legacy aliases (keep for backward compat) */
             --sm-spacing-unit: var(--sm-space-2);
             --sm-shadow-panel: var(--sm-shadow-sm);
@@ -132,30 +175,7 @@
             --sm-shadow-overlay: var(--sm-shadow-lg);
         }
 
-        :root[data-theme="aurora"] {
-            --sm-bg: #071918;
-            --sm-surface: #0d2422;
-            --sm-surface-raised: #14312e;
-            --sm-border: rgba(125, 211, 190, 0.14);
-            --sm-border-hover: rgba(125, 211, 190, 0.25);
-            --sm-border-subtle: rgba(125, 211, 190, 0.08);
-            --sm-primary: #5EEAD4;
-            --sm-primary-glow: rgba(94, 234, 212, 0.14);
-            --sm-secondary: #7DD3FC;
-            --sm-tertiary: #A5B4FC;
-            --sm-warning: #FBBF24;
-            --sm-text: #E2F5F1;
-            --sm-text-muted: rgba(226, 245, 241, 0.62);
-            --sm-text-faint: rgba(226, 245, 241, 0.45);
-            --sm-terminal-bg: #091f1d;
-            --sm-grid-dot: rgba(94, 234, 212, 0.11);
-            --sm-toolbar-bg: rgba(7, 25, 24, 0.92);
-            --sm-overlay-bg: rgba(7, 25, 24, 0.97);
-            --sm-card-bg: rgba(13, 36, 34, 0.88);
-            --sm-node-label: #E2F5F1;
-            --sm-node-type: rgba(226, 245, 241, 0.62);
-        }
-
+        
         :root[data-theme="light"] {
             --sm-bg: #F4F6F8;
             --sm-surface: #FFFFFF;
@@ -186,40 +206,52 @@
             --sm-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.12);
             --sm-shadow-md: 0 8px 32px rgba(15, 23, 42, 0.16);
             --sm-shadow-lg: 0 24px 64px rgba(15, 23, 42, 0.2);
+
+            /* Canvas palette — the diagram is themed, not hardcoded */
+            --sm-edge-networking: #0284C7;
+            --sm-edge-access: #DC2626;
+            --sm-edge-data: #15803D;
+            --sm-edge-trigger: #C2410C;
+            --sm-edge-dependency: #7E22CE;
+            --sm-edge-reference: #64748B;
+            --sm-edge-default: #64748B;
+
+            --sm-layer-ec2: #B45309;
+            --sm-layer-ecs: #C2410C;
+            --sm-layer-ecr: #9A3412;
+            --sm-layer-lambda: #B45309;
+            --sm-layer-apigateway: #7E22CE;
+            --sm-layer-elb: #6D28D9;
+            --sm-layer-s3: #3F6212;
+            --sm-layer-rds: #3730A3;
+            --sm-layer-dynamodb: #1D4ED8;
+            --sm-layer-eks: #B45309;
+            --sm-layer-apigatewayv2: #7E22CE;
+            --sm-layer-sfn: #BE185D;
+            --sm-layer-sns: #4D7C0F;
+            --sm-layer-sqs: #B45309;
+            --sm-layer-logs: #4D7C0F;
+            --sm-layer-cloudwatch: #4D7C0F;
+            --sm-layer-iam: #BE123C;
+            --sm-layer-vpc: #15803D;
+            --sm-layer-route53: #C2410C;
+            --sm-layer-acm: #0369A1;
+            --sm-layer-waf: #BE123C;
+            --sm-layer-secretsmanager: #B91C1C;
+            --sm-layer-servicediscovery: #BE185D;
+            --sm-layer-other: #475569;
+
+            --sm-node-fill: #FFFFFF;
+            --sm-container-vpc: #15803D;
+            --sm-subnet-public: #15803D;
+            --sm-subnet-private: #1D4ED8;
+            --sm-subnet-default: #0369A1;
+
+            /* Focus */
+            --sm-focus-ring: 0 0 0 2px var(--sm-bg), 0 0 0 4px var(--sm-secondary);
         }
 
-        :root[data-theme="sand"] {
-            --sm-bg: #EDE4D3;
-            --sm-surface: #F8F1E5;
-            --sm-surface-raised: #E7DAC5;
-            --sm-border: rgba(75, 52, 35, 0.14);
-            --sm-border-hover: rgba(75, 52, 35, 0.25);
-            --sm-border-subtle: rgba(75, 52, 35, 0.08);
-            --sm-primary: #9A4F24;
-            --sm-primary-glow: rgba(154, 79, 36, 0.12);
-            --sm-secondary: #356C72;
-            --sm-tertiary: #77538A;
-            --sm-warning: #B45309;
-            --sm-danger: #A8332A;
-            --sm-text: #3B2E25;
-            --sm-text-muted: rgba(59, 46, 37, 0.66);
-            --sm-text-faint: rgba(59, 46, 37, 0.55);
-            --sm-terminal-bg: #E8DDCB;
-            --sm-grid-dot: rgba(75, 52, 35, 0.11);
-            --sm-toolbar-bg: rgba(248, 241, 229, 0.95);
-            --sm-overlay-bg: rgba(248, 241, 229, 0.98);
-            --sm-card-bg: rgba(248, 241, 229, 0.9);
-            --sm-toolbar-text: rgba(59, 46, 37, 0.62);
-            --sm-toolbar-text-hover: #3B2E25;
-            --sm-tooltip-bg: rgba(59, 46, 37, 0.94);
-            --sm-tooltip-text: #FFF9EF;
-            --sm-node-label: #3B2E25;
-            --sm-node-type: rgba(59, 46, 37, 0.66);
-            --sm-shadow-sm: 0 1px 3px rgba(75, 52, 35, 0.13);
-            --sm-shadow-md: 0 8px 32px rgba(75, 52, 35, 0.17);
-            --sm-shadow-lg: 0 24px 64px rgba(75, 52, 35, 0.22);
-        }
-
+        
         * {
             margin: 0;
             padding: 0;
@@ -354,6 +386,17 @@
             gap: 8px;
         }
 
+        .brand-mark {
+            width: 20px;
+            height: 20px;
+            stroke: var(--sm-primary);
+            fill: none;
+            stroke-width: 1.6;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex-shrink: 0;
+        }
+
         .header-stats {
             display: flex;
             gap: 24px;
@@ -361,6 +404,11 @@
 
         .stat-item {
             text-align: center;
+        }
+
+        /* The "Visible" counter only appears once a filter hides resources */
+        .stat-item.hidden {
+            display: none;
         }
 
         .stat-value {
@@ -420,53 +468,37 @@
             opacity: 0.4;
         }
 
-        /* Collapsible sidebar sections */
-        .sidebar-section-header {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 10px 16px;
-            cursor: pointer;
-            user-select: none;
-            border-bottom: 1px solid var(--sm-border);
-            transition: background var(--sm-transition-fast);
-        }
-        .sidebar-section-header:hover {
-            background: var(--sm-surface-raised);
-        }
-        .sidebar-section-header:active {
-            background: rgba(255, 255, 255, 0.03);
-        }
-        .sidebar-section-chevron {
-            font-size: 9px;
-            color: var(--sm-text-muted);
-            transition: transform var(--sm-dur-fast) var(--sm-ease);
-            width: 14px;
-            text-align: center;
-            flex-shrink: 0;
-        }
-        .sidebar-section-chevron.expanded {
-            transform: rotate(90deg);
-        }
-        .sidebar-section-title {
-            font-size: 11px;
+        /* Sidebar blocks — one continuous scroll, static captions */
+        .sidebar-caption {
+            padding: 14px 16px 6px;
+            font-family: var(--sm-font-sans);
+            font-size: var(--sm-text-xs);
             font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.8px;
+            letter-spacing: 0.08em;
             color: var(--sm-text-muted);
         }
-        .sidebar-section-body {
-            max-height: 0;
-            overflow: hidden;
-            opacity: 0;
-            transition: max-height 0.32s cubic-bezier(.2,0,0,1),
-                        opacity 0.24s ease,
-                        padding 0.32s cubic-bezier(.2,0,0,1);
+        .sidebar-block {
+            padding: 8px 16px 14px;
+            border-bottom: 1px solid var(--sm-border-subtle);
         }
-        .sidebar-section-body.expanded {
-            max-height: 2000px;
-            opacity: 1;
-            overflow: visible;
+        .sidebar-block--flush {
+            padding-left: 0;
+            padding-right: 0;
+        }
+        .sidebar-import-row {
+            display: flex;
+            gap: 8px;
+        }
+        .sidebar-import-row .s3-import-btn {
+            flex: 1;
+            width: auto;
+            margin-top: 0;
+        }
+        /* Only one import entry point is visible: without a diagram the empty
+           state offers the import, with a diagram the sidebar does. */
+        .filter-sidebar:not(.has-diagram) .sidebar-import-row {
+            display: none;
         }
 
         .sidebar-header {
@@ -537,12 +569,22 @@
             background: var(--sm-surface-raised);
         }
         .s3-files-chevron {
-            font-size: 9px;
             color: var(--sm-text-muted);
             transition: transform 120ms ease;
             width: 14px;
-            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             flex-shrink: 0;
+        }
+        .s3-files-chevron svg {
+            width: 11px;
+            height: 11px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
         .s3-files-chevron.expanded {
             transform: rotate(90deg);
@@ -567,11 +609,21 @@
             background: none;
             border: none;
             color: var(--sm-text-faint);
-            font-size: 14px;
             cursor: pointer;
             padding: 0 4px;
             border-radius: 3px;
             flex-shrink: 0;
+            display: flex;
+            align-items: center;
+        }
+        .s3-files-close svg {
+            width: 12px;
+            height: 12px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
         .s3-files-close:hover {
             color: var(--sm-danger);
@@ -591,8 +643,7 @@
         }
 
         .filter-section {
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--sm-border-subtle);
+            padding: 0;
         }
 
         .filter-group {
@@ -660,10 +711,22 @@
             right: 10px;
             top: 50%;
             transform: translateY(-50%);
-            font-size: 10px;
             color: var(--sm-text-muted);
             pointer-events: none;
             transition: transform 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .searchable-dropdown-arrow svg {
+            width: 12px;
+            height: 12px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
 
         .searchable-dropdown.open .searchable-dropdown-arrow {
@@ -1075,6 +1138,13 @@
             margin: 0 4px;
         }
 
+        .toolbar-group {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+
         .toolbar-btn {
             width: 34px;
             height: 34px;
@@ -1100,6 +1170,18 @@
             stroke-linejoin: round;
         }
 
+        /* The View button carries a dot when one of its options is on. */
+        .toolbar-btn.has-active-options::after {
+            content: "";
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--sm-primary);
+        }
+
         .toolbar-btn:hover {
             background: var(--sm-border);
             color: var(--sm-toolbar-text-hover);
@@ -1113,8 +1195,41 @@
             color: var(--sm-primary);
         }
 
-        .toolbar-btn.diff-active {
-            color: #22c55e;
+        /* Rows inside a toolbar popover */
+        .toolbar-option {
+            display: flex;
+            align-items: center;
+            gap: var(--sm-space-2);
+            width: 100%;
+            padding: 6px 8px;
+            background: transparent;
+            border: none;
+            border-radius: var(--sm-radius-sm);
+            color: var(--sm-text);
+            font-family: var(--sm-font-sans);
+            font-size: 12px;
+            text-align: left;
+            cursor: pointer;
+            transition: background var(--sm-transition-fast), color var(--sm-transition-fast);
+        }
+
+        .toolbar-option:hover {
+            background: var(--sm-surface-raised);
+        }
+
+        .toolbar-option svg {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex-shrink: 0;
+        }
+
+        .toolbar-option.active {
+            color: var(--sm-primary);
         }
 
         .toolbar-btn .toolbar-tooltip {
@@ -1138,35 +1253,30 @@
             opacity: 1;
         }
 
-        /* Legend Popover */
-        .legend-popover {
+        /* Toolbar popover (view options, export formats) */
+        .toolbar-popover {
             position: absolute;
-            bottom: calc(100% + 12px);
             left: 50%;
+            bottom: calc(100% + 14px);
             transform: translateX(-50%);
+            display: none;
+            min-width: 210px;
+            padding: var(--sm-space-3);
             background: var(--sm-overlay-bg);
-            backdrop-filter: blur(16px);
             border: 1px solid var(--sm-border-hover);
             border-radius: var(--sm-radius-md);
-            padding: var(--sm-space-4);
-            min-width: 200px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-            display: none;
-            z-index: 101;
+            box-shadow: var(--sm-shadow-md);
+            backdrop-filter: blur(16px);
+            color: var(--sm-text);
+            z-index: 102;
         }
 
-        .legend-popover.visible {
+        .toolbar-popover.visible {
             display: block;
         }
 
-        .legend-popover h4 {
-            margin: 0 0 var(--sm-space-3) 0;
-            font-family: var(--sm-font-sans);
-            font-size: 12px;
-            font-weight: 600;
-            color: rgba(255, 255, 255, 0.7);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
+        .toolbar-popover .settings-heading:not(:first-child) {
+            margin-top: var(--sm-space-3);
         }
 
         .legend-item {
@@ -1176,7 +1286,7 @@
             padding: 3px 0;
             font-family: var(--sm-font-sans);
             font-size: 12px;
-            color: rgba(255, 255, 255, 0.6);
+            color: var(--sm-text-muted);
         }
 
         .legend-swatch {
@@ -1257,9 +1367,25 @@
         }
 
         .theme-swatch.dark { background: linear-gradient(135deg, #101010 50%, #4ADE80 50%); }
-        .theme-swatch.aurora { background: linear-gradient(135deg, #071918 50%, #5EEAD4 50%); }
         .theme-swatch.light { background: linear-gradient(135deg, #F4F6F8 50%, #16803A 50%); }
-        .theme-swatch.sand { background: linear-gradient(135deg, #EDE4D3 50%, #9A4F24 50%); }
+
+        /* Focus — one ring for every interactive element */
+        :focus-visible {
+            outline: none;
+            box-shadow: var(--sm-focus-ring);
+            border-radius: var(--sm-radius-sm);
+        }
+
+        button:focus-visible,
+        input:focus-visible,
+        [tabindex]:focus-visible {
+            outline: none;
+            box-shadow: var(--sm-focus-ring);
+        }
+
+        .searchable-dropdown-input:focus-visible {
+            box-shadow: var(--sm-focus-ring);
+        }
 
         /* Toggle Button */
         .sidebar-toggle {
@@ -1290,6 +1416,28 @@
 
         .sidebar-toggle:active {
             transform: scale(0.93);
+        }
+
+        .sidebar-toggle-icon {
+            width: 18px;
+            height: 18px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .sidebar-toggle-icon--menu {
+            display: none;
+        }
+
+        .sidebar-toggle.is-collapsed .sidebar-toggle-icon--menu {
+            display: block;
+        }
+
+        .sidebar-toggle.is-collapsed .sidebar-toggle-icon--close {
+            display: none;
         }
 
         /* Minimap */
@@ -1538,6 +1686,17 @@
 
         .close-btn:active {
             transform: scale(0.9);
+        }
+
+        .close-btn svg {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            display: block;
         }
 
         .resource-info {
@@ -1814,10 +1973,18 @@
         .s3-list-item:hover { background: var(--sm-surface-raised); padding-left: 14px; }
         .s3-list-item:active { background: rgba(255, 255, 255, 0.04); }
         .s3-list-item .s3-icon {
-            font-size: 14px;
             width: 20px;
             text-align: center;
             flex-shrink: 0;
+        }
+        .s3-list-item .s3-icon svg {
+            width: 15px;
+            height: 15px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
         .s3-list-item .s3-name {
             flex: 1;
@@ -1885,20 +2052,40 @@
         }
         .s3-tree-node .chevron {
             width: 18px;
-            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             flex-shrink: 0;
-            font-size: 10px;
             color: var(--sm-text-faint);
             transition: transform 120ms ease;
+        }
+        .s3-tree-node .chevron svg {
+            width: 11px;
+            height: 11px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
         .s3-tree-node .chevron.expanded {
             transform: rotate(90deg);
         }
         .s3-tree-node .node-icon {
             width: 18px;
-            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             flex-shrink: 0;
-            font-size: 13px;
+        }
+        .s3-tree-node .node-icon svg {
+            width: 15px;
+            height: 15px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
         .s3-tree-node .node-icon.folder { color: #E8A838; }
         .s3-tree-node .node-icon.folder.open { color: #D4922A; }
@@ -1966,7 +2153,11 @@
         <!-- Header -->
         <header class="header">
             <div class="header-title">
-                <span>🏗️</span>
+                <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                    <line x1="12" y1="22.08" x2="12" y2="12"/>
+                </svg>
                 <span>{{.diagram_name}}</span>
             </div>
             <div class="header-stats">
@@ -1978,7 +2169,7 @@
                     <div class="stat-value" id="connection-count">{{.connection_count}}</div>
                     <div class="stat-label">Connections</div>
                 </div>
-                <div class="stat-item">
+                <div class="stat-item hidden" id="visible-stat">
                     <div class="stat-value" id="visible-count">{{.resource_count}}</div>
                     <div class="stat-label">Visible</div>
                 </div>
@@ -1991,34 +2182,28 @@
             <aside id="filter-sidebar" class="filter-sidebar">
                 <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
 
-                <!-- Search & Filter (collapsible) -->
-                <div class="sidebar-section-header" onclick="toggleSidebarSection(this)">
-                    <span class="sidebar-section-chevron expanded">&#9654;</span>
-                    <span class="sidebar-section-title">Search & Filter</span>
-                </div>
-                <div class="sidebar-section-body expanded" style="padding:12px 16px; border-bottom:1px solid var(--sm-border);">
+                <!-- Search -->
+                <div class="sidebar-caption">Search</div>
+                <div class="sidebar-block">
                     <input type="text" class="search-input" id="search-input" placeholder="Search resources...">
                 </div>
 
-                <!-- Files (collapsible) -->
-                <div class="sidebar-section-header" onclick="toggleSidebarSection(this)">
-                    <span class="sidebar-section-chevron expanded">&#9654;</span>
-                    <span class="sidebar-section-title">Files</span>
-                </div>
-                <div class="sidebar-section-body expanded" style="padding:12px 16px; border-bottom:1px solid var(--sm-border);">
-                    <div style="display:flex; gap:8px;">
-                        <button class="s3-import-btn" onclick="openS3Modal()" title="Import state from S3 bucket" style="margin-top:0;">Import from S3</button>
-                        <button class="s3-import-btn" onclick="document.getElementById('local-file-input').click()" title="Import state file from your computer" style="margin-top:0;">Import from PC</button>
+                <!-- Files -->
+                <div class="sidebar-caption">Files</div>
+                <div class="sidebar-block">
+                    <div class="sidebar-import-row">
+                        <button class="s3-import-btn" onclick="openS3Modal()" title="Import state from S3 bucket">Import from S3</button>
+                        <button class="s3-import-btn" onclick="document.getElementById('local-file-input').click()" title="Import state file from your computer">Import from PC</button>
                     </div>
                     <input type="file" id="local-file-input" accept=".tfstate,.json" style="display:none;" onchange="handleLocalFileUpload(this)">
 
                     <!-- S3 Files Panel (shown after bucket selection) -->
                     <div id="s3-files-panel" class="s3-files-panel" style="display:none; margin-top:10px; border:none; border-top:1px solid var(--sm-border); padding-top:8px;">
                         <div class="s3-files-panel-header" onclick="toggleFilesPanel()">
-                            <span class="s3-files-chevron" id="s3-files-chevron">&#9654;</span>
+                            <span class="s3-files-chevron" id="s3-files-chevron"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"/></svg></span>
                             <span class="s3-files-panel-title">Files</span>
                             <span class="s3-files-bucket-name" id="s3-files-bucket-name"></span>
-                            <button class="s3-files-close" onclick="event.stopPropagation(); closeFilesPanel()" title="Disconnect bucket">&times;</button>
+                            <button class="s3-files-close" onclick="event.stopPropagation(); closeFilesPanel()" title="Disconnect bucket" aria-label="Disconnect bucket"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
                         </div>
                         <div id="s3-files-body" class="s3-files-body">
                             <input type="text" id="s3-files-search" class="s3-search-input" placeholder="Filter files..." style="margin:8px 12px;width:calc(100% - 24px);">
@@ -2027,18 +2212,15 @@
                     </div>
                 </div>
 
-                <!-- Filters (collapsible) -->
-                <div class="sidebar-section-header" onclick="toggleSidebarSection(this)">
-                    <span class="sidebar-section-chevron expanded">&#9654;</span>
-                    <span class="sidebar-section-title">Filters</span>
-                </div>
-                <div class="sidebar-section-body expanded">
+                <!-- Filters -->
+                <div class="sidebar-caption">Filters</div>
+                <div class="sidebar-block">
                     <div class="filter-section">
                         <div class="filter-group">
                             <label class="filter-label">Resource Type</label>
                             <div class="searchable-dropdown" id="type-filter-dropdown">
                                 <input type="text" class="searchable-dropdown-input" placeholder="All Types" autocomplete="off">
-                                <span class="searchable-dropdown-arrow">▼</span>
+                                <span class="searchable-dropdown-arrow"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6"/></svg></span>
                                 <ul class="searchable-dropdown-list"></ul>
                             </div>
                         </div>
@@ -2046,7 +2228,7 @@
                             <label class="filter-label">Provider</label>
                             <div class="searchable-dropdown" id="provider-filter-dropdown">
                                 <input type="text" class="searchable-dropdown-input" placeholder="All Providers" autocomplete="off">
-                                <span class="searchable-dropdown-arrow">▼</span>
+                                <span class="searchable-dropdown-arrow"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6"/></svg></span>
                                 <ul class="searchable-dropdown-list"></ul>
                             </div>
                         </div>
@@ -2054,7 +2236,7 @@
                             <label class="filter-label">Region</label>
                             <div class="searchable-dropdown" id="region-filter-dropdown">
                                 <input type="text" class="searchable-dropdown-input" placeholder="All Regions" autocomplete="off">
-                                <span class="searchable-dropdown-arrow">▼</span>
+                                <span class="searchable-dropdown-arrow"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6"/></svg></span>
                                 <ul class="searchable-dropdown-list"></ul>
                             </div>
                         </div>
@@ -2062,19 +2244,16 @@
                             <label class="filter-label">State</label>
                             <div class="searchable-dropdown" id="state-filter-dropdown">
                                 <input type="text" class="searchable-dropdown-input" placeholder="All States" autocomplete="off">
-                                <span class="searchable-dropdown-arrow">▼</span>
+                                <span class="searchable-dropdown-arrow"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6"/></svg></span>
                                 <ul class="searchable-dropdown-list"></ul>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Resources (collapsible) -->
-                <div class="sidebar-section-header" onclick="toggleSidebarSection(this)">
-                    <span class="sidebar-section-chevron expanded">&#9654;</span>
-                    <span class="sidebar-section-title">Resources</span>
-                </div>
-                <div class="sidebar-section-body expanded">
+                <!-- Resources -->
+                <div class="sidebar-caption">Resources</div>
+                <div class="sidebar-block sidebar-block--flush">
                     <div class="resource-list" id="resource-list"></div>
                 </div>
             </aside>
@@ -2082,8 +2261,9 @@
             <!-- Canvas Container -->
             <div class="canvas-container">
                 <!-- Sidebar Toggle -->
-                <button id="sidebar-toggle" class="sidebar-toggle">
-                    <span>☰</span>
+                <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle sidebar">
+                    <svg class="sidebar-toggle-icon sidebar-toggle-icon--menu" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+                    <svg class="sidebar-toggle-icon sidebar-toggle-icon--close" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 6L6 18M6 6l12 12"/></svg>
                 </button>
 
                 <div class="view-toggle" role="group" aria-label="Resource view">
@@ -2099,85 +2279,93 @@
 
                 <!-- Floating Toolbar -->
                 <div class="floating-toolbar">
-                    <!-- Zoom In -->
-                    <button class="toolbar-btn" id="zoom-in" title="Zoom In">
-                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
-                        <span class="toolbar-tooltip">Zoom In</span>
-                    </button>
-                    <!-- Zoom Out -->
-                    <button class="toolbar-btn" id="zoom-out" title="Zoom Out">
-                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
-                        <span class="toolbar-tooltip">Zoom Out</span>
-                    </button>
-                    <!-- Fit/Reset View -->
-                    <button class="toolbar-btn" id="fit-view" title="Reset View">
-                        <svg viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
-                        <span class="toolbar-tooltip">Reset View</span>
-                    </button>
+                    <!-- Zoom cluster -->
+                    <div class="toolbar-group">
+                        <button class="toolbar-btn" id="zoom-in" title="Zoom In">
+                            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                            <span class="toolbar-tooltip">Zoom In</span>
+                        </button>
+                        <button class="toolbar-btn" id="zoom-out" title="Zoom Out">
+                            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                            <span class="toolbar-tooltip">Zoom Out</span>
+                        </button>
+                        <button class="toolbar-btn" id="fit-view" title="Reset View">
+                            <svg viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+                            <span class="toolbar-tooltip">Reset View</span>
+                        </button>
+                    </div>
 
                     <div class="toolbar-divider"></div>
 
-                    <!-- Toggle Grid -->
-                    <button class="toolbar-btn active" id="toggle-grid" title="Toggle Grid">
-                        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-                        <span class="toolbar-tooltip">Toggle Grid</span>
-                    </button>
-                    <!-- Toggle Labels -->
-                    <button class="toolbar-btn" id="toggle-labels" title="Toggle Labels">
-                        <svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M6 16l6-12 6 12"/><path d="M8 12h8"/></svg>
-                        <span class="toolbar-tooltip">Labels</span>
-                    </button>
-                    <!-- Toggle Minimap -->
-                    <button class="toolbar-btn" id="toggle-minimap" title="Toggle Minimap">
-                        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="12" y="12" width="7" height="7" rx="1" fill="currentColor" stroke="none" opacity="0.4"/></svg>
-                        <span class="toolbar-tooltip">Minimap</span>
-                    </button>
-                    <!-- Toggle Flow -->
-                    <button class="toolbar-btn active" id="toggle-flow" title="Toggle Flow Animations">
-                        <svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-                        <span class="toolbar-tooltip">Flow</span>
-                    </button>
+                    <!-- View options: grid, labels, minimap, flow and the legend -->
+                    <div class="toolbar-group">
+                        <button class="toolbar-btn" id="toggle-view-options" title="View Options" aria-expanded="false" aria-controls="view-popover">
+                            <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/></svg>
+                            <span class="toolbar-tooltip">View</span>
+                        </button>
+                        <div class="toolbar-popover" id="view-popover" role="dialog" aria-label="View options">
+                            <div class="settings-heading">View</div>
+                            <button class="toolbar-option active" id="toggle-grid" type="button">
+                                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                                <span>Grid</span>
+                            </button>
+                            <button class="toolbar-option" id="toggle-labels" type="button">
+                                <svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M6 16l6-12 6 12"/><path d="M8 12h8"/></svg>
+                                <span>Labels</span>
+                            </button>
+                            <button class="toolbar-option" id="toggle-minimap" type="button">
+                                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="12" y="12" width="7" height="7" rx="1"/></svg>
+                                <span>Minimap</span>
+                            </button>
+                            <button class="toolbar-option active" id="toggle-flow" type="button">
+                                <svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                                <span>Flow animation</span>
+                            </button>
+                            <div class="settings-heading">Connection types</div>
+                            <div class="legend-item"><span class="legend-swatch" style="background: var(--sm-edge-networking)"></span> Networking</div>
+                            <div class="legend-item"><span class="legend-swatch" style="background: var(--sm-edge-access)"></span> Access / IAM</div>
+                            <div class="legend-item"><span class="legend-swatch" style="background: var(--sm-edge-data)"></span> Data</div>
+                            <div class="legend-item"><span class="legend-swatch" style="background: var(--sm-edge-trigger)"></span> Trigger</div>
+                            <div class="legend-item"><span class="legend-swatch" style="background: var(--sm-edge-dependency)"></span> Dependency</div>
+                            <div class="legend-item"><span class="legend-swatch" style="background: var(--sm-edge-reference)"></span> Reference</div>
+                        </div>
+                    </div>
 
                     <div class="toolbar-divider"></div>
 
-                    <!-- Legend -->
-                    <button class="toolbar-btn" id="toggle-legend" title="Legend">
-                        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="4" height="2" rx="1" fill="currentColor" stroke="none"/><line x1="10" y1="6" x2="21" y2="6"/><rect x="3" y="11" width="4" height="2" rx="1" fill="currentColor" stroke="none"/><line x1="10" y1="12" x2="21" y2="12"/><rect x="3" y="17" width="4" height="2" rx="1" fill="currentColor" stroke="none"/><line x1="10" y1="18" x2="21" y2="18"/></svg>
-                        <span class="toolbar-tooltip">Legend</span>
-                    </button>
-                    <!-- Deployment Diff -->
-                    <button class="toolbar-btn" id="deployment-diff" title="Deployment Diff">
-                        <svg viewBox="0 0 24 24"><path d="M6 3v12"/><circle cx="6" cy="18" r="3"/><path d="M18 9V3"/><circle cx="18" cy="12" r="3"/><path d="M18 15v6"/><path d="M6 6h6a3 3 0 0 1 3 3v0"/></svg>
-                        <span class="toolbar-tooltip">Deployment Diff</span>
-                    </button>
+                    <!-- Export formats -->
+                    <div class="toolbar-group">
+                        <button class="toolbar-btn" id="toggle-export-menu" title="Export" aria-expanded="false" aria-controls="export-popover">
+                            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            <span class="toolbar-tooltip">Export</span>
+                        </button>
+                        <div class="toolbar-popover" id="export-popover" role="dialog" aria-label="Export formats">
+                            <div class="settings-heading">Export</div>
+                            <button class="toolbar-option" id="export-png" type="button">
+                                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                                <span>PNG image</span>
+                            </button>
+                            <button class="toolbar-option" id="export-svg" type="button">
+                                <svg viewBox="0 0 24 24"><path d="M14 3v4a1 1 0 001 1h4"/><path d="M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z"/></svg>
+                                <span>SVG vector</span>
+                            </button>
+                            <button class="toolbar-option" id="export-csv" type="button">
+                                <svg viewBox="0 0 24 24"><path d="M14 3v4a1 1 0 001 1h4"/><path d="M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z"/><path d="M8 13h8M8 17h8"/></svg>
+                                <span>CSV data</span>
+                            </button>
+                            <button class="toolbar-option" id="export-mermaid" type="button">
+                                <svg viewBox="0 0 24 24"><rect x="2" y="3" width="7" height="5" rx="1"/><rect x="15" y="16" width="7" height="5" rx="1"/><path d="M5.5 8v9a2 2 0 002 2h7.5"/></svg>
+                                <span>Mermaid diagram</span>
+                            </button>
+                            <button class="toolbar-option" id="export-dot" type="button">
+                                <svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M7 7.5l9.5 9"/></svg>
+                                <span>Graphviz DOT</span>
+                            </button>
+                        </div>
+                    </div>
 
                     <div class="toolbar-divider"></div>
 
-                    <!-- Export PNG -->
-                    <button class="toolbar-btn" id="export-png" title="Export PNG">
-                        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none"/><path d="M21 15l-5-5L5 21"/></svg>
-                        <span class="toolbar-tooltip">Export PNG</span>
-                    </button>
-                    <!-- Export SVG -->
-                    <button class="toolbar-btn" id="export-svg" title="Export SVG">
-                        <svg viewBox="0 0 24 24"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M9 15l2 2 4-4"/></svg>
-                        <span class="toolbar-tooltip">Export SVG</span>
-                    </button>
-                    <!-- Export CSV -->
-                    <button class="toolbar-btn" id="export-csv" title="Download all resource information as CSV">
-                        <svg viewBox="0 0 24 24"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M8 13h8M8 17h8"/></svg>
-                        <span class="toolbar-tooltip">Download CSV</span>
-                    </button>
-                    <!-- Export Mermaid -->
-                    <button class="toolbar-btn" id="export-mermaid" title="Export Mermaid flowchart">
-                        <svg viewBox="0 0 24 24"><rect x="2" y="3" width="7" height="5" rx="1"/><rect x="15" y="16" width="7" height="5" rx="1"/><path d="M5.5 8v9a2 2 0 0 0 2 2h7.5"/></svg>
-                        <span class="toolbar-tooltip">Export Mermaid</span>
-                    </button>
-                    <!-- Export Graphviz DOT -->
-                    <button class="toolbar-btn" id="export-dot" title="Export Graphviz DOT">
-                        <svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M7 7.5l9.5 9"/><path d="M12 12h-3.5"/></svg>
-                        <span class="toolbar-tooltip">Export DOT</span>
-                    </button>
                     <!-- Presentation Mode -->
                     <button class="toolbar-btn" id="presentation-mode" title="Presentation Mode">
                         <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
@@ -2197,21 +2385,8 @@
                         <div class="settings-description">Saved automatically in this browser.</div>
                         <div class="theme-options" role="radiogroup" aria-label="Theme">
                             <button class="theme-option" type="button" data-theme-value="dark" role="radio"><span class="theme-swatch dark"></span>Dark</button>
-                            <button class="theme-option" type="button" data-theme-value="aurora" role="radio"><span class="theme-swatch aurora"></span>Aurora</button>
                             <button class="theme-option" type="button" data-theme-value="light" role="radio"><span class="theme-swatch light"></span>Light</button>
-                            <button class="theme-option" type="button" data-theme-value="sand" role="radio"><span class="theme-swatch sand"></span>Sand</button>
                         </div>
-                    </div>
-
-                    <!-- Legend Popover -->
-                    <div class="legend-popover" id="legend-popover">
-                        <h4>Connection Types</h4>
-                        <div class="legend-item"><span class="legend-swatch" style="background: #38BDF8"></span> Networking</div>
-                        <div class="legend-item"><span class="legend-swatch" style="background: #ef4444"></span> Access / IAM</div>
-                        <div class="legend-item"><span class="legend-swatch" style="background: #4ADE80"></span> Data</div>
-                        <div class="legend-item"><span class="legend-swatch" style="background: #FB923C"></span> Trigger</div>
-                        <div class="legend-item"><span class="legend-swatch" style="background: #C084FC"></span> Dependency</div>
-                        <div class="legend-item"><span class="legend-swatch" style="background: #888888"></span> Reference</div>
                     </div>
                 </div>
 
@@ -2281,7 +2456,7 @@
             <div class="s3-modal">
                 <div class="s3-modal-header">
                     <h3 id="s3-modal-title">Import State from S3</h3>
-                    <button class="close-btn" onclick="closeS3Modal()">&times;</button>
+                    <button class="close-btn" onclick="closeS3Modal()" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
                 </div>
                 <div class="s3-modal-body">
                     <div class="s3-search-row">
@@ -2306,6 +2481,39 @@
             diagram = new EnhancedDiagramViewer();
         });
 
+        // === Inline SVG icons ===
+        // The UI uses one icon language: every glyph is an inline SVG, built
+        // from a constant path list (never from user data).
+        const SVG_NS = 'http://www.w3.org/2000/svg';
+        const ICONS = {
+            bucket: ['M3 7l9-4 9 4-9 4-9-4z', 'M3 12l9 4 9-4', 'M3 17l9 4 9-4'],
+            chevron: ['M9 6l6 6-6 6'],
+            folder: ['M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z'],
+            folderOpen: ['M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v1H3z', 'M3 10h18l-2.2 8.1a2 2 0 01-1.9 1.5H5.1A2 2 0 013 18z'],
+            file: ['M14 3v4a1 1 0 001 1h4', 'M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z'],
+            fileTf: ['M14 3v4a1 1 0 001 1h4', 'M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z', 'M9.5 12.5l-1 4M12.5 12.5l-1 4M9 14h4'],
+            fileJson: ['M14 3v4a1 1 0 001 1h4', 'M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z', 'M10.5 13c0 1-1 1.2-1 2.5S10.5 17 10.5 18', 'M13.5 13c0 1 1 1.2 1 2.5s-1 1.5-1 2.5'],
+        };
+
+        /** Build an inline SVG icon from a constant path list. */
+        function makeIcon(paths) {
+            const svg = document.createElementNS(SVG_NS, 'svg');
+            svg.setAttribute('viewBox', '0 0 24 24');
+            svg.setAttribute('fill', 'none');
+            svg.setAttribute('stroke', 'currentColor');
+            svg.setAttribute('stroke-width', '1.8');
+            svg.setAttribute('stroke-linecap', 'round');
+            svg.setAttribute('stroke-linejoin', 'round');
+            svg.setAttribute('aria-hidden', 'true');
+            svg.setAttribute('focusable', 'false');
+            paths.forEach(d => {
+                const p = document.createElementNS(SVG_NS, 'path');
+                p.setAttribute('d', d);
+                svg.appendChild(p);
+            });
+            return svg;
+        }
+
         // === S3 Import Logic ===
         let s3State = { bucket: '', profile: '' };
 
@@ -2315,7 +2523,6 @@
             if (!file) return;
             const formData = new FormData();
             formData.append('statefile', file);
-            const btn = input.previousElementSibling; // the Import from PC button's container
             fetch('/api/upload', { method: 'POST', body: formData })
                 .then(r => {
                     if (!r.ok) return r.json().then(d => { throw new Error(d.error || 'Upload failed'); });
@@ -2360,18 +2567,6 @@
             return s3State.profile || '';
         }
 
-        /** Escape HTML entities to prevent XSS in innerHTML assignments. */
-        function escapeHTMLStr(str) {
-            const div = document.createElement('div');
-            div.appendChild(document.createTextNode(str));
-            return div.innerHTML;
-        }
-
-        /** Escape a string for safe use inside a JS string literal in an onclick attribute. */
-        function escapeAttr(str) {
-            return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-        }
-
         async function loadS3Buckets() {
             showS3Status('Loading buckets...', 'loading');
             const profile = document.getElementById('s3-profile').value.trim();
@@ -2400,18 +2595,38 @@
                     ? buckets.filter(b => b.name.toLowerCase().includes(filter.toLowerCase()))
                     : buckets;
 
+                list.innerHTML = '';
+
                 if (filtered.length === 0) {
-                    list.innerHTML = '<div class="s3-empty">No buckets found.</div>';
+                    const empty = document.createElement('div');
+                    empty.className = 's3-empty';
+                    empty.textContent = 'No buckets found.';
+                    list.appendChild(empty);
                     return;
                 }
 
-                list.innerHTML = filtered.map(b =>
-                    `<div class="s3-list-item" onclick="selectBucket('${escapeAttr(b.name)}')">
-                        <span class="s3-icon">&#128230;</span>
-                        <span class="s3-name">${escapeHTMLStr(b.name)}</span>
-                        <span class="s3-meta">${b.created_at ? new Date(b.created_at).toLocaleDateString() : ''}</span>
-                    </div>`
-                ).join('');
+                filtered.forEach(b => {
+                    const item = document.createElement('div');
+                    item.className = 's3-list-item';
+
+                    const icon = document.createElement('span');
+                    icon.className = 's3-icon';
+                    icon.appendChild(makeIcon(ICONS.bucket));
+
+                    const name = document.createElement('span');
+                    name.className = 's3-name';
+                    name.textContent = b.name;
+
+                    const meta = document.createElement('span');
+                    meta.className = 's3-meta';
+                    meta.textContent = b.created_at ? new Date(b.created_at).toLocaleDateString() : '';
+
+                    item.appendChild(icon);
+                    item.appendChild(name);
+                    item.appendChild(meta);
+                    item.onclick = () => selectBucket(b.name);
+                    list.appendChild(item);
+                });
             }
 
             render('');
@@ -2461,9 +2676,15 @@
 
         // --- Tree rendering ---
         function fileIcon(name) {
-            if (name.endsWith('.tfstate') || name.endsWith('.tf')) return { cls: 'file-tf', ch: '\u25A8' };
-            if (name.endsWith('.json')) return { cls: 'file-json', ch: '\u25A3' };
-            return { cls: 'file-default', ch: '\u25A1' };
+            if (name.endsWith('.tfstate') || name.endsWith('.tf')) return { cls: 'file-tf', paths: ICONS.fileTf };
+            if (name.endsWith('.json')) return { cls: 'file-json', paths: ICONS.fileJson };
+            return { cls: 'file-default', paths: ICONS.file };
+        }
+
+        /** Swap the folder icon between the closed and the open state. */
+        function setFolderIcon(iconEl, open) {
+            while (iconEl.firstChild) iconEl.removeChild(iconEl.firstChild);
+            iconEl.appendChild(makeIcon(open ? ICONS.folderOpen : ICONS.folder));
         }
 
         async function loadTreeLevel(container, prefix) {
@@ -2480,7 +2701,10 @@
                 container.innerHTML = '';
 
                 if (objects.length === 0) {
-                    container.innerHTML = '<div class="s3-tree-empty">Empty</div>';
+                    const empty = document.createElement('div');
+                    empty.className = 's3-tree-empty';
+                    empty.textContent = 'Empty';
+                    container.appendChild(empty);
                     return;
                 }
 
@@ -2490,19 +2714,41 @@
                 for (const obj of objects) {
                     const displayName = obj.key.replace(prefix, '').replace(/\/$/, '');
 
+                    const row = document.createElement('div');
+                    row.className = 's3-tree-node';
+                    row.dataset.key = obj.key;
+                    row.dataset.name = displayName.toLowerCase();
+
+                    const indent = document.createElement('span');
+                    indent.className = 'indent';
+                    indent.style.width = indentPx + 'px';
+                    row.appendChild(indent);
+
+                    const chevron = document.createElement('span');
+                    chevron.className = 'chevron';
+                    if (obj.is_folder) chevron.appendChild(makeIcon(ICONS.chevron));
+                    row.appendChild(chevron);
+
+                    const icon = document.createElement('span');
+                    icon.className = obj.is_folder
+                        ? 'node-icon folder'
+                        : 'node-icon ' + fileIcon(displayName).cls;
+                    icon.appendChild(
+                        makeIcon(obj.is_folder ? ICONS.folder : fileIcon(displayName).paths),
+                    );
+                    row.appendChild(icon);
+
+                    // The name is user data: it goes in as text, never as HTML.
+                    const label = document.createElement('span');
+                    label.className = 'node-label';
+                    label.textContent = displayName;
+                    row.appendChild(label);
+
                     if (obj.is_folder) {
                         const wrapper = document.createElement('div');
                         wrapper.className = 's3-tree-folder';
                         wrapper.dataset.key = obj.key;
                         wrapper.dataset.name = displayName.toLowerCase();
-
-                        const row = document.createElement('div');
-                        row.className = 's3-tree-node';
-                        row.innerHTML =
-                            `<span class="indent" style="width:${indentPx}px"></span>` +
-                            `<span class="chevron">&#9654;</span>` +
-                            `<span class="node-icon folder">&#128193;</span>` +
-                            `<span class="node-label">${escapeHTMLStr(displayName)}</span>`;
 
                         const children = document.createElement('div');
                         children.className = 's3-tree-children';
@@ -2513,17 +2759,10 @@
                         wrapper.appendChild(children);
                         container.appendChild(wrapper);
                     } else {
-                        const icon = fileIcon(displayName);
-                        const row = document.createElement('div');
-                        row.className = 's3-tree-node';
-                        row.dataset.key = obj.key;
-                        row.dataset.name = displayName.toLowerCase();
-                        row.innerHTML =
-                            `<span class="indent" style="width:${indentPx}px"></span>` +
-                            `<span class="chevron"></span>` +
-                            `<span class="node-icon ${icon.cls}">${icon.ch}</span>` +
-                            `<span class="node-label">${escapeHTMLStr(displayName)}</span>` +
-                            `<span class="node-size">${formatBytes(obj.size)}</span>`;
+                        const size = document.createElement('span');
+                        size.className = 's3-size';
+                        size.textContent = formatBytes(obj.size);
+                        row.appendChild(size);
 
                         row.onclick = () => {
                             document.querySelectorAll('.s3-tree-node.selected').forEach(el => el.classList.remove('selected'));
@@ -2535,7 +2774,12 @@
                     }
                 }
             } catch (e) {
-                container.innerHTML = `<div class="s3-tree-empty" style="color:var(--sm-danger)">${escapeHTMLStr(e.message)}</div>`;
+                container.innerHTML = '';
+                const empty = document.createElement('div');
+                empty.className = 's3-tree-empty';
+                empty.style.color = 'var(--sm-danger)';
+                empty.textContent = e.message;
+                container.appendChild(empty);
             }
         }
 
@@ -2548,20 +2792,24 @@
                 childrenContainer.classList.remove('expanded');
                 chevron.classList.remove('expanded');
                 icon.classList.remove('open');
-                icon.innerHTML = '&#128193;';
+                setFolderIcon(icon, false);
             } else {
                 if (childrenContainer.children.length === 0) {
-                    childrenContainer.innerHTML = '<div class="s3-tree-loading">Loading...</div>';
+                    const loading = document.createElement('div');
+                    loading.className = 's3-tree-loading';
+                    loading.textContent = 'Loading...';
+                    childrenContainer.innerHTML = '';
+                    childrenContainer.appendChild(loading);
                     childrenContainer.classList.add('expanded');
                     chevron.classList.add('expanded');
                     icon.classList.add('open');
-                    icon.innerHTML = '&#128194;';
+                    setFolderIcon(icon, true);
                     await loadTreeLevel(childrenContainer, prefix);
                 } else {
                     childrenContainer.classList.add('expanded');
                     chevron.classList.add('expanded');
                     icon.classList.add('open');
-                    icon.innerHTML = '&#128194;';
+                    setFolderIcon(icon, true);
                 }
             }
         }
@@ -2630,14 +2878,6 @@
                 alert('Error: ' + e.message);
             }
         }
-        // === Collapsible sidebar sections ===
-        function toggleSidebarSection(headerEl) {
-            const chevron = headerEl.querySelector('.sidebar-section-chevron');
-            const body = headerEl.nextElementSibling;
-            chevron.classList.toggle('expanded');
-            body.classList.toggle('expanded');
-        }
-
         // === Sidebar resize ===
         (function() {
             const handle = document.getElementById('sidebar-resize-handle');

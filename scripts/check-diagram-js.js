@@ -14,7 +14,29 @@ const path = require("path");
 const vm = require("vm");
 
 const FILE = path.join(__dirname, "..", "web", "static", "js", "diagram_enhanced.js");
+const TEMPLATE = path.join(__dirname, "..", "web", "templates", "index_enhanced.html");
 const source = fs.readFileSync(FILE, "utf8");
+const template = fs.readFileSync(TEMPLATE, "utf8");
+
+// The theme tokens the canvas resolves against.
+const TOKENS = {
+  "--sm-edge-networking": "#38bdf8",
+  "--sm-edge-access": "#ef4444",
+  "--sm-edge-data": "#4ade80",
+  "--sm-edge-trigger": "#fb923c",
+  "--sm-edge-dependency": "#c084fc",
+  "--sm-edge-reference": "#888888",
+  "--sm-edge-default": "#888888",
+  "--sm-layer-ec2": "#ff9900",
+  "--sm-layer-other": "#64748b",
+  "--sm-node-fill": "#1e1e1e",
+  "--sm-container-vpc": "#248814",
+  "--sm-subnet-public": "#4ade80",
+  "--sm-subnet-private": "#60a5fa",
+  "--sm-subnet-default": "#38bdf8",
+  "--sm-text": "#e2f5f1",
+  "--sm-text-muted": "rgba(226, 245, 241, 0.62)",
+};
 
 const sandbox = {
   console,
@@ -24,6 +46,9 @@ const sandbox = {
   URL: { createObjectURL: () => "", revokeObjectURL: () => {} },
   Blob: function () {},
   XMLSerializer: function () {},
+  getComputedStyle: () => ({
+    getPropertyValue: (name) => TOKENS[name] || "",
+  }),
   document: {
     createElement: () => ({ style: {}, classList: { add() {}, remove() {} }, appendChild() {} }),
     createElementNS: () => ({ setAttribute() {}, appendChild() {}, style: {} }),
@@ -257,8 +282,8 @@ const conn = (source, target) => ({ id: `${source}->${target}`, source_id: sourc
     "no var() in SVG presentation attributes",
   );
   assert.ok(
-    source.includes('style: "fill: var(--sm-node-type);"'),
-    "the node type label uses an inline style",
+    source.includes("fill: this.theme.nodeType"),
+    "the node type label uses the resolved theme colour",
   );
 }
 
@@ -266,6 +291,225 @@ const conn = (source, target) => ({ id: `${source}->${target}`, source_id: sourc
 {
   assert.strictEqual(typeof Viewer.prototype.applySidebarState, "function");
   assert.strictEqual(typeof Viewer.prototype.toggleSidebar, "function");
+}
+
+// ── the canvas palette is themed, not hardcoded ────────────────────────────
+{
+  const edgeStyles = vm.runInContext("buildEdgeStyles()", sandbox);
+  const layers = vm.runInContext("buildLayers()", sandbox);
+
+  // Every edge and every layer points at a CSS custom property.
+  Object.entries(edgeStyles).forEach(([type, style]) => {
+    assert.ok(
+      style.color.startsWith("--sm-edge-"),
+      `edge ${type} uses a token, got ${style.color}`,
+    );
+    assert.ok(
+      style.dotColor.startsWith("--sm-edge-"),
+      `edge ${type} dot uses a token, got ${style.dotColor}`,
+    );
+  });
+  Object.entries(layers).forEach(([key, layer]) => {
+    assert.ok(
+      layer.color.startsWith("--sm-layer-"),
+      `layer ${key} uses a token, got ${layer.color}`,
+    );
+  });
+
+  // The unreachable generic layers are gone: only "other" catches the rest.
+  ["analytics", "app-integration", "database", "management-governance",
+   "storage", "compute", "networking-content-delivery",
+   "security-identity-compliance"].forEach((key) => {
+    assert.ok(!layers[key], `the unreachable layer ${key} is removed`);
+  });
+  assert.ok(layers.other, "the fallback layer exists");
+
+  // The palette resolves to concrete values once per render.
+  const viewer = Object.create(Viewer.prototype);
+  viewer.edgeStyles = edgeStyles;
+  viewer.layers = layers;
+  viewer.resolveTheme();
+
+  assert.strictEqual(viewer.theme.edges.networking.color, "#38bdf8");
+  assert.strictEqual(viewer.theme.edges.default.dotColor, "#888888");
+  assert.strictEqual(viewer.theme.layers.ec2, "#ff9900");
+  assert.strictEqual(viewer.theme.nodeFill, "#1e1e1e");
+  assert.strictEqual(viewer.theme.containerVpc, "#248814");
+  assert.strictEqual(viewer.theme.subnetPublic, "#4ade80");
+  assert.strictEqual(viewer.theme.subnetPrivate, "#60a5fa");
+  assert.strictEqual(viewer.theme.subnetDefault, "#38bdf8");
+
+  // No hardcoded colour is left in the canvas code.
+  assert.ok(
+    !/(color|fill|stroke|dotColor)\s*:\s*"#[0-9a-fA-F]/.test(source),
+    "no hardcoded hex colour in the JS",
+  );
+  assert.ok(
+    !/#[0-9a-fA-F]{3,8}\b(?![;"])/.test(
+      source.replace(/"#12[345];"/g, ""),
+    ),
+    "no hardcoded hex colour in the JS",
+  );
+}
+
+// ── the toolbar exposes exactly the intended controls ───────────────────────
+{
+  const toolbar = template.slice(
+    template.indexOf('<div class="floating-toolbar">'),
+    template.indexOf("<!-- Main Canvas -->"),
+  );
+
+  const idsOf = (className) =>
+    Array.from(toolbar.matchAll(/<button\b([^>]*)>/g))
+      .map((m) => m[1])
+      .filter((attrs) =>
+        new RegExp(`class="[^"]*\\b${className}\\b[^"]*"`).test(attrs),
+      )
+      .map((attrs) => (attrs.match(/id="([^"]+)"/) || [])[1])
+      .filter(Boolean);
+
+  // The seven visible controls.
+  assert.deepStrictEqual(idsOf("toolbar-btn").sort(), [
+    "fit-view",
+    "presentation-mode",
+    "toggle-export-menu",
+    "toggle-settings",
+    "toggle-view-options",
+    "zoom-in",
+    "zoom-out",
+  ]);
+
+  // The toggles and the exports keep their ids, they just live in a popover.
+  assert.deepStrictEqual(idsOf("toolbar-option").sort(), [
+    "export-csv",
+    "export-dot",
+    "export-mermaid",
+    "export-png",
+    "export-svg",
+    "toggle-flow",
+    "toggle-grid",
+    "toggle-labels",
+    "toggle-minimap",
+  ]);
+
+  // The legend moved into the view popover, the diff button is gone.
+  assert.ok(template.includes('id="view-popover"'), "the view popover exists");
+  assert.ok(template.includes('id="export-popover"'), "the export popover exists");
+  assert.ok(!template.includes("toggle-legend"), "the legend button is removed");
+  assert.ok(!template.includes("legend-popover"), "the legend popover is removed");
+  assert.ok(!template.includes("deployment-diff"), "the deployment diff button is removed");
+  assert.strictEqual(
+    (template.match(/class="legend-item"/g) || []).length,
+    6,
+    "the legend keeps its six entries",
+  );
+}
+
+// ── the sidebar is flat: no collapsible sections ────────────────────────────
+{
+  assert.ok(!template.includes("toggleSidebarSection"), "no collapsible sidebar sections");
+  assert.ok(!template.includes("sidebar-section-header"), "no sidebar section headers");
+  assert.ok(!template.includes("sidebar-section-chevron"), "no sidebar chevrons");
+
+  const captions = Array.from(template.matchAll(/class="sidebar-caption">([^<]+)</g))
+    .map((m) => m[1].trim());
+  assert.deepStrictEqual(captions, ["Search", "Files", "Filters", "Resources"]);
+}
+
+// ── the import entry point follows the diagram state ─────────────────────────
+{
+  assert.ok(
+    template.includes(".filter-sidebar:not(.has-diagram) .sidebar-import-row"),
+    "the sidebar import row is hidden without a diagram",
+  );
+
+  const makeEl = () => {
+    const classes = new Set();
+    return {
+      classList: {
+        add: (c) => classes.add(c),
+        remove: (c) => classes.delete(c),
+        contains: (c) => classes.has(c),
+        toggle: (c, force) => {
+          const has = classes.has(c);
+          const want = force === undefined ? !has : force;
+          if (want) classes.add(c);
+          else classes.delete(c);
+          return want;
+        },
+      },
+    };
+  };
+
+  const sidebar = makeEl();
+  const empty = makeEl();
+  sandbox.document.getElementById = (id) => {
+    if (id === "filter-sidebar") return sidebar;
+    if (id === "empty-state") return empty;
+    return null;
+  };
+
+  const viewer = Object.create(Viewer.prototype);
+  viewer.resources = [];
+  viewer.updateEmptyState();
+  assert.ok(!sidebar.classList.contains("has-diagram"), "no import row without a diagram");
+  assert.ok(!empty.classList.contains("hidden"), "the empty state is shown");
+
+  viewer.resources = [{ id: "a" }];
+  viewer.updateEmptyState();
+  assert.ok(sidebar.classList.contains("has-diagram"), "the import row is shown");
+  assert.ok(empty.classList.contains("hidden"), "the empty state is hidden");
+}
+
+// ── the header only shows "Visible" when a filter hides resources ───────────
+{
+  const makeEl = () => {
+    const classes = new Set();
+    return {
+      textContent: "",
+      classList: {
+        add: (c) => classes.add(c),
+        remove: (c) => classes.delete(c),
+        contains: (c) => classes.has(c),
+        toggle: (c, force) => {
+          const has = classes.has(c);
+          const want = force === undefined ? !has : force;
+          if (want) classes.add(c);
+          else classes.delete(c);
+          return want;
+        },
+      },
+    };
+  };
+
+  const counter = makeEl();
+  const item = makeEl();
+  sandbox.document.getElementById = (id) => {
+    if (id === "visible-count") return counter;
+    if (id === "visible-stat") return item;
+    return null;
+  };
+
+  const viewer = Object.create(Viewer.prototype);
+  viewer.resources = [{ id: "a" }, { id: "b" }];
+  viewer.filteredResources = viewer.resources;
+  viewer.updateStats();
+  assert.ok(item.classList.contains("hidden"), "the visible counter is hidden");
+
+  viewer.filteredResources = [viewer.resources[0]];
+  viewer.updateStats();
+  assert.ok(!item.classList.contains("hidden"), "the visible counter is shown");
+  assert.strictEqual(counter.textContent, 1);
+}
+
+// ── the UI has no emoji left ────────────────────────────────────────────────
+{
+  [template, source].forEach((text) => {
+    ["\u{1F3D7}\uFE0F", "\u25BC", "\u2630", "\u{1F4C1}", "\u{1F4C2}", "\u{1F4E6}", "\u00D7"]
+      .forEach((glyph) => {
+        assert.ok(!text.includes(glyph), `no ${glyph} in the UI`);
+      });
+  });
 }
 
 console.log("all diagram JS checks passed");

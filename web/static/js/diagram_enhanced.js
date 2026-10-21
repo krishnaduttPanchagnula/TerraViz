@@ -124,6 +124,41 @@ function svgEl(tag, attrs) {
   return el;
 }
 
+/**
+ * Create an inline stroke-based icon (24x24 viewBox, currentColor).
+ *
+ * The icons replace the emoji/glyphs that used to sit next to the SVG icon
+ * set, so the UI has one visual language.
+ */
+function svgIcon(paths, className) {
+  const svg = svgEl("svg", {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    "stroke-width": "1.8",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    "aria-hidden": "true",
+    focusable: "false",
+  });
+  if (className) svg.setAttribute("class", className);
+  paths.forEach((d) => svg.appendChild(svgEl("path", { d })));
+  return svg;
+}
+
+/**
+ * Read a CSS custom property from the document root.
+ *
+ * The canvas is themed: the palette lives in the CSS tokens, this is the
+ * bridge that turns a token name into a concrete colour.
+ */
+function themeToken(name, fallback) {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+  return value || fallback;
+}
+
 function truncateText(text, maxLength) {
   return text.length > maxLength ? text.substring(0, maxLength) + "..." : text;
 }
@@ -434,11 +469,11 @@ function subnetTier(resource) {
 }
 
 /** Colour of a subnet box, based on its tier when it can be derived. */
-function subnetColor(resource) {
+function subnetColor(resource, theme) {
   const tier = subnetTier(resource);
-  if (tier === "Public") return "#4ADE80";
-  if (tier === "Private") return "#60A5FA";
-  return "#38BDF8";
+  if (tier === "Public") return theme.subnetPublic;
+  if (tier === "Private") return theme.subnetPrivate;
+  return theme.subnetDefault;
 }
 
 /** Secondary line of a subnet box (availability zone, tier, CIDR). */
@@ -1327,6 +1362,179 @@ class SearchableDropdown {
 
 // ─── Main Class ────────────────────────────────────────────────────────────────
 
+/**
+ * Edge style config per connection type.
+ *
+ * The colours are CSS custom property names: they are resolved to
+ * concrete values once per render (see resolveTheme).
+ */
+function buildEdgeStyles() {
+  return {
+    networking: {
+      color: "--sm-edge-networking",
+      width: 1.8,
+      dash: "",
+      opacity: 0.75,
+      flowDot: true,
+      dotColor: "--sm-edge-networking",
+    },
+    access: {
+      color: "--sm-edge-access",
+      width: 1.8,
+      dash: "",
+      opacity: 0.75,
+      flowDot: true,
+      dotColor: "--sm-edge-access",
+    },
+    data: {
+      color: "--sm-edge-data",
+      width: 1.8,
+      dash: "",
+      opacity: 0.75,
+      flowDot: true,
+      dotColor: "--sm-edge-data",
+    },
+    trigger: {
+      color: "--sm-edge-trigger",
+      width: 2.0,
+      dash: "",
+      opacity: 0.8,
+      flowDot: true,
+      dotColor: "--sm-edge-trigger",
+    },
+    dependency: {
+      color: "--sm-edge-dependency",
+      width: 1.4,
+      dash: "6,3",
+      opacity: 0.6,
+      flowDot: false,
+      dotColor: "--sm-edge-dependency",
+    },
+    reference: {
+      color: "--sm-edge-reference",
+      width: 1.0,
+      dash: "4,4",
+      opacity: 0.35,
+      flowDot: false,
+      dotColor: "--sm-edge-reference",
+    },
+    default: {
+      color: "--sm-edge-default",
+      width: 1.4,
+      dash: "",
+      opacity: 0.5,
+      flowDot: false,
+      dotColor: "--sm-edge-default",
+    },
+  };
+}
+
+/**
+ * AWS service layers (organized by actual AWS services).
+ *
+ * Only the groups classifyResource() can produce are listed: unknown
+ * services fall back to "other".
+ */
+function buildLayers() {
+  return {
+    ec2: { name: "EC2", color: "--sm-layer-ec2", resources: [], subgroups: {} },
+    ecs: { name: "ECS", color: "--sm-layer-ecs", resources: [], subgroups: {} },
+    ecr: { name: "ECR", color: "--sm-layer-ecr", resources: [], subgroups: {} },
+    lambda: {
+      name: "Lambda",
+      color: "--sm-layer-lambda",
+      resources: [],
+      subgroups: {},
+    },
+    apigateway: {
+      name: "API Gateway",
+      color: "--sm-layer-apigateway",
+      resources: [],
+      subgroups: {},
+    },
+    elb: {
+      name: "Load Balancer",
+      color: "--sm-layer-elb",
+      resources: [],
+      subgroups: {},
+    },
+    s3: { name: "S3", color: "--sm-layer-s3", resources: [], subgroups: {} },
+    rds: { name: "RDS", color: "--sm-layer-rds", resources: [], subgroups: {} },
+    dynamodb: {
+      name: "DynamoDB",
+      color: "--sm-layer-dynamodb",
+      resources: [],
+      subgroups: {},
+    },
+    eks: { name: "EKS", color: "--sm-layer-eks", resources: [], subgroups: {} },
+    apigatewayv2: {
+      name: "API Gateway v2",
+      color: "--sm-layer-apigatewayv2",
+      resources: [],
+      subgroups: {},
+    },
+    sfn: {
+      name: "Step Functions",
+      color: "--sm-layer-sfn",
+      resources: [],
+      subgroups: {},
+    },
+    sns: { name: "SNS", color: "--sm-layer-sns", resources: [], subgroups: {} },
+    sqs: { name: "SQS", color: "--sm-layer-sqs", resources: [], subgroups: {} },
+    logs: {
+      name: "CloudWatch Logs",
+      color: "--sm-layer-logs",
+      resources: [],
+      subgroups: {},
+    },
+    cloudwatch: {
+      name: "CloudWatch",
+      color: "--sm-layer-cloudwatch",
+      resources: [],
+      subgroups: {},
+    },
+    iam: { name: "IAM", color: "--sm-layer-iam", resources: [], subgroups: {} },
+    vpc: { name: "VPC", color: "--sm-layer-vpc", resources: [], subgroups: {} },
+    route53: {
+      name: "Route 53",
+      color: "--sm-layer-route53",
+      resources: [],
+      subgroups: {},
+    },
+    acm: {
+      name: "Certificate Manager",
+      color: "--sm-layer-acm",
+      resources: [],
+      subgroups: {},
+    },
+    waf: { name: "WAF", color: "--sm-layer-waf", resources: [], subgroups: {} },
+    secretsmanager: {
+      name: "Secrets Manager",
+      color: "--sm-layer-secretsmanager",
+      resources: [],
+      subgroups: {},
+    },
+    servicediscovery: {
+      name: "Service Discovery",
+      color: "--sm-layer-servicediscovery",
+      resources: [],
+      subgroups: {},
+    },
+    "not-in-state-file": {
+      name: "Not In State File",
+      color: "--sm-layer-other",
+      resources: [],
+      subgroups: {},
+    },
+    other: {
+      name: "Other",
+      color: "--sm-layer-other",
+      resources: [],
+      subgroups: {},
+    },
+  };
+}
+
 class EnhancedDiagramViewer {
   constructor() {
     this.svg = null;
@@ -1370,209 +1578,51 @@ class EnhancedDiagramViewer {
     this._networkLayout = null;
     this._layoutResult = null;
 
-    // StackMap-inspired edge style config per connection type
-    this.edgeStyles = {
-      networking: {
-        color: "#38BDF8",
-        width: 1.8,
-        dash: "",
-        opacity: 0.75,
-        flowDot: true,
-        dotColor: "#38BDF8",
-      },
-      access: {
-        color: "#ef4444",
-        width: 1.8,
-        dash: "",
-        opacity: 0.75,
-        flowDot: true,
-        dotColor: "#ef4444",
-      },
-      data: {
-        color: "#4ADE80",
-        width: 1.8,
-        dash: "",
-        opacity: 0.75,
-        flowDot: true,
-        dotColor: "#4ADE80",
-      },
-      trigger: {
-        color: "#FB923C",
-        width: 2.0,
-        dash: "",
-        opacity: 0.8,
-        flowDot: true,
-        dotColor: "#FB923C",
-      },
-      dependency: {
-        color: "#C084FC",
-        width: 1.4,
-        dash: "6,3",
-        opacity: 0.6,
-        flowDot: false,
-        dotColor: "#C084FC",
-      },
-      reference: {
-        color: "#888888",
-        width: 1.0,
-        dash: "4,4",
-        opacity: 0.35,
-        flowDot: false,
-        dotColor: "#888888",
-      },
-      default: {
-        color: "#888888",
-        width: 1.4,
-        dash: "",
-        opacity: 0.5,
-        flowDot: false,
-        dotColor: "#888888",
-      },
-    };
-
-    // AWS Service Groups (organized by actual AWS services, distinct colors)
-    this.layers = {
-      ec2: { name: "EC2", color: "#FF9900", resources: [], subgroups: {} },
-      ecs: { name: "ECS", color: "#ED7100", resources: [], subgroups: {} },
-      ecr: { name: "ECR", color: "#E86100", resources: [], subgroups: {} },
-      lambda: {
-        name: "Lambda",
-        color: "#F59E0B",
-        resources: [],
-        subgroups: {},
-      },
-      apigateway: {
-        name: "API Gateway",
-        color: "#A855F7",
-        resources: [],
-        subgroups: {},
-      },
-      elb: {
-        name: "Load Balancer",
-        color: "#8B5CF6",
-        resources: [],
-        subgroups: {},
-      },
-      s3: { name: "S3", color: "#3F891A", resources: [], subgroups: {} },
-      rds: { name: "RDS", color: "#3F48CC", resources: [], subgroups: {} },
-      dynamodb: {
-        name: "DynamoDB",
-        color: "#2563EB",
-        resources: [],
-        subgroups: {},
-      },
-      eks: { name: "EKS", color: "#F3A13B", resources: [], subgroups: {} },
-      apigatewayv2: {
-        name: "API Gateway v2",
-        color: "#C084FC",
-        resources: [],
-        subgroups: {},
-      },
-      sfn: {
-        name: "Step Functions",
-        color: "#E7157B",
-        resources: [],
-        subgroups: {},
-      },
-      sns: { name: "SNS", color: "#B7CA9D", resources: [], subgroups: {} },
-      sqs: { name: "SQS", color: "#D97706", resources: [], subgroups: {} },
-      logs: {
-        name: "CloudWatch Logs",
-        color: "#759C3E",
-        resources: [],
-        subgroups: {},
-      },
-      cloudwatch: {
-        name: "CloudWatch",
-        color: "#5B9A42",
-        resources: [],
-        subgroups: {},
-      },
-      iam: { name: "IAM", color: "#DD344C", resources: [], subgroups: {} },
-      vpc: { name: "VPC", color: "#248814", resources: [], subgroups: {} },
-      route53: {
-        name: "Route 53",
-        color: "#F58536",
-        resources: [],
-        subgroups: {},
-      },
-      acm: {
-        name: "Certificate Manager",
-        color: "#0EA5E9",
-        resources: [],
-        subgroups: {},
-      },
-      waf: { name: "WAF", color: "#E11D48", resources: [], subgroups: {} },
-      secretsmanager: {
-        name: "Secrets Manager",
-        color: "#DC2626",
-        resources: [],
-        subgroups: {},
-      },
-      servicediscovery: {
-        name: "Service Discovery",
-        color: "#E5729D",
-        resources: [],
-        subgroups: {},
-      },
-      analytics: {
-        name: "Analytics",
-        color: "#871EBE",
-        resources: [],
-        subgroups: {},
-      },
-      "app-integration": {
-        name: "App Integration",
-        color: "#E01515",
-        resources: [],
-        subgroups: {},
-      },
-      database: {
-        name: "Database",
-        color: "#4338CA",
-        resources: [],
-        subgroups: {},
-      },
-      "management-governance": {
-        name: "Management & Governance",
-        color: "#64748B",
-        resources: [],
-        subgroups: {},
-      },
-      storage: {
-        name: "Storage",
-        color: "#16A34A",
-        resources: [],
-        subgroups: {},
-      },
-      compute: {
-        name: "Compute",
-        color: "#EA580C",
-        resources: [],
-        subgroups: {},
-      },
-      "networking-content-delivery": {
-        name: "Networking & Content Delivery",
-        color: "#059669",
-        resources: [],
-        subgroups: {},
-      },
-      "security-identity-compliance": {
-        name: "Security & Compliance",
-        color: "#BE123C",
-        resources: [],
-        subgroups: {},
-      },
-      "not-in-state-file": {
-        name: "Not In State File",
-        color: "#FB923C",
-        resources: [],
-        subgroups: {},
-      },
-      other: { name: "Other", color: "#64748B", resources: [], subgroups: {} },
-    };
+    this.edgeStyles = buildEdgeStyles();
+    this.layers = buildLayers();
 
     this.init();
+  }
+
+  /**
+   * Resolve the canvas palette from the CSS custom properties.
+   *
+   * SVG presentation attributes cannot use var(), so every colour is turned
+   * into a concrete value here, once per render.
+   */
+  resolveTheme() {
+    const fallback = (token) => themeToken(token, "currentColor");
+    const paint = (token, fallbackToken) =>
+      themeToken(token, fallback(fallbackToken));
+
+    const edges = {};
+    Object.entries(this.edgeStyles).forEach(([key, style]) => {
+      edges[key] = {
+        ...style,
+        color: paint(style.color, "--sm-text-muted"),
+        dotColor: paint(style.dotColor, "--sm-text-muted"),
+      };
+    });
+
+    const layers = {};
+    Object.entries(this.layers).forEach(([key, layer]) => {
+      layers[key] = paint(layer.color, "--sm-layer-other");
+    });
+
+    this.theme = {
+      edges,
+      layers,
+      nodeFill: paint("--sm-node-fill", "--sm-surface"),
+      containerVpc: paint("--sm-container-vpc", "--sm-layer-vpc"),
+      subnetPublic: paint("--sm-subnet-public", "--sm-subnet-default"),
+      subnetPrivate: paint("--sm-subnet-private", "--sm-subnet-default"),
+      subnetDefault: paint("--sm-subnet-default", "--sm-text-muted"),
+      nodeLabel: paint("--sm-node-label", "--sm-text"),
+      nodeType: paint("--sm-node-type", "--sm-text-muted"),
+      terminalBg: paint("--sm-terminal-bg", "--sm-surface"),
+      primary: paint("--sm-primary", "--sm-secondary"),
+      textMuted: paint("--sm-text-muted", "--sm-text"),
+    };
   }
 
   async init() {
@@ -1590,6 +1640,7 @@ class EnhancedDiagramViewer {
       this.setupFilters();
       this.setupSearch();
       this.setupKeyboardShortcuts();
+      this.syncViewButtonState();
 
       this.updateLoadingText("Categorizing resources...");
       this.categorizeResources();
@@ -1662,11 +1713,21 @@ class EnhancedDiagramViewer {
   // Toggle the empty-state overlay based on whether resources are loaded.
   updateEmptyState() {
     const el = document.getElementById("empty-state");
-    if (!el) return;
-    if (this.resources.length > 0) {
-      el.classList.add("hidden");
-    } else {
-      el.classList.remove("hidden");
+    const hasDiagram = this.resources.length > 0;
+
+    if (el) {
+      if (hasDiagram) {
+        el.classList.add("hidden");
+      } else {
+        el.classList.remove("hidden");
+      }
+    }
+
+    // Only one import entry point is visible at a time: without a diagram
+    // the empty state owns the canvas, with a diagram the sidebar row does.
+    const sidebar = document.getElementById("filter-sidebar");
+    if (sidebar) {
+      sidebar.classList.toggle("has-diagram", hasDiagram);
     }
   }
 
@@ -1682,10 +1743,9 @@ class EnhancedDiagramViewer {
     // Update header stats
     const rc = document.getElementById("resource-count");
     const cc = document.getElementById("connection-count");
-    const vc = document.getElementById("visible-count");
     if (rc) rc.textContent = this.resources.length;
     if (cc) cc.textContent = this.connections.length;
-    if (vc) vc.textContent = this.resources.length;
+    this.updateStats();
     this.updateEmptyState();
   }
 
@@ -1764,21 +1824,21 @@ class EnhancedDiagramViewer {
       flowBtn.addEventListener("click", () => this.toggleFlowAnimations());
     }
 
-    document
-      .getElementById("export-png")
-      .addEventListener("click", () => this.exportToPNG());
-    document
-      .getElementById("export-svg")
-      .addEventListener("click", () => this.exportToSVG());
-    document
-      .getElementById("export-csv")
-      .addEventListener("click", () => this.exportToCSV());
-    document
-      .getElementById("export-mermaid")
-      .addEventListener("click", () => this.exportToMermaid());
-    document
-      .getElementById("export-dot")
-      .addEventListener("click", () => this.exportToDOT());
+    const exports = [
+      ["export-png", () => this.exportToPNG()],
+      ["export-svg", () => this.exportToSVG()],
+      ["export-csv", () => this.exportToCSV()],
+      ["export-mermaid", () => this.exportToMermaid()],
+      ["export-dot", () => this.exportToDOT()],
+    ];
+    exports.forEach(([id, action]) => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.addEventListener("click", () => {
+        action();
+        this.closePopover("export-popover", "toggle-export-menu");
+      });
+    });
 
     document
       .getElementById("diagram-view-btn")
@@ -1802,38 +1862,49 @@ class EnhancedDiagramViewer {
           root.style.setProperty('--sm-grid-dot', 'transparent');
           gridBtn.classList.remove('active');
         }
+        this.syncViewButtonState();
       });
     }
 
-    // Legend popover
-    const legendBtn = document.getElementById("toggle-legend");
-    const legendPopover = document.getElementById("legend-popover");
-    if (legendBtn && legendPopover) {
-      legendBtn.addEventListener("click", () => {
-        legendPopover.classList.toggle('visible');
-        legendBtn.classList.toggle('active');
-      });
-      // Close on click outside
-      document.addEventListener("click", (e) => {
-        if (!legendBtn.contains(e.target) && !legendPopover.contains(e.target)) {
-          legendPopover.classList.remove('visible');
-          legendBtn.classList.remove('active');
-        }
-      });
-    }
+    // Toolbar popovers: the view options and the export formats.
+    this.setupPopover("toggle-view-options", "view-popover");
+    this.setupPopover("toggle-export-menu", "export-popover");
+  }
 
-    // Deployment Diff toggle
-    const diffBtn = document.getElementById("deployment-diff");
-    if (diffBtn) {
-      diffBtn.addEventListener("click", () => {
-        diffBtn.classList.toggle('diff-active');
-      });
+  /**
+   * Wire a toolbar button to a popover: toggles the "visible" class, keeps
+   * aria-expanded in sync and closes the popover on an outside click.
+   */
+  setupPopover(buttonId, popoverId) {
+    const button = document.getElementById(buttonId);
+    const popover = document.getElementById(popoverId);
+    if (!button || !popover) return;
+
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const visible = popover.classList.toggle("visible");
+      button.classList.toggle("active", visible);
+      button.setAttribute("aria-expanded", String(visible));
+    });
+
+    document.addEventListener("click", (event) => {
+      if (button.contains(event.target) || popover.contains(event.target)) return;
+      this.closePopover(popoverId, buttonId);
+    });
+  }
+
+  /** Close a popover and reset the state of its button. */
+  closePopover(popoverId, buttonId) {
+    const popover = document.getElementById(popoverId);
+    const button = document.getElementById(buttonId);
+    if (popover) popover.classList.remove("visible");
+    if (button) {
+      button.classList.remove("active");
+      button.setAttribute("aria-expanded", "false");
     }
   }
 
   setupThemeSettings() {
-    const settingsBtn = document.getElementById("toggle-settings");
-    const popover = document.getElementById("settings-popover");
     const options = [...document.querySelectorAll("[data-theme-value]")];
     const validThemes = new Set(options.map((option) => option.dataset.themeValue));
     const currentTheme = validThemes.has(document.documentElement.dataset.theme)
@@ -1852,24 +1923,22 @@ class EnhancedDiagramViewer {
       } catch (_) {
         // Theme still applies when browser storage is unavailable.
       }
+
+      // The canvas paints with resolved token values, so it has to be
+      // redrawn when the theme changes.
+      if (this._layoutResult) {
+        this.renderDiagram();
+        this.updateMinimap();
+        if (this.selectedResource) {
+          this.highlightDependencies(this.selectedResource);
+        }
+      }
     };
 
     applyTheme(currentTheme);
-    settingsBtn.addEventListener("click", (event) => {
-      event.stopPropagation();
-      const visible = popover.classList.toggle("visible");
-      settingsBtn.classList.toggle("active", visible);
-      settingsBtn.setAttribute("aria-expanded", String(visible));
-    });
+    this.setupPopover("toggle-settings", "settings-popover");
     options.forEach((option) => {
       option.addEventListener("click", () => applyTheme(option.dataset.themeValue));
-    });
-    document.addEventListener("click", (event) => {
-      if (!settingsBtn.contains(event.target) && !popover.contains(event.target)) {
-        popover.classList.remove("visible");
-        settingsBtn.classList.remove("active");
-        settingsBtn.setAttribute("aria-expanded", "false");
-      }
     });
   }
 
@@ -2086,6 +2155,9 @@ class EnhancedDiagramViewer {
   // ─── Rendering ─────────────────────────────────────────────────────
 
   renderDiagram() {
+    // Resolve the theme first: every colour below is a token value.
+    this.resolveTheme();
+
     // Clear SVG using DOM API instead of innerHTML (proper SVG namespace handling)
     while (this.svg.firstChild) this.svg.removeChild(this.svg.firstChild);
 
@@ -2124,7 +2196,8 @@ class EnhancedDiagramViewer {
     defsGroup.appendChild(glowFilter);
 
     // Layer gradients
-    Object.entries(this.layers).forEach(([layerKey, layer]) => {
+    Object.entries(this.layers).forEach(([layerKey]) => {
+      const color = this.theme.layers[layerKey];
       const gradient = svgEl("linearGradient", {
         id: `gradient-${layerKey}`,
         x1: "0%",
@@ -2134,12 +2207,12 @@ class EnhancedDiagramViewer {
       });
       const stop1 = svgEl("stop", {
         offset: "0%",
-        "stop-color": layer.color,
+        "stop-color": color,
         "stop-opacity": "0.1",
       });
       const stop2 = svgEl("stop", {
         offset: "100%",
-        "stop-color": layer.color,
+        "stop-color": color,
         "stop-opacity": "0.05",
       });
       gradient.appendChild(stop1);
@@ -2148,7 +2221,8 @@ class EnhancedDiagramViewer {
     });
 
     // Arrow markers for each edge type
-    Object.entries(this.edgeStyles).forEach(([type, style]) => {
+    Object.entries(this.edgeStyles).forEach(([type]) => {
+      const style = this.theme.edges[type];
       const marker = svgEl("marker", {
         id: `arrow-${type}`,
         viewBox: "0 0 10 10",
@@ -2179,6 +2253,7 @@ class EnhancedDiagramViewer {
     Object.entries(this.layers).forEach(([layerKey, layer]) => {
       if (layer.resources.length === 0) return;
 
+      const color = this.theme.layers[layerKey];
       const visible = layer.resources.filter((r) => filteredSet.has(r));
       if (visible.length === 0) return;
 
@@ -2192,7 +2267,7 @@ class EnhancedDiagramViewer {
         width: bounds.width,
         height: bounds.height,
         fill: `url(#gradient-${layerKey})`,
-        stroke: layer.color,
+        stroke: color,
         "stroke-width": "1.5",
         "stroke-opacity": "0.5",
         "stroke-dasharray": "8,4",
@@ -2211,9 +2286,9 @@ class EnhancedDiagramViewer {
         width: labelWidth,
         height: LAYER_LABEL_H,
         rx: LAYER_LABEL_RX,
-        fill: layer.color,
+        fill: color,
         "fill-opacity": "0.15",
-        stroke: layer.color,
+        stroke: color,
         "stroke-width": "1",
         "stroke-opacity": "0.3",
       });
@@ -2222,7 +2297,7 @@ class EnhancedDiagramViewer {
       const serviceLabel = svgEl("text", {
         x: bounds.x + 8 + labelWidth / 2,
         y: bounds.y + 6 + LAYER_LABEL_H / 2 + 1,
-        fill: layer.color,
+        fill: color,
         "font-size": String(LAYER_LABEL_FONT_SIZE),
         "font-weight": "700",
         "font-family": "'Inter', sans-serif",
@@ -2246,9 +2321,9 @@ class EnhancedDiagramViewer {
             y: sgBounds.y,
             width: sgBounds.width,
             height: sgBounds.height,
-            fill: layer.color,
+            fill: color,
             "fill-opacity": "0.06",
-            stroke: layer.color,
+            stroke: color,
             "stroke-width": "1",
             "stroke-opacity": "0.3",
             rx: "8",
@@ -2259,7 +2334,7 @@ class EnhancedDiagramViewer {
           const sgLabel = svgEl("text", {
             x: sgBounds.x + 10,
             y: sgBounds.y + 20,
-            fill: layer.color,
+            fill: color,
             "font-size": "10",
             "font-weight": "600",
             "font-family": TYPE_LABEL_FONT,
@@ -2281,7 +2356,7 @@ class EnhancedDiagramViewer {
    */
   renderContainerBoxes(layersGroup, filteredSet) {
     if (!this._containerBoxes) return;
-    const vpcColor = (this.layers.vpc && this.layers.vpc.color) || "#248814";
+    const vpcColor = this.theme.containerVpc;
 
     this._containerBoxes.forEach((box, id) => {
       const resource = this._resourceMap.get(id);
@@ -2294,7 +2369,7 @@ class EnhancedDiagramViewer {
       }
 
       const isVpc = box.kind === "vpc";
-      const color = isVpc ? vpcColor : subnetColor(resource);
+      const color = isVpc ? vpcColor : subnetColor(resource, this.theme);
       const strokeWidth = isVpc ? "1.5" : "1";
       const strokeOpacity = isVpc ? "0.5" : "0.35";
       const x = resource.x - box.width / 2;
@@ -2409,7 +2484,7 @@ class EnhancedDiagramViewer {
         connection.type && this.edgeStyles[connection.type]
           ? connection.type
           : "default";
-      const style = this.edgeStyles[edgeType];
+      const style = this.theme.edges[edgeType];
 
       const dx = target.x - source.x;
       const dy = target.y - source.y;
@@ -2595,9 +2670,7 @@ class EnhancedDiagramViewer {
           width: String(textWidth),
           height: String(CONN_LABEL_HEIGHT),
           rx: "4",
-          // var() only resolves in inline styles, not in SVG presentation
-          // attributes, so the fill has to go through the style attribute.
-          style: "fill: var(--sm-terminal-bg);",
+          fill: this.theme.terminalBg,
           "fill-opacity": "0.85",
           stroke: style.color,
           "stroke-width": "0.5",
@@ -2691,7 +2764,7 @@ class EnhancedDiagramViewer {
       const halfW = NODE_CARD_W / 2;
       const halfH = NODE_CARD_H / 2;
 
-      // Outer glow rectangle
+      // Outer glow rectangle (carries the service colour)
       const glowRect = svgEl("rect", {
         x: String(-halfW - 6),
         y: String(-halfH - 6),
@@ -2700,23 +2773,23 @@ class EnhancedDiagramViewer {
         rx: String(NODE_CARD_RX + 4),
         fill: "none",
         stroke: layerColor,
-        "stroke-width": "0.5",
-        "stroke-opacity": "0.15",
+        "stroke-width": "1",
+        "stroke-opacity": "0.35",
       });
       nodeGroup.appendChild(glowRect);
 
-      // Card background rectangle
+      // Card background rectangle. The fill comes from the theme, the border
+      // carries the service colour so a card is identifiable at a glance.
       const cardBg = svgEl("rect", {
         x: String(-halfW),
         y: String(-halfH),
         width: String(NODE_CARD_W),
         height: String(NODE_CARD_H),
         rx: String(NODE_CARD_RX),
-        fill: layerColor,
-        "fill-opacity": "0.08",
+        fill: this.theme.nodeFill,
         stroke: layerColor,
         "stroke-width": "1.5",
-        "stroke-opacity": "0.4",
+        "stroke-opacity": "0.75",
       });
       if (resource.in_state_file === false) {
         cardBg.setAttribute("stroke-dasharray", "6,3");
@@ -2753,7 +2826,7 @@ class EnhancedDiagramViewer {
           y: String(TYPE_LABEL_Y_OFFSET),
           "text-anchor": "middle",
           "font-size": TYPE_LABEL_FONT_SIZE,
-          style: "fill: var(--sm-node-type);",
+          fill: this.theme.nodeType,
           "font-family": TYPE_LABEL_FONT,
         });
         typeLabel.textContent = truncateText(
@@ -2876,14 +2949,15 @@ class EnhancedDiagramViewer {
   }
 
   getResourceColor(resource) {
-    const layer = this.layers[resource.layer];
-    return layer ? layer.color : "#888";
+    const layers = (this.theme && this.theme.layers) || {};
+    return layers[resource.layer] || layers.other || "currentColor";
   }
 
   // ─── Minimap ───────────────────────────────────────────────────────
 
   updateMinimap() {
     if (!this.showMinimap) return;
+    if (!this.theme) this.resolveTheme();
 
     const allResources = this.resources;
     if (allResources.length === 0) return;
@@ -2917,7 +2991,7 @@ class EnhancedDiagramViewer {
         r: isVisible
           ? String(MINIMAP_DOT_SIZE)
           : String(MINIMAP_DOT_HIDDEN_SIZE),
-        fill: isVisible ? this.getResourceColor(resource) : "#666",
+        fill: isVisible ? this.getResourceColor(resource) : this.theme.textMuted,
         opacity: isVisible ? "1" : "0.3",
       });
       this.minimapSvg.appendChild(dot);
@@ -2929,7 +3003,7 @@ class EnhancedDiagramViewer {
       width: MINIMAP_WIDTH - 10,
       height: MINIMAP_HEIGHT - 10,
       fill: "none",
-      stroke: "#4ADE80",
+      stroke: this.theme.primary,
       "stroke-width": "1",
       opacity: "0.6",
     });
@@ -2982,20 +3056,22 @@ class EnhancedDiagramViewer {
       sidebar.style.minWidth = "0";
       sidebar.style.overflow = "hidden";
       sidebar.style.borderRight = "none";
-      toggle.textContent = "\u2630"; // hamburger menu character
     } else {
       sidebar.classList.remove("collapsed");
       sidebar.style.width = "";
       sidebar.style.minWidth = "";
       sidebar.style.overflow = "";
       sidebar.style.borderRight = "";
-      toggle.textContent = "\u2715"; // multiplication sign (close)
     }
+
+    // The button swaps between the menu and the close icon.
+    toggle.classList.toggle("is-collapsed", this.sidebarCollapsed);
   }
 
   toggleLabels() {
     this.showLabels = !this.showLabels;
     document.getElementById("toggle-labels").classList.toggle("active");
+    this.syncViewButtonState();
     // Toggle label visibility via CSS class instead of full re-render
     const nodesGroup = this.svg.querySelector(".nodes");
     if (nodesGroup) {
@@ -3007,6 +3083,21 @@ class EnhancedDiagramViewer {
     this.showMinimap = !this.showMinimap;
     document.getElementById("minimap").classList.toggle("hidden");
     document.getElementById("toggle-minimap").classList.toggle("active");
+    this.syncViewButtonState();
+  }
+
+  /**
+   * The view options live in a popover, so the View button itself has to
+   * show that one of them is enabled.
+   */
+  syncViewButtonState() {
+    const button = document.getElementById("toggle-view-options");
+    if (!button) return;
+    const anyOn = ["toggle-grid", "toggle-labels", "toggle-minimap", "toggle-flow"].some((id) => {
+      const element = document.getElementById(id);
+      return element && element.classList.contains("active");
+    });
+    button.classList.toggle("has-active-options", anyOn);
   }
 
   togglePresentationMode() {
@@ -3019,6 +3110,7 @@ class EnhancedDiagramViewer {
     this.showFlowAnimations = !this.showFlowAnimations;
     const btn = document.getElementById("toggle-flow");
     if (btn) btn.classList.toggle("active");
+    this.syncViewButtonState();
 
     const dots = this.svg.querySelectorAll(".flow-dot");
     if (dots.length > 0 && !this.showFlowAnimations) {
@@ -3412,8 +3504,12 @@ class EnhancedDiagramViewer {
   }
 
   updateStats() {
-    document.getElementById("visible-count").textContent =
-      this.filteredResources.length;
+    const visible = this.filteredResources.length;
+    const counter = document.getElementById("visible-count");
+    const item = document.getElementById("visible-stat");
+    if (counter) counter.textContent = visible;
+    // "Visible" only says something once a filter hides resources.
+    if (item) item.classList.toggle("hidden", visible >= this.resources.length);
   }
 
   // ─── Selection & Dependencies ──────────────────────────────────────
@@ -3523,10 +3619,10 @@ class EnhancedDiagramViewer {
     const rects = element.querySelectorAll("rect");
     if (rects.length >= 2) {
       // First rect is glow ring, second is card background
-      rects[0].setAttribute("stroke-width", selected ? "1" : "0.5");
-      rects[0].setAttribute("stroke-opacity", selected ? "0.5" : "0.15");
+      rects[0].setAttribute("stroke-width", selected ? "1.5" : "1");
+      rects[0].setAttribute("stroke-opacity", selected ? "0.7" : "0.35");
       rects[1].setAttribute("stroke-width", selected ? "2.5" : "1.5");
-      rects[1].setAttribute("stroke-opacity", selected ? "1" : "0.4");
+      rects[1].setAttribute("stroke-opacity", selected ? "1" : "0.75");
     }
   }
 
@@ -3650,7 +3746,8 @@ class EnhancedDiagramViewer {
     const closeBtn = document.createElement("button");
     closeBtn.id = "close-details";
     closeBtn.className = "close-btn";
-    closeBtn.textContent = "\u00D7"; // &times;
+    closeBtn.setAttribute("aria-label", "Close resource details");
+    closeBtn.appendChild(svgIcon(["M18 6L6 18M6 6l12 12"]));
     closeBtn.onclick = () => {
       panel.classList.remove("visible");
       this.clearDependencyHighlighting();
@@ -3889,7 +3986,7 @@ class EnhancedDiagramViewer {
       tooltip.appendChild(document.createElement("br"));
 
       const subtitleSpan = document.createElement("span");
-      subtitleSpan.style.color = "rgba(245,245,247,0.6)";
+      subtitleSpan.style.color = "var(--sm-text-muted)";
       subtitleSpan.textContent = payload.subtitle;
       tooltip.appendChild(subtitleSpan);
     }
@@ -3898,7 +3995,7 @@ class EnhancedDiagramViewer {
       tooltip.appendChild(document.createElement("br"));
 
       const labelSpan = document.createElement("span");
-      labelSpan.style.color = "rgba(245,245,247,0.6)";
+      labelSpan.style.color = "var(--sm-text-muted)";
       labelSpan.textContent = `${row.label}: `;
       tooltip.appendChild(labelSpan);
 

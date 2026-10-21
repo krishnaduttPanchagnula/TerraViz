@@ -135,7 +135,7 @@ Click any resource to see its properties, connections, and metadata.
 
 ### Interactive Web Diagrams
 - SVG-based rendering with zoom, pan, and fit-to-view
-- **Floating toolbar** — zoom, grid, labels, minimap, flow animation, legend, export, presentation, and display settings
+- **Floating toolbar** — a zoom cluster, a View menu (grid, labels, minimap, flow animation, connection legend), an Export menu (PNG, SVG, CSV, Mermaid, DOT), presentation mode and display settings
 - **Relation-aware layout** — services and resources are ordered by their position in the dependency graph instead of a fixed list, so the busiest paths sit close together
 - **AWS-style containment** — VPCs, subnets and the resources inside them are drawn as nested containers
 - Filter by resource type, provider, region, or state
@@ -153,10 +153,11 @@ Click any resource to see its properties, connections, and metadata.
 - Browser UI served at `/` with REST endpoints under `/api/`
 
 ### Themes and Design
-- Dark, Aurora, Light, and Sand themes with browser-persisted settings
+- Dark and Light themes with browser-persisted settings
 - Dot-grid architecture canvas with hierarchical service and resource-type containers
-- Geist + JetBrains Mono typography with systematized design tokens (spacing, shadows, motion, radius)
-- Animated expand/collapse sidebar sections with smooth CSS transitions
+- Inter + JetBrains Mono typography, bundled with the binary — no CDN at runtime
+- One token set for the chrome and the canvas: edge, service, node and container colours are theme tokens, not hardcoded values
+- Flat sidebar with one continuous scroll, and a single import entry point at a time
 - Button micro-interactions (hover glow, active scale)
 
 ### Infrastructure Comparison
