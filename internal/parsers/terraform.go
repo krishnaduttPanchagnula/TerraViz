@@ -93,6 +93,7 @@ func (p *TerraformParser) parseTerraformShowJSON(data []byte) (*models.ScanResul
 			Source:    "terraform",
 			InputPath: "terraform show -json",
 		},
+		ReferencedMissing: DetectMissingReferences(diagram.Resources),
 	}
 
 	return result, nil
@@ -193,6 +194,7 @@ func (p *TerraformParser) parseRawStateFile(data []byte, filePath string) (*mode
 			Source:    "terraform",
 			InputPath: filePath,
 		},
+		ReferencedMissing: DetectMissingReferences(diagram.Resources),
 	}
 
 	return result, nil
@@ -260,7 +262,7 @@ func (p *TerraformParser) convertRawTerraformResource(rawResource RawStateResour
 			Type:         models.ResourceTypeUnknown,
 			Provider:     p.extractProvider(rawResource.Provider),
 			State:        models.ResourceStateActive,
-			Properties:   map[string]interface{}{"terraform_type": rawResource.Type},
+			Properties:   unknownTypeProperties(rawResource.Type, instance.Attributes),
 			Tags:         p.extractTags(instance.Attributes),
 			Source:       "terraform",
 			InStateFile:  true,
@@ -301,6 +303,19 @@ func (p *TerraformParser) convertRawTerraformResource(rawResource RawStateResour
 	}
 
 	return resource, nil
+}
+
+// unknownTypeProperties returns the properties of a resource whose type
+// TerraViz does not model. It keeps the identity of the resource, so that a
+// reference to it is not reported as a missing reference.
+func unknownTypeProperties(terraformType string, attributes map[string]interface{}) map[string]interface{} {
+	properties := map[string]interface{}{"terraform_type": terraformType}
+	for _, key := range []string{"id", "arn"} {
+		if value, ok := attributes[key].(string); ok && value != "" {
+			properties[key] = value
+		}
+	}
+	return properties
 }
 
 // extractRawResourceName extracts a meaningful name from a raw state resource
@@ -356,7 +371,7 @@ func (p *TerraformParser) convertTerraformResource(tfResource *tfjson.StateResou
 			Type:         models.ResourceTypeUnknown,
 			Provider:     p.extractProvider(tfResource.ProviderName),
 			State:        models.ResourceStateActive,
-			Properties:   map[string]interface{}{"terraform_type": tfResource.Type},
+			Properties:   unknownTypeProperties(tfResource.Type, tfResource.AttributeValues),
 			Tags:         p.extractTags(tfResource.AttributeValues),
 			Source:       "terraform",
 			InStateFile:  true,

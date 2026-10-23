@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"terraviz/internal/exporters"
 	"terraviz/internal/models"
 	"terraviz/internal/parsers"
 	"terraviz/internal/scanners"
@@ -269,6 +271,86 @@ var serveCmd = &cobra.Command{
 	},
 }
 
+var exportCmd = &cobra.Command{
+	Use:   "export [input]",
+	Short: "Export a diagram to HTML, Mermaid, DOT, draw.io, CSV or Markdown",
+	Long: `Export a diagram to a file.
+
+The input is either a diagram JSON written by "terraviz scan" or a Terraform
+state file, which is scanned first.`,
+	Args: cobra.ExactArgs(1),
+	Run:  runExport,
+}
+
+func runExport(cmd *cobra.Command, args []string) {
+	printHeader()
+
+	format, _ := cmd.Flags().GetString("format")
+	output, _ := cmd.Flags().GetString("output")
+
+	diagram, err := loadDiagramForExport(args[0])
+	if err != nil {
+		fatalf("Error loading diagram: %v", err)
+	}
+
+	data, err := exporters.Export(diagram, format)
+	if err != nil {
+		fatalf("Error exporting diagram: %v", err)
+	}
+
+	if output == "" {
+		output = defaultExportPath(args[0], format)
+	}
+	if err := os.WriteFile(output, data, filePermissions); err != nil {
+		fatalf("Error saving export: %v", err)
+	}
+
+	fmt.Printf("Exported %d resources and %d connections as %s to %s (%d bytes)\n",
+		len(diagram.Resources), len(diagram.Connections), format, output, len(data))
+}
+
+// loadDiagramForExport reads a diagram JSON or a Terraform state file and
+// returns the diagram it holds.
+func loadDiagramForExport(path string) (*models.Diagram, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+
+	// A diagram JSON is either a scan result or a bare diagram. Anything else
+	// is a Terraform state file, which is scanned first.
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(data, &envelope); err == nil {
+		if _, ok := envelope["diagram"]; ok {
+			var result models.ScanResult
+			if err := json.Unmarshal(data, &result); err != nil {
+				return nil, fmt.Errorf("parsing %s: %w", path, err)
+			}
+			return &result.Diagram, nil
+		}
+		if _, ok := envelope["resources"]; ok {
+			var diagram models.Diagram
+			if err := json.Unmarshal(data, &diagram); err != nil {
+				return nil, fmt.Errorf("parsing %s: %w", path, err)
+			}
+			return &diagram, nil
+		}
+	}
+
+	result, err := parsers.NewTerraformParser().ParseStateFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", path, err)
+	}
+	return &result.Diagram, nil
+}
+
+// defaultExportPath derives the output path from the input path and the
+// format: diagram.json becomes diagram.html.
+func defaultExportPath(input, format string) string {
+	base := strings.TrimSuffix(input, filepath.Ext(input))
+	return base + exporters.Extension(format)
+}
+
 func init() {
 	scanCmd.AddCommand(terraformCmd)
 	scanCmd.AddCommand(awsCmd)
@@ -276,10 +358,16 @@ func init() {
 	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(compareCmd)
 	rootCmd.AddCommand(serveCmd)
+	rootCmd.AddCommand(exportCmd)
 
 	// Global flags
 	rootCmd.PersistentFlags().StringP("output", "o", defaultOutputFile, "Output file for the scan results")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Verbose output")
+
+	// Export-specific flags. The output flag shadows the global one, because
+	// the default of the export is derived from the input file.
+	exportCmd.Flags().StringP("format", "f", exporters.FormatHTML, "Export format: "+strings.Join(exporters.Formats, "|"))
+	exportCmd.Flags().StringP("output", "o", "", "Output file (default: the input name with the format extension)")
 
 	// Version template with build metadata.
 	rootCmd.SetVersionTemplate(fmt.Sprintf("terraviz %s (commit: %s, built: %s)\n", version, commit, date))

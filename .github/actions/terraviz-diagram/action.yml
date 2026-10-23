@@ -1,0 +1,148 @@
+name: 'TerraViz Diagram'
+description: 'Scan a Terraform state file and publish an interactive architecture diagram. Reports the change as a Mermaid diagram and a summary, and ships a self-contained HTML artifact.'
+author: 'TerraViz'
+branding:
+  icon: 'image'
+  color: 'green'
+
+inputs:
+  state_path:
+    description: 'Path to a Terraform state (.tfstate) or `terraform show -json` output.'
+    required: true
+  terraviz_path:
+    description: 'Path to a pre-installed terraviz binary. Skips the download.'
+    required: false
+    default: ''
+  version:
+    description: 'TerraViz release tag to install (e.g. v1.0.0). Use "latest" for the newest.'
+    required: false
+    default: 'latest'
+  formats:
+    description: 'Comma-separated export formats from: html, mermaid, dot, drawio, csv, markdown.'
+    required: false
+    default: 'markdown,html'
+  output_dir:
+    description: 'Directory where the diagram and the exports are written.'
+    required: false
+    default: 'terraviz-diagram'
+
+outputs:
+  diagram_json:
+    description: 'Path to the generated diagram JSON.'
+    value: ${{ steps.exports.outputs.diagram_json }}
+  markdown:
+    description: 'Path to the generated markdown summary (contains a Mermaid diagram).'
+    value: ${{ steps.exports.outputs.markdown }}
+  html:
+    description: 'Path to the self-contained interactive HTML diagram, if produced.'
+    value: ${{ steps.exports.outputs.html }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Verify the state file exists
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ ! -f "${{ inputs.state_path }}" ]; then
+          echo "::error::state file not found: ${{ inputs.state_path }}"
+          exit 1
+        fi
+
+    - name: Install TerraViz (unless terraviz_path is set)
+      if: inputs.terraviz_path == ''
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ "${{ inputs.version }}" = "latest" ]; then
+          api_url="https://api.github.com/repos/krishnaduttPanchagnula/TerraViz/releases/latest"
+        else
+          api_url="https://api.github.com/repos/krishnaduttPanchagnula/TerraViz/releases/tags/${{ inputs.version }}"
+        fi
+        meta="$(curl -fsSL "$api_url")"
+        machine="$(uname -m)"
+        case "$machine" in
+          x86_64)  arch=amd64 ;;
+          aarch64|arm64) arch=arm64 ;;
+          *) echo "::error::unsupported architecture: $machine"; exit 1 ;;
+        esac
+        os_name="$(uname -s | tr '[:upper:]' '[:lower:]')"
+        case "$os_name" in
+          linux|darwin) : ;;
+          *) echo "::error::unsupported OS: $os_name"; exit 1 ;;
+        esac
+        asset_url="$(printf '%s' "$meta" \
+          | grep -o 'https://[^"]*\.tar\.gz' \
+          | grep "_${os_name}_${arch}\.tar\.gz" \
+          | head -n 1)"
+        test -n "$asset_url" || { echo "::error::no release asset matches ${os_name}/${arch}"; exit 1; }
+        curl -fsSL "$asset_url" -o /tmp/terraviz.tar.gz
+        rm -rf /tmp/terraviz-install && mkdir -p /tmp/terraviz-install
+        tar -xzf /tmp/terraviz.tar.gz -C /tmp/terraviz-install
+        tpath="$(find /tmp/terraviz-install -type f -name terraviz | head -n 1)"
+        test -n "$tpath" || { echo "::error::terraviz binary not found in archive"; exit 1; }
+        mkdir -p "$HOME/.local/bin"
+        install -m 0755 "$tpath" "$HOME/.local/bin/terraviz"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        "$HOME/.local/bin/terraviz" --version
+
+    - name: Resolve the terraviz binary path
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -n "${{ inputs.terraviz_path }}" ]; then
+          test -x "${{ inputs.terraviz_path }}" || { echo "::error::terraviz_path is not executable: ${{ inputs.terraviz_path }}"; exit 1; }
+          bin="${{ inputs.terraviz_path }}"
+        else
+          bin="$HOME/.local/bin/terraviz"
+        fi
+        test -x "$bin" || { echo "::error::terraviz binary not resolved"; exit 1; }
+        echo "TERRAVIZ_BIN=$bin" >> "$GITHUB_ENV"
+
+    - name: Scan the Terraform state
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p "${{ inputs.output_dir }}"
+        "$TERRAVIZ_BIN" scan terraform "${{ inputs.state_path }}" \
+          -o "${{ inputs.output_dir }}/diagram.json" \
+          --verbose
+
+    - name: Export the requested formats
+      id: exports
+      shell: bash
+      run: |
+        set -euo pipefail
+        dir="${{ inputs.output_dir }}"
+        formats="${{ inputs.formats }}"
+        IFS=',' read -ra fmts <<< "$formats"
+        md=""
+        html=""
+        for raw in "${fmts[@]}"; do
+          fmt="$(echo "$raw" | xargs | tr '[:upper:]' '[:lower:]')"
+          case "$fmt" in
+            html|mermaid|dot|drawio|csv|markdown) : ;;
+            *) echo "::error::unknown format: $fmt"; exit 1 ;;
+          esac
+          case "$fmt" in
+            markdown) out="summary.md" ;;
+            mermaid)  out="diagram.mmd" ;;
+            *)        out="diagram.$fmt" ;;
+          esac
+          echo "::group::exporting $fmt"
+          "$TERRAVIZ_BIN" export "$dir/diagram.json" --format "$fmt" -o "$dir/$out"
+          echo "::endgroup::"
+          case "$fmt" in
+            markdown) echo "markdown=$dir/$out" >> "$GITHUB_OUTPUT" ;;
+            html)     echo "html=$dir/$out" >> "$GITHUB_OUTPUT" ;;
+          esac
+        done
+        echo "diagram_json=$dir/diagram.json" >> "$GITHUB_OUTPUT"
+
+    - name: Upload the diagram artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: terraviz-diagram
+        path: ${{ inputs.output_dir }}
+        if-no-files-found: error
+        retention-days: 14

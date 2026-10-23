@@ -52,6 +52,10 @@ web/
 scripts/
   check-diagram-js.js               Self-check for the frontend layout, containment and trace logic
 docs/
+  competitor-research.md         Benchmark analysis of 5 competitors (Cloudcraft, TerraVision, Rover, Pluralith, Inframap)
+  feature-evidence.md            Per-feature evidence behind the benchmark analysis
+  feature-priority.md            Ranked feature list with the scoring method
+  gcp_azure_implementation.md    Plan for the non-AWS providers
   screenshots/                      UI screenshots for README (enhanced-ui, resource-details)
 .goreleaser.yml                     GoReleaser v2 config (linux/darwin/windows x amd64/arm64)
 .github/workflows/release.yml      GitHub Actions -- triggers on v* tags, runs GoReleaser

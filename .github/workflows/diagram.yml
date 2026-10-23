@@ -1,0 +1,42 @@
+name: TerraViz Diagram
+
+# This workflow is manual only. It never runs on ordinary pushes or pull
+# requests, so it cannot break the repository's CI. Trigger it from the
+# Actions tab, passing an existing Terraform state file.
+on:
+  workflow_dispatch:
+    inputs:
+      state_path:
+        description: 'Path to a .tfstate or `terraform show -json` output.'
+        required: true
+        default: 'diagram.json'
+      pr_number:
+        description: 'Optional pull-request number. When set, the summary is posted as a comment on that PR.'
+        required: false
+        type: number
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: write
+
+jobs:
+  diagram:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate diagram and exports
+        id: viz
+        uses: ./.github/actions/terraviz-diagram
+        with:
+          state_path: ${{ inputs.state_path }}
+
+      - name: Post the summary as a PR comment
+        if: ${{ inputs.pr_number != 0 && steps.viz.outputs.markdown != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh pr comment "${{ inputs.pr_number }}" --body-file "${{ steps.viz.outputs.markdown }}"

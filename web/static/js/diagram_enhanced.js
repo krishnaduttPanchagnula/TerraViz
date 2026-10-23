@@ -8,36 +8,38 @@ const ZOOM_MAX = 5;
 const ZOOM_FACTOR_IN = 1.1;
 const ZOOM_FACTOR_OUT = 0.9;
 
-const NODE_RADIUS = 40;
-const GLOW_RING_RADIUS = 50;
-const ICON_OFFSET = 24; // half of icon dimension (48/2)
-const ICON_SIZE = 48;
+const ICON_OFFSET = 20; // half of icon dimension (40/2)
+const ICON_SIZE = 40;
 
 // Rectangular card dimensions for AWS-style node rendering
-const NODE_CARD_W = 110;
-const NODE_CARD_H = 90;
-const NODE_CARD_RX = 10;
-const NODE_ICON_Y = -18; // icon center Y offset within card (upper portion)
+const NODE_CARD_W = 120;
+const NODE_CARD_H = 100;
+const NODE_CARD_RX = 8;
+// The service band on top of a card: the service colour, structurally.
+const NODE_TAB_H = 8;
+const NODE_ICON_Y = -12; // icon center Y offset within card (upper portion)
 
-const LABEL_Y_OFFSET = 22;
-const TYPE_LABEL_Y_OFFSET = 36;
+const LABEL_Y_OFFSET = 26;
+const TYPE_LABEL_Y_OFFSET = 42;
+// The label budgets: the name is the sans face, the type the mono face.
 const LABEL_MAX_CHARS = 14;
-const TYPE_LABEL_MAX_CHARS = 20;
-const TYPE_LABEL_FONT_SIZE = "9";
+const TYPE_LABEL_MAX_CHARS = 18;
 const TYPE_LABEL_FONT = "'JetBrains Mono', monospace";
 
 // Layer label badge dimensions
 const LAYER_LABEL_H = 24;
 const LAYER_LABEL_RX = 6;
-const LAYER_LABEL_FONT_SIZE = 11;
 const LAYER_LABEL_PAD_X = 10;
 const LAYER_LABEL_PAD_Y = 8;
 
 const LAYOUT_PADDING_X = 40;
-const LAYOUT_GAP = 80;
 const LAYER_CONTENT_PADDING_X = 24;
 const LAYER_HEADER_HEIGHT = 44;
 const LAYER_CONTENT_PADDING_BOTTOM = 24;
+// The service sections sit next to each other: the gap is between the
+// section boxes, the rows of sections are separated by a taller gap.
+const SECTION_GAP_X = 28;
+const SECTION_GAP_Y = 48;
 const SUBGROUP_PADDING_X = 24;
 const SUBGROUP_HEADER_HEIGHT = 36;
 const SUBGROUP_PADDING_BOTTOM = 24;
@@ -76,9 +78,8 @@ const MINIMAP_DOT_SIZE = 2;
 const MINIMAP_DOT_HIDDEN_SIZE = 1;
 const MINIMAP_SCALE_FACTOR = 0.8;
 
-const CONN_LABEL_FONT_SIZE = "9";
 const CONN_LABEL_MAX_CHARS = 24;
-const CONN_LABEL_CHAR_WIDTH = 5.5;
+const CONN_LABEL_CHAR_WIDTH = 6;
 const CONN_LABEL_PAD = 12;
 const CONN_LABEL_HEIGHT = 16;
 
@@ -103,6 +104,11 @@ const SEARCH_DEBOUNCE_MS = 300;
 
 const FIT_VIEW_DELAY_MS = 200;
 const RESET_FIT_DELAY_MS = 100;
+
+// The entrance choreography: the nodes rise one after the other, the edges
+// come up underneath. The stagger is capped so a big graph still settles fast.
+const ENTRANCE_MAX_STAGGER_INDEX = 20;
+const ENTRANCE_CLEANUP_MS = 900;
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -161,6 +167,63 @@ function themeToken(name, fallback) {
 
 function truncateText(text, maxLength) {
   return text.length > maxLength ? text.substring(0, maxLength) + "..." : text;
+}
+
+/**
+ * Truncate a canvas label so the result never exceeds `max` characters,
+ * the ellipsis included. The canvas labels have a width budget.
+ */
+function truncateLabel(text, max) {
+  const value = String(text == null ? "" : text);
+  return value.length > max
+    ? value.substring(0, Math.max(1, max - 3)) + "..."
+    : value;
+}
+
+/**
+ * The type as it is written on a card.
+ *
+ * The provider prefix is redundant there: the band already names the
+ * service, and the full type stays in the tooltip, the table and the panel.
+ */
+function canvasTypeLabel(type) {
+  const parts = String(type == null ? "" : type).split(":");
+  return parts.length >= 3 ? parts.slice(1).join(":") : String(type || "");
+}
+
+/**
+ * Path of the service band that runs across the top of a node card.
+ *
+ * The band is the service colour: it is the one structural place where a
+ * card says which service it belongs to. The top corners follow the radius
+ * of the card, the bottom edge is flat.
+ */
+function serviceTabPath(halfW, halfH, rx, height) {
+  const top = -halfH;
+  const bottom = top + height;
+  return (
+    `M ${-halfW + rx},${top}` +
+    ` H ${halfW - rx}` +
+    ` A ${rx},${rx} 0 0 1 ${halfW},${top + rx}` +
+    ` L ${halfW},${bottom}` +
+    ` H ${-halfW}` +
+    ` L ${-halfW},${top + rx}` +
+    ` A ${rx},${rx} 0 0 1 ${-halfW + rx},${top}` +
+    ` Z`
+  );
+}
+
+/**
+ * Remove the transient entrance-animation values from an exported clone.
+ *
+ * The entrance is a moment, not a state: an export has to show the settled
+ * diagram, so the animated opacity is dropped and the marker removed.
+ */
+function stripEntranceState(root) {
+  root.querySelectorAll("[data-entrance]").forEach((el) => {
+    el.removeAttribute("opacity");
+    el.removeAttribute("data-entrance");
+  });
 }
 
 /** Simple debounce helper. */
@@ -936,52 +999,76 @@ function computeDiagramLayout(resources, connections, layerDefs, canvasWidth) {
     }
   };
 
-  let currentY = LAYOUT_START_Y;
-  let networkLayout = null;
+  /**
+   * Pack items into rows.
+   *
+   * The items keep their order: a row is filled until the next item
+   * would not fit inside the content width, then a new row starts below
+   * it. The offsets are relative to the block's own top left corner.
+   */
+  const packRows = (items, gapX, gapY) => {
+    const rows = [];
+    let row = { items: [], width: 0, height: 0 };
 
-  sections.forEach((section) => {
+    items.forEach((item) => {
+      const next = row.items.length
+        ? row.width + gapX + item.width
+        : item.width;
+      if (row.items.length && next > maxContentWidth) {
+        rows.push(row);
+        row = { items: [], width: 0, height: 0 };
+      }
+      row.width = row.items.length
+        ? row.width + gapX + item.width
+        : item.width;
+      row.height = Math.max(row.height, item.height);
+      row.items.push(item);
+    });
+    if (row.items.length) rows.push(row);
+
+    const offsets = [];
+    let y = 0;
+    rows.forEach((r) => {
+      let x = 0;
+      r.items.forEach((item) => {
+        offsets.push({ x, y });
+        x += item.width + gapX;
+      });
+      y += r.height + gapY;
+    });
+
+    return {
+      offsets,
+      width: rows.reduce((acc, r) => Math.max(acc, r.width), 0),
+      height: rows.length ? y - gapY : 0,
+    };
+  };
+
+  // ── MEASURE ─────────────────────────────────────────────────────────────
+  // Every section is measured before anything is placed: the subgroups
+  // keep their own size and the section gets the width and the height
+  // its content needs. Nothing is positioned yet.
+  const measured = sections.map((section) => {
     if (section.kind === "network") {
       const sizes = section.entries.map(sizeNetworkEntry);
-      let rowX = LAYOUT_PADDING_X;
-      let rowY = currentY;
-      let rowMaxH = 0;
-      let maxRight = rowX;
-      let maxBottom = rowY;
-
-      sizes.forEach((size, i) => {
-        if (
-          rowX + size.width > LAYOUT_PADDING_X + maxContentWidth &&
-          rowX > LAYOUT_PADDING_X
-        ) {
-          rowY += rowMaxH + BOX_GAP;
-          rowX = LAYOUT_PADDING_X;
-          rowMaxH = 0;
-        }
-        placeNetworkEntry(section.entries[i], size, rowX, rowY);
-        maxRight = Math.max(maxRight, rowX + size.width);
-        maxBottom = Math.max(maxBottom, rowY + size.height);
-        rowX += size.width + BOX_GAP;
-        rowMaxH = Math.max(rowMaxH, size.height);
-      });
-
-      section.bounds = {
-        x: LAYOUT_PADDING_X,
-        y: currentY,
-        width: maxRight - LAYOUT_PADDING_X + LAYER_CONTENT_PADDING_X,
-        height: maxBottom - currentY + LAYER_CONTENT_PADDING_BOTTOM,
+      const packed = packRows(sizes, BOX_GAP, BOX_GAP);
+      return {
+        section,
+        kind: "network",
+        sizes,
+        packed,
+        contentWidth: packed.width,
+        contentHeight: packed.height,
+        height: packed.height + LAYER_CONTENT_PADDING_BOTTOM,
       };
-      currentY = section.bounds.y + section.bounds.height + LAYOUT_GAP;
-      networkLayout = { bounds: section.bounds, entries: section.entries };
-      return;
     }
 
-    // service layer box
     const sgLayouts = {};
-    section.sgKeys.forEach((sgKey) => {
+    const sgItems = section.sgKeys.map((sgKey) => {
       const list = section.subgroups.get(sgKey) || [];
       const cols = Math.max(1, Math.min(list.length, NODES_PER_ROW));
       const rows = Math.max(1, Math.ceil(list.length / NODES_PER_ROW));
-      sgLayouts[sgKey] = {
+      const sg = {
         resources: list,
         cols,
         rows,
@@ -995,69 +1082,108 @@ function computeDiagramLayout(resources, connections, layerDefs, canvasWidth) {
           Math.max(0, rows - 1) * NODE_GAP_Y +
           SUBGROUP_PADDING_BOTTOM,
       };
+      sgLayouts[sgKey] = sg;
+      return sg;
     });
+    const packed = packRows(sgItems, SUBGROUP_GAP, SUBGROUP_GAP);
+    return {
+      section,
+      kind: "layer",
+      sgLayouts,
+      packed,
+      contentWidth: packed.width,
+      contentHeight: packed.height,
+      height:
+        LAYER_HEADER_HEIGHT +
+        packed.height +
+        LAYER_CONTENT_PADDING_BOTTOM,
+    };
+  });
 
-    const layerX = LAYOUT_PADDING_X;
-    const layerY = currentY;
-    const contentX = layerX + LAYER_CONTENT_PADDING_X;
-    const contentY = layerY + LAYER_HEADER_HEIGHT;
-    let rowX = contentX;
-    let rowY = contentY;
-    let rowMaxH = 0;
-    let maxRight = contentX;
-    let maxBottom = contentY;
+  // ── PLACE ───────────────────────────────────────────────────────────────
+  // The measured sections are laid out left to right and they wrap into
+  // the next row when the next one would not fit inside the content
+  // width. The sections keep the flow order, so the diagram still reads
+  // from the most upstream service to the most downstream one.
+  const contentX = LAYOUT_PADDING_X + LAYER_CONTENT_PADDING_X;
+  const contentGap = LAYER_CONTENT_PADDING_X * 2 + SECTION_GAP_X;
+  let rowX = contentX;
+  let rowY = LAYOUT_START_Y;
+  let rowMaxH = 0;
+  let networkLayout = null;
 
-    section.sgKeys.forEach((sgKey) => {
-      const sg = sgLayouts[sgKey];
+  measured.forEach((m) => {
+    const section = m.section;
 
-      if (
-        rowX + sg.width > contentX + maxContentWidth &&
-        rowX > contentX
-      ) {
-        rowY += rowMaxH + SUBGROUP_GAP;
-        rowX = contentX;
-        rowMaxH = 0;
-      }
+    if (
+      rowX + m.contentWidth > contentX + maxContentWidth &&
+      rowX > contentX
+    ) {
+      rowY += rowMaxH + SECTION_GAP_Y;
+      rowX = contentX;
+      rowMaxH = 0;
+    }
 
-      sg.x = rowX;
-      sg.y = rowY;
+    if (m.kind === "network") {
+      const contentTop = rowY;
+      m.sizes.forEach((size, i) => {
+        placeNetworkEntry(
+          section.entries[i],
+          size,
+          rowX + m.packed.offsets[i].x,
+          contentTop + m.packed.offsets[i].y,
+        );
+      });
+      section.bounds = {
+        x: rowX,
+        y: rowY,
+        width: m.contentWidth + LAYER_CONTENT_PADDING_X,
+        height: m.height,
+      };
+      networkLayout = { bounds: section.bounds, entries: section.entries };
+    } else {
+      const contentTop = rowY + LAYER_HEADER_HEIGHT;
+      section.sgKeys.forEach((sgKey, i) => {
+        const sg = m.sgLayouts[sgKey];
+        sg.x = rowX + m.packed.offsets[i].x;
+        sg.y = contentTop + m.packed.offsets[i].y;
 
-      sg.resources.forEach((resource, idx) => {
-        const col = idx % NODES_PER_ROW;
-        const row = Math.floor(idx / NODES_PER_ROW);
-        positions.set(resource.id, {
-          x:
-            rowX +
-            SUBGROUP_PADDING_X +
-            NODE_CARD_W / 2 +
-            col * (NODE_CARD_W + NODE_GAP_X),
-          y:
-            rowY +
-            SUBGROUP_HEADER_HEIGHT +
-            NODE_CARD_H / 2 +
-            row * (NODE_CARD_H + NODE_GAP_Y),
+        sg.resources.forEach((resource, idx) => {
+          const col = idx % NODES_PER_ROW;
+          const row = Math.floor(idx / NODES_PER_ROW);
+          positions.set(resource.id, {
+            x:
+              sg.x +
+              SUBGROUP_PADDING_X +
+              NODE_CARD_W / 2 +
+              col * (NODE_CARD_W + NODE_GAP_X),
+            y:
+              sg.y +
+              SUBGROUP_HEADER_HEIGHT +
+              NODE_CARD_H / 2 +
+              row * (NODE_CARD_H + NODE_GAP_Y),
+          });
         });
       });
 
-      maxRight = Math.max(maxRight, rowX + sg.width);
-      maxBottom = Math.max(maxBottom, rowY + sg.height);
-      rowX += sg.width + SUBGROUP_GAP;
-      rowMaxH = Math.max(rowMaxH, sg.height);
-    });
+      section.bounds = {
+        x: rowX - LAYER_CONTENT_PADDING_X,
+        y: rowY,
+        width: m.contentWidth + LAYER_CONTENT_PADDING_X * 2,
+        height: m.height,
+      };
+      layerLayouts[section.key] = {
+        sgLayouts: m.sgLayouts,
+        subgroupKeys: section.sgKeys,
+        bounds: section.bounds,
+      };
+    }
 
-    const bounds = {
-      x: layerX,
-      y: layerY,
-      width: maxRight - layerX + LAYER_CONTENT_PADDING_X,
-      height: maxBottom - layerY + LAYER_CONTENT_PADDING_BOTTOM,
-    };
-    currentY = layerY + bounds.height + LAYOUT_GAP;
-    layerLayouts[section.key] = {
-      sgLayouts,
-      subgroupKeys: section.sgKeys,
-      bounds,
-    };
+    rowX += m.contentWidth + contentGap;
+    rowMaxH = Math.max(rowMaxH, m.height);
   });
+
+  const currentY = rowY + rowMaxH;
 
   // safety net: every resource needs a finite position
   let fallback = 0;
@@ -1119,6 +1245,125 @@ function mermaidNodeId(resourceId, used) {
   while (used.has(id)) id = `${base}_${suffix++}`;
   used.add(id);
   return id;
+}
+
+/**
+ * Pure presentation transform used by the "Simplified view" toggle.
+ *
+ * Collapses the given resources into one aggregate node per (service layer,
+ * resource type), remapping the connections between the groups. Referenced-but-
+ * missing placeholders (in_state_file === false) stay individual: they are
+ * findings, not bulk. Self-edges and duplicate pairs are dropped.
+ *
+ * @param {Array} resources
+ * @param {Array} connections
+ * @returns {{ resources: Array, connections: Array }}
+ */
+function buildSimplifiedGraph(resources, connections) {
+  const groups = new Map(); // key -> aggregate resource
+  const memberToGroup = new Map();
+  for (const r of resources) {
+    if (r && r.in_state_file === false) {
+      // keep individual (a finding)
+      const g = cloneResource(r);
+      groups.set(r.id, g);
+      memberToGroup.set(r.id, r.id);
+      continue;
+    }
+    const parts = (r.type || "").split(":");
+    const layer = parts.length >= 3 ? parts[1] : (parts[1] || "other");
+    const type = r.type || "unknown";
+    const key = layer + "::" + type;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        id: key,
+        type: type,
+        name: type,
+        _count: 0,
+        _members: [],
+        icon_url: r.icon_url,
+        properties: Object.assign({}, r.properties || {}, { simplified: true }),
+        display_type: type,
+      });
+    }
+    const g = groups.get(key);
+    g._count += 1;
+    g._members.push(r.id);
+    if (!g.icon_url && r.icon_url) g.icon_url = r.icon_url;
+  }
+
+  // humanise names
+  for (const g of groups.values()) {
+    if (g._members && g._count !== undefined) {
+      const parts = (g.type || "").split(":");
+      const kind = (parts[parts.length - 1] || "resource").replace(/_/g, " ");
+      const label = g._count === 1 ? kind : kind + "s";
+      g.name = g._count + " " + label;
+      g.properties = g.properties || {};
+      g.properties.member_count = g._count;
+    }
+  }
+
+  // map source/target resource ids to their aggregate ids
+  // (already in memberToGroup above for refs; fill in for the rest)
+  for (const r of resources) {
+    if (r.in_state_file === false) continue;
+    const parts = (r.type || "").split(":");
+    const layer = parts.length >= 3 ? parts[1] : (parts[1] || "other");
+    const key = layer + "::" + r.type;
+    memberToGroup.set(r.id, key);
+  }
+
+  const newResources = Array.from(groups.values()).map((g) => {
+    const { _count, _members, display_type, ...rest } = g;
+    const out = Object.assign({}, rest);
+    // stash the members for search/highlight so the panel can surface them
+    out._simplified_members = _members;
+    return out;
+  });
+
+  // rebuild connections with dedup + remap
+  const toSource = (c) => c.source_id || c.source;
+  const toTarget = (c) => c.target_id || c.target;
+  const mapEndpoint = (id) => memberToGroup.has(id) ? memberToGroup.get(id) : id;
+  const pairKey = (a, b) => a < b ? a + "\u0001" + b : b + "\u0001" + a;
+
+  const seen = new Map(); // pair -> connection
+  for (const c of connections) {
+    const originalSrc = toSource(c);
+    const originalTgt = toTarget(c);
+    if (!originalSrc || !originalTgt) continue;
+    const src = mapEndpoint(originalSrc);
+    const tgt = mapEndpoint(originalTgt);
+    if (!src || !tgt) continue;
+    if (src === tgt) continue; // self-edge dropped
+    const key = pairKey(src, tgt);
+    if (seen.has(key)) {
+      // duplicate pair: fold the type into the existing reasons if it differs
+      const old = seen.get(key);
+      const reasons = (old.properties && old.properties.reasons) || [];
+      const note = "also " + (c.type || "dependency");
+      if (!reasons.includes(note)) reasons.push(note);
+      if (old.properties) old.properties.reasons = reasons;
+      continue;
+    }
+    const clone = JSON.parse(JSON.stringify(c));
+    clone.id = "simplify-" + key.replace(/\u0001/g, "->");
+    clone.source_id = src;
+    if ("source" in clone) clone.source = src;
+    clone.target_id = tgt;
+    if ("target" in clone) clone.target = tgt;
+    clone.properties = Object.assign({}, c.properties || {});
+    clone.properties = clone.properties || {};
+    clone.properties.simplified_count = 1;
+    seen.set(key, clone);
+  }
+  const newConnections = Array.from(seen.values());
+  return { resources: newResources, connections: newConnections };
+}
+
+function cloneResource(r) {
+  return JSON.parse(JSON.stringify(r));
 }
 
 /**
@@ -1549,7 +1794,10 @@ class EnhancedDiagramViewer {
     this._tooltipOwner = null;
     this.showLabels = true;
     this.showMinimap = true;
-    this.showFlowAnimations = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    this.prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    this.showFlowAnimations = !this.prefersReducedMotion;
     this.presentationMode = false;
     // On narrow screens the sidebar starts collapsed so it does not eat the
     // canvas; the toggle brings it back.
@@ -1559,7 +1807,9 @@ class EnhancedDiagramViewer {
 
     this.resources = [];
     this.connections = [];
+    this.baseConnections = [];
     this.filteredResources = [];
+    this.simplified = false;
 
     // Fast lookup map: resource id -> resource object (built after data load)
     this._resourceMap = new Map();
@@ -1613,6 +1863,7 @@ class EnhancedDiagramViewer {
       edges,
       layers,
       nodeFill: paint("--sm-node-fill", "--sm-surface"),
+      nodeBorder: paint("--sm-border-hover", "--sm-border"),
       containerVpc: paint("--sm-container-vpc", "--sm-layer-vpc"),
       subnetPublic: paint("--sm-subnet-public", "--sm-subnet-default"),
       subnetPrivate: paint("--sm-subnet-private", "--sm-subnet-default"),
@@ -1622,6 +1873,10 @@ class EnhancedDiagramViewer {
       terminalBg: paint("--sm-terminal-bg", "--sm-surface"),
       primary: paint("--sm-primary", "--sm-secondary"),
       textMuted: paint("--sm-text-muted", "--sm-text"),
+      // The canvas type scale comes from the token scale, never from literals.
+      fontName: paint("--sm-text-md", "13px"),
+      fontSmall: paint("--sm-text-sm", "11px"),
+      fontType: paint("--sm-text-xs", "10px"),
     };
   }
 
@@ -1657,12 +1912,36 @@ class EnhancedDiagramViewer {
       document.getElementById("loading-overlay").classList.add("hidden");
       console.timeEnd("Total Loading Time");
 
-      // Auto-fit the view after everything is rendered
-      setTimeout(() => this.fitToView(), FIT_VIEW_DELAY_MS);
+      // Optional: surface referenced-but-missing resources (best effort).
+      this.loadMissingReferences();
+
+      // Auto-fit the view after everything is rendered, then let the graph
+      // settle in once.
+      setTimeout(() => {
+        this.fitToView();
+        this.playEntrance();
+      }, FIT_VIEW_DELAY_MS);
     } catch (error) {
       console.error("Failed to initialize diagram:", error);
       this.showError("Failed to load diagram");
     }
+  }
+
+  /**
+   * The one authored moment: the graph settles in once, the edges come up
+   * and the nodes rise. It never plays twice and it is skipped when the
+   * reader asked for reduced motion.
+   */
+  playEntrance() {
+    if (this._entrancePlayed || !this.svg) return;
+    this._entrancePlayed = true;
+    if (this.prefersReducedMotion) return;
+
+    this.svg.classList.add("graph-entering");
+    clearTimeout(this._entranceTimer);
+    this._entranceTimer = setTimeout(() => {
+      if (this.svg) this.svg.classList.remove("graph-entering");
+    }, ENTRANCE_CLEANUP_MS);
   }
 
   updateLoadingText(message) {
@@ -1680,6 +1959,7 @@ class EnhancedDiagramViewer {
         // Set empty state so the UI remains functional for S3 import.
         this.resources = [];
         this.connections = [];
+        this.baseConnections = [];
         this.filteredResources = [];
         this._resourceMap.clear();
         this.buildGraphIndex();
@@ -1693,6 +1973,8 @@ class EnhancedDiagramViewer {
 
     this.resources = data.diagram.resources || [];
     this.connections = data.diagram.connections || [];
+    this.baseConnections = this.connections.slice();
+    this.simplified = false;
     this.filteredResources = [...this.resources];
 
     // Build fast lookup map
@@ -1809,6 +2091,10 @@ class EnhancedDiagramViewer {
     document
       .getElementById("toggle-labels")
       .addEventListener("click", () => this.toggleLabels());
+    const simplifiedBtn = document.getElementById("simplified-view");
+    if (simplifiedBtn) {
+      simplifiedBtn.addEventListener("click", () => this.toggleSimplifiedView());
+    }
     document
       .getElementById("toggle-minimap")
       .addEventListener("click", () => this.toggleMinimap());
@@ -1825,6 +2111,7 @@ class EnhancedDiagramViewer {
     }
 
     const exports = [
+      ["export-pdf", () => this.exportToPDF()],
       ["export-png", () => this.exportToPNG()],
       ["export-svg", () => this.exportToSVG()],
       ["export-csv", () => this.exportToCSV()],
@@ -2154,6 +2441,17 @@ class EnhancedDiagramViewer {
 
   // ─── Rendering ─────────────────────────────────────────────────────
 
+  applySimplifiedTransform() {
+    if (!this.baseConnections) this.baseConnections = this.connections.slice();
+    if (this.simplified) {
+      const result = buildSimplifiedGraph(this.filteredResources, this.baseConnections);
+      this.filteredResources = result.resources;
+      this.connections = result.connections;
+    } else {
+      this.connections = this.baseConnections.slice();
+    }
+  }
+
   renderDiagram() {
     // Resolve the theme first: every colour below is a token value.
     this.resolveTheme();
@@ -2169,6 +2467,8 @@ class EnhancedDiagramViewer {
     connectionsGroup.classList.add("connections");
     layersGroup.classList.add("layers");
     nodesGroup.classList.add("nodes");
+    // The edge layer is part of the entrance: it comes up under the nodes.
+    connectionsGroup.setAttribute("data-entrance", "edges");
 
     this.svg.appendChild(defsGroup);
     this.svg.appendChild(layersGroup);
@@ -2298,7 +2598,7 @@ class EnhancedDiagramViewer {
         x: bounds.x + 8 + labelWidth / 2,
         y: bounds.y + 6 + LAYER_LABEL_H / 2 + 1,
         fill: color,
-        "font-size": String(LAYER_LABEL_FONT_SIZE),
+        "font-size": this.theme.fontSmall,
         "font-weight": "700",
         "font-family": "'Inter', sans-serif",
         "text-anchor": "middle",
@@ -2335,7 +2635,7 @@ class EnhancedDiagramViewer {
             x: sgBounds.x + 10,
             y: sgBounds.y + 20,
             fill: color,
-            "font-size": "10",
+            "font-size": this.theme.fontType,
             "font-weight": "600",
             "font-family": TYPE_LABEL_FONT,
             opacity: "0.7",
@@ -2401,7 +2701,7 @@ class EnhancedDiagramViewer {
         x: String(x + 12),
         y: String(y + (isVpc ? 20 : 17)),
         fill: color,
-        "font-size": isVpc ? "12" : "10",
+        "font-size": isVpc ? this.theme.fontName : this.theme.fontSmall,
         "font-weight": "700",
         "font-family": "'Inter', sans-serif",
         opacity: "0.9",
@@ -2413,14 +2713,14 @@ class EnhancedDiagramViewer {
       if (box.sublabel) {
         const sub = svgEl("text", {
           x: String(x + 12),
-          y: String(y + (isVpc ? 33 : 28)),
+          y: String(y + (isVpc ? 35 : 31)),
           fill: color,
-          "font-size": "9",
+          "font-size": this.theme.fontType,
           "font-family": TYPE_LABEL_FONT,
           opacity: "0.7",
           "pointer-events": "none",
         });
-        sub.textContent = truncateText(box.sublabel, 40);
+        sub.textContent = truncateText(box.sublabel, isVpc ? 32 : 22);
         group.appendChild(sub);
       }
 
@@ -2684,7 +2984,7 @@ class EnhancedDiagramViewer {
           y: String(labelY + 1),
           "text-anchor": "middle",
           "dominant-baseline": "central",
-          "font-size": CONN_LABEL_FONT_SIZE,
+          "font-size": this.theme.fontType,
           "font-family": TYPE_LABEL_FONT,
           fill: style.color,
           "fill-opacity": "0.7",
@@ -2750,7 +3050,7 @@ class EnhancedDiagramViewer {
   }
 
   renderNodes(nodesGroup) {
-    this.filteredResources.forEach((resource) => {
+    this.filteredResources.forEach((resource, index) => {
       // VPCs and subnets are drawn as boxes, not as cards.
       if (this._containerBoxes && this._containerBoxes.has(resource.id)) return;
 
@@ -2764,22 +3064,22 @@ class EnhancedDiagramViewer {
       const halfW = NODE_CARD_W / 2;
       const halfH = NODE_CARD_H / 2;
 
-      // Outer glow rectangle (carries the service colour)
-      const glowRect = svgEl("rect", {
-        x: String(-halfW - 6),
-        y: String(-halfH - 6),
-        width: String(NODE_CARD_W + 12),
-        height: String(NODE_CARD_H + 12),
-        rx: String(NODE_CARD_RX + 4),
-        fill: "none",
-        stroke: layerColor,
-        "stroke-width": "1",
-        "stroke-opacity": "0.35",
-      });
-      nodeGroup.appendChild(glowRect);
+      // The service colour is exposed as a custom property so the hover
+      // state can light the card in its own colour.
+      nodeGroup.style.setProperty("--node-service", layerColor);
 
-      // Card background rectangle. The fill comes from the theme, the border
-      // carries the service colour so a card is identifiable at a glance.
+      // The card contents live in their own group: the entrance animation
+      // moves them without touching the position transform of the node.
+      const inner = svgEl("g", { "data-entrance": "node" });
+      inner.classList.add("node-inner");
+      inner.style.setProperty(
+        "--i",
+        String(Math.min(index, ENTRANCE_MAX_STAGGER_INDEX)),
+      );
+      nodeGroup.appendChild(inner);
+
+      // Card body: a quiet surface with a neutral edge. The service colour
+      // is carried by the band on top of it, not by the border.
       const cardBg = svgEl("rect", {
         x: String(-halfW),
         y: String(-halfH),
@@ -2787,15 +3087,22 @@ class EnhancedDiagramViewer {
         height: String(NODE_CARD_H),
         rx: String(NODE_CARD_RX),
         fill: this.theme.nodeFill,
-        stroke: layerColor,
-        "stroke-width": "1.5",
-        "stroke-opacity": "0.75",
+        stroke: this.theme.nodeBorder,
+        "stroke-width": "1",
       });
+      cardBg.classList.add("node-card-bg");
       if (resource.in_state_file === false) {
         cardBg.setAttribute("stroke-dasharray", "6,3");
-        cardBg.setAttribute("stroke-width", "2");
       }
-      nodeGroup.appendChild(cardBg);
+      inner.appendChild(cardBg);
+
+      // Service band: the top edge of the card is the service colour.
+      const tab = svgEl("path", {
+        d: serviceTabPath(halfW, halfH, NODE_CARD_RX, NODE_TAB_H),
+        fill: layerColor,
+      });
+      tab.classList.add("node-card-tab");
+      inner.appendChild(tab);
 
       // Icon (centered horizontally, positioned in upper portion of card)
       const iconPath =
@@ -2808,7 +3115,7 @@ class EnhancedDiagramViewer {
         height: String(ICON_SIZE),
         preserveAspectRatio: "xMidYMid meet",
       });
-      nodeGroup.appendChild(icon);
+      inner.appendChild(icon);
 
       // Labels (positioned in lower portion of card)
       if (this.showLabels) {
@@ -2818,22 +3125,23 @@ class EnhancedDiagramViewer {
           "text-anchor": "middle",
         });
         label.classList.add("resource-label");
-        label.textContent = truncateText(resource.name, LABEL_MAX_CHARS);
-        nodeGroup.appendChild(label);
+        label.textContent = truncateLabel(resource.name, LABEL_MAX_CHARS);
+        inner.appendChild(label);
 
         const typeLabel = svgEl("text", {
           x: "0",
           y: String(TYPE_LABEL_Y_OFFSET),
           "text-anchor": "middle",
-          "font-size": TYPE_LABEL_FONT_SIZE,
+          "font-size": this.theme.fontType,
           fill: this.theme.nodeType,
           "font-family": TYPE_LABEL_FONT,
         });
-        typeLabel.textContent = truncateText(
-          resource.type,
+        typeLabel.classList.add("node-type-label");
+        typeLabel.textContent = truncateLabel(
+          canvasTypeLabel(resource.type),
           TYPE_LABEL_MAX_CHARS,
         );
-        nodeGroup.appendChild(typeLabel);
+        inner.appendChild(typeLabel);
       }
 
       nodeGroup.addEventListener("click", (e) => {
@@ -3066,6 +3374,68 @@ class EnhancedDiagramViewer {
 
     // The button swaps between the menu and the close icon.
     toggle.classList.toggle("is-collapsed", this.sidebarCollapsed);
+  }
+
+  toggleSimplifiedView() {
+    this.simplified = !this.simplified;
+    document.getElementById("simplified-view").classList.toggle("active", this.simplified);
+    this.applyFilters();
+    this.updateMinimap();
+    this.updateTransform();
+  }
+
+  loadMissingReferences() {
+    fetch("/api/missing", { headers: { Accept: "application/json" } })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => this.renderMissingPanel(Array.isArray(data) ? data : []))
+      .catch(() => this.renderMissingPanel([]));
+  }
+
+  renderMissingPanel(entries) {
+    const caption = document.getElementById("missing-caption");
+    const block = document.getElementById("missing-block");
+    const list = document.getElementById("missing-list");
+    if (!caption || !block || !list) return;
+    list.replaceChildren();
+    if (!entries || entries.length === 0) {
+      caption.hidden = true;
+      block.hidden = true;
+      return;
+    }
+    caption.hidden = false;
+    block.hidden = false;
+    // count badge inside the caption
+    const badge = document.createElement("span");
+    badge.className = "missing-count";
+    badge.textContent = " (" + entries.length + ")";
+    // build caption text cleanly
+    caption.textContent = "Referenced but missing";
+    caption.appendChild(badge);
+
+    const fragment = document.createDocumentFragment();
+    entries.forEach((entry) => {
+      const li = document.createElement("li");
+      li.className = "missing-item";
+      const typeEl = document.createElement("span");
+      typeEl.className = "missing-type";
+      typeEl.textContent = entry.type || "resource";
+      const refEl = document.createElement("span");
+      refEl.className = "missing-ref";
+      const refValue = entry.arn || entry.id || "";
+      refEl.textContent = refValue;
+      refEl.title = refValue;
+      const byEl = document.createElement("span");
+      byEl.className = "missing-by";
+      const refs = Array.isArray(entry.referenced_by)
+        ? entry.referenced_by
+        : [];
+      byEl.textContent = refs.length ? "by " + refs.join(", ") : (entry.description || "");
+      li.appendChild(typeEl);
+      li.appendChild(refEl);
+      li.appendChild(byEl);
+      fragment.appendChild(li);
+    });
+    list.appendChild(fragment);
   }
 
   toggleLabels() {
@@ -3379,6 +3749,7 @@ class EnhancedDiagramViewer {
       );
     });
 
+    this.applySimplifiedTransform();
     this.updateResourceList();
     this.renderDiagram();
     this.updateMinimap();
@@ -3597,8 +3968,8 @@ class EnhancedDiagramViewer {
   }
 
   /**
-   * Selection glow for a node. Cards use a glow ring plus a card background,
-   * nested container boxes only have a single rectangle.
+   * Selection glow for a node. Cards use a card background, nested container
+   * boxes only have a single rectangle.
    */
   applySelectedStyle(element, selected) {
     if (element.classList.contains("container-box")) {
@@ -3616,13 +3987,11 @@ class EnhancedDiagramViewer {
       return;
     }
 
-    const rects = element.querySelectorAll("rect");
-    if (rects.length >= 2) {
-      // First rect is glow ring, second is card background
-      rects[0].setAttribute("stroke-width", selected ? "1.5" : "1");
-      rects[0].setAttribute("stroke-opacity", selected ? "0.7" : "0.35");
-      rects[1].setAttribute("stroke-width", selected ? "2.5" : "1.5");
-      rects[1].setAttribute("stroke-opacity", selected ? "1" : "0.75");
+    const card = element.querySelector(".node-card-bg");
+    if (card) {
+      card.setAttribute("stroke", selected ? this.theme.primary : this.theme.nodeBorder);
+      card.setAttribute("stroke-width", selected ? "2" : "1");
+      card.setAttribute("stroke-opacity", "1");
     }
   }
 
@@ -3838,7 +4207,8 @@ class EnhancedDiagramViewer {
     // Helper to create a dependency group
     const createDepGroup = (label, items, direction) => {
       const group = document.createElement("div");
-      group.className = "dependency-group";
+      // The direction is carried by the heading colour, not by a coloured edge.
+      group.className = `dependency-group ${direction}`;
 
       const h5 = document.createElement("h5");
       h5.textContent = `${label} (${items.length})`;
@@ -4034,7 +4404,6 @@ class EnhancedDiagramViewer {
       height: "100%",
       fill: exportBackground,
     });
-    clone.insertBefore(bgRect, clone.firstChild);
 
     const propsToInline = [
       "fill",
@@ -4088,10 +4457,29 @@ class EnhancedDiagramViewer {
       }
     }
 
+    // The background goes in after the walk above: it would shift every
+    // index and the two trees have to stay aligned while they are compared.
+    clone.insertBefore(bgRect, clone.firstChild);
+
+    // The entrance is a moment, not a state: an export shows the settled
+    // diagram, so the animated values are dropped from the clone.
+    stripEntranceState(clone);
+
     clone.querySelectorAll("animateMotion").forEach((el) => el.remove());
     clone.querySelectorAll(".flow-dot").forEach((el) => el.remove());
 
     return clone;
+  }
+
+  exportToPDF() {
+    // The browser does the rendering: @media print in the template hides the
+    // chrome and prints the canvas at page size. We just set a sensible title
+    // so the default "Save as PDF" filename is the diagram name, not "TerraViz".
+    const previousTitle = document.title;
+    document.title = (this.diagram && this.diagram.title) || "TerraViz diagram";
+    window.print();
+    // Restore shortly after the dialog returns (browsers restore on close).
+    setTimeout(() => { document.title = previousTitle; }, 1000);
   }
 
   exportToPNG() {
@@ -4238,6 +4626,11 @@ EnhancedDiagramViewer.classifyResource = classifyResource;
 EnhancedDiagramViewer.computeFlowRanks = computeFlowRanks;
 EnhancedDiagramViewer.orderResourcesByBarycenter = orderResourcesByBarycenter;
 EnhancedDiagramViewer.buildMermaid = buildMermaid;
+EnhancedDiagramViewer.buildSimplifiedGraph = buildSimplifiedGraph;
 EnhancedDiagramViewer.buildDot = buildDot;
 EnhancedDiagramViewer.buildEdgeTooltipRows = buildEdgeTooltipRows;
 EnhancedDiagramViewer.escapeMermaidLabel = escapeMermaidLabel;
+EnhancedDiagramViewer.serviceTabPath = serviceTabPath;
+EnhancedDiagramViewer.stripEntranceState = stripEntranceState;
+EnhancedDiagramViewer.truncateLabel = truncateLabel;
+EnhancedDiagramViewer.canvasTypeLabel = canvasTypeLabel;

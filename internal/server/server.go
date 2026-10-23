@@ -168,6 +168,7 @@ func (s *Server) setupRoutes() {
 		api.GET("/connections", s.handleGetConnections)
 		api.POST("/connections", s.handleCreateConnection)
 		api.DELETE("/connections/:id", s.handleDeleteConnection)
+		api.GET("/missing", s.handleGetMissing)
 		api.GET("/stats", s.handleGetStats)
 		api.POST("/export/:format", s.handleExport)
 
@@ -441,6 +442,27 @@ func (s *Server) handleGetStats(c *gin.Context) {
 	result["warning_count"] = len(d.Warnings)
 
 	c.JSON(http.StatusOK, result)
+}
+
+// handleGetMissing returns the resources that the diagram references but does
+// not contain.
+func (s *Server) handleGetMissing(c *gin.Context) {
+	d := s.requireDiagram(c)
+	if d == nil {
+		return
+	}
+
+	missing := d.ReferencedMissing
+	if len(missing) == 0 {
+		// Diagrams loaded from a file that predates the detection do not
+		// carry the list, so it is derived from the diagram itself.
+		missing = parsers.DetectMissingReferences(d.Diagram.Resources)
+	}
+	if missing == nil {
+		missing = []models.ReferencedMissing{}
+	}
+
+	c.JSON(http.StatusOK, missing)
 }
 
 // handleExport handles diagram export requests.

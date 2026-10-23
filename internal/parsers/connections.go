@@ -16,6 +16,10 @@ type resourceMap = map[string]*models.Resource
 // typeIndex maps resource types to slices of resources for O(1) type lookups.
 type typeIndex = map[models.ResourceType][]*models.Resource
 
+// externalReferenceSource marks the placeholder nodes that stand for a
+// resource referenced outside the state.
+const externalReferenceSource = "terraform-reference"
+
 type externalReferenceSpec struct {
 	sourceType models.ResourceType
 	path       []string
@@ -263,7 +267,7 @@ func externalResource(resourceType models.ResourceType, property, value string) 
 		State:       models.ResourceStateUnknown,
 		Properties:  map[string]interface{}{property: value, "referenced_value": value},
 		Tags:        make(map[string]string),
-		Source:      "terraform-reference",
+		Source:      externalReferenceSource,
 		InStateFile: false,
 		Group:       "not-in-state-file",
 	}

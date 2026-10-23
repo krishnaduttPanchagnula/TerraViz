@@ -28,6 +28,9 @@ Use TerraViz to understand an unfamiliar Terraform project, explore AWS resource
 - [Features](#features)
 - [CLI Reference](#cli-reference)
 - [Supported Providers and Services](#supported-providers-and-services)
+- [Exporting Diagrams](#exporting-diagrams)
+- [CI and GitHub Actions](#ci-and-github-actions)
+- [Roadmap](#roadmap)
 - [FAQ](#frequently-asked-questions)
 - [Development](#development)
 
@@ -284,6 +287,61 @@ Terraform's own dependency graph (`depends_on` / `dependencies` in the state fil
 | `reference` | Logical references |
 
 Connections carry extra metadata in `properties` when it is known — for example `protocol` and `port` for load balancer targets, `protocol`/`from_port`/`to_port`/`cidr_blocks` for security group rules. When two relations describe the same pair of resources they are merged into a single connection; the primary description stays in `description` and every reason is listed in `properties.reasons`. `dependency` and `reference` connections are marked `bidirectional`, because their direction is arbitrary rather than a flow.
+
+## Exporting Diagrams
+
+The diagram is built once, and the same graph drives every export. The browser export buttons produce PNG, SVG, CSV, Mermaid and DOT. The CLI produces the same, plus draw.io, Markdown and a self-contained HTML, which is what CI needs:
+
+```sh
+terraviz scan terraform example.tfstate -o diagram.json
+terraviz export diagram.json --format html --output report.html
+terraviz export diagram.json --format mermaid --output report.mmd
+terraviz export diagram.json --format dot --output report.dot
+terraviz export diagram.json --format drawio --output report.drawio
+terraviz export diagram.json --format csv --output report.csv
+terraviz export diagram.json --format markdown --output report.md
+```
+
+| Format | Output |
+|---|---|
+| `html` | A single file that opens from `file://` with no server and no install. The only format that stays interactive: zoom, trace, sidebar, theme, all five exports. |
+| `mermaid` | A `graph TD` flowchart. GitHub renders it inside issue and PR comments. |
+| `dot` | Graphviz DOT, for documentation pipelines and other renderers. |
+| `drawio` | mxGraph XML with the service colours and the VPC/subnet containment drawn as parent groups. Opens in draw.io and diagrams.net. |
+| `csv` | One row per resource with its connections. |
+| `markdown` | Resource and connection counts, a Mermaid diagram, and the referenced-but-missing list, ready to paste into a PR comment. |
+
+The interactive HTML is approximately 700 KB. The Markdown and Mermaid files are what a PR comment can actually carry: GitHub strips inline SVG from comments.
+
+## CI and GitHub Actions
+
+A composite action ships in the repository at `.github/actions/terraviz-diagram`. It needs no Go, Terraform, Node or Python on the runner: it downloads the released `terraviz` binary, runs `terraviz scan terraform` on the state file you point it at, then runs `terraviz export` for every format you ask for.
+
+```yaml
+- uses: ./.github/actions/terraviz-diagram
+  with:
+    state_path: terraform.tfstate
+    formats: markdown,html,mermaid
+    output_dir: terraviz-diagram
+```
+
+Every input is documented in the action's `action.yml`. Typical workflow shape: scan during the pipeline, run `terraform show -json > state.json`, let the action turn that into the Markdown summary and the HTML artifact, and post the summary as a PR comment with `gh pr comment`. A manual entry point is provided in `.github/workflows/diagram.yml`.
+
+Two limits to be aware of. First, there is no headless browser in this pipeline, so the PR comment carries the Mermaid diagram rather than an image; the interactive diagram ships as an artifact. Second, the action never modifies the repository. If you want the SVG committed for inline rendering on GitHub, add your own commit step.
+
+## Roadmap
+
+TerraViz's position is deliberately narrow: a local, account-free, single binary that renders what a Terraform state file actually contains. The feature list is ranked against five live competitors (Cloudcraft, TerraVision, Rover, Pluralith, Inframap) using reach, fit with that position, uniqueness and build cost.
+
+| Priority | Feature | Why |
+|---|---|---|
+| 1 | "Referenced but missing" as a first-class finding | Already computed, nobody else surfaces it; the most useful output when inheriting a codebase |
+| 2 | Drift check: live scan vs. state diff | Both halves exist and nobody joins them without a paid agent |
+| 3 | Live-scan coverage (7 services → 30+) | Live import is the incumbent's whole product; the shared relation engine gives new services typed edges for free |
+| 4 | Plan-based input (`terraform show -json` plan) | The largest category gap; complements the state-first position rather than replacing it |
+| 5 | Saved views, tag grouping, single-file HTML export | Cheap, local, shareable |
+
+The full ranking, the scoring method and the features we deliberately do **not** build are in [`docs/feature-priority.md`](docs/feature-priority.md), with the underlying research in [`docs/competitor-research.md`](docs/competitor-research.md).
 
 ## Frequently Asked Questions
 

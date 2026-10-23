@@ -168,14 +168,25 @@ type Diagram struct {
 	Version     string                 `json:"version"`
 }
 
+// ReferencedMissing is a resource that the infrastructure references but that
+// is not part of it, for example a security group of another account.
+type ReferencedMissing struct {
+	Type         ResourceType `json:"type"`
+	ARN          string       `json:"arn,omitempty"`
+	ID           string       `json:"id,omitempty"`
+	Description  string       `json:"description,omitempty"`
+	ReferencedBy []string     `json:"referenced_by,omitempty"`
+}
+
 // ScanResult represents the result of scanning infrastructure
 type ScanResult struct {
-	Diagram    Diagram    `json:"diagram"`
-	Errors     []string   `json:"errors,omitempty"`
-	Warnings   []string   `json:"warnings,omitempty"`
-	Stats      ScanStats  `json:"stats"`
-	ScanTime   time.Time  `json:"scan_time"`
-	ScanConfig ScanConfig `json:"scan_config"`
+	Diagram           Diagram             `json:"diagram"`
+	Errors            []string            `json:"errors,omitempty"`
+	Warnings          []string            `json:"warnings,omitempty"`
+	Stats             ScanStats           `json:"stats"`
+	ScanTime          time.Time           `json:"scan_time"`
+	ScanConfig        ScanConfig          `json:"scan_config"`
+	ReferencedMissing []ReferencedMissing `json:"referenced_missing,omitempty"`
 }
 
 // ScanStats provides statistics about the scan

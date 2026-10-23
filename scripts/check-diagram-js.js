@@ -30,13 +30,116 @@ const TOKENS = {
   "--sm-layer-ec2": "#ff9900",
   "--sm-layer-other": "#64748b",
   "--sm-node-fill": "#1e1e1e",
+  "--sm-border": "rgba(255, 255, 255, 0.08)",
+  "--sm-border-hover": "rgba(255, 255, 255, 0.14)",
   "--sm-container-vpc": "#248814",
   "--sm-subnet-public": "#4ade80",
   "--sm-subnet-private": "#60a5fa",
   "--sm-subnet-default": "#38bdf8",
   "--sm-text": "#e2f5f1",
   "--sm-text-muted": "rgba(226, 245, 241, 0.62)",
+  "--sm-text-xs": "10px",
+  "--sm-text-sm": "11px",
+  "--sm-text-md": "13px",
 };
+
+/**
+ * A minimal element that records what the renderer puts on it, so the
+ * drawing code can be asserted without a browser.
+ */
+function makeElement(tag) {
+  const classes = new Set();
+  const attrs = {};
+  const style = {
+    props: {},
+    setProperty(name, value) {
+      this.props[name] = String(value);
+    },
+    getPropertyValue(name) {
+      return this.props[name] || "";
+    },
+  };
+  const element = {
+    tag,
+    attrs,
+    style,
+    children: [],
+    textContent: "",
+    classList: {
+      add: (c) => classes.add(c),
+      remove: (c) => classes.delete(c),
+      contains: (c) => classes.has(c),
+      toggle: (c, force) => {
+        const has = classes.has(c);
+        const want = force === undefined ? !has : force;
+        if (want) classes.add(c);
+        else classes.delete(c);
+        return want;
+      },
+    },
+    setAttribute(name, value) {
+      attrs[name] = String(value);
+    },
+    getAttribute(name) {
+      return name in attrs ? attrs[name] : null;
+    },
+    hasAttribute(name) {
+      return name in attrs;
+    },
+    removeAttribute(name) {
+      delete attrs[name];
+    },
+    setAttributeNS() {},
+    appendChild(child) {
+      element.children.push(child);
+      return child;
+    },
+    removeChild(child) {
+      element.children = element.children.filter((c) => c !== child);
+      return child;
+    },
+    addEventListener() {},
+    get firstChild() {
+      return element.children[0] || null;
+    },
+  };
+
+  // className and classList are two views on the same list.
+  Object.defineProperty(element, "className", {
+    get: () => Array.from(classes).join(" "),
+    set: (value) => {
+      classes.clear();
+      String(value)
+        .split(/\s+/)
+        .filter(Boolean)
+        .forEach((c) => classes.add(c));
+    },
+  });
+
+  const matches = (el, selector) => {
+    if (selector.startsWith(".")) return el.classList.contains(selector.slice(1));
+    if (selector.startsWith("[")) {
+      const attr = selector.match(/^\[([\w-]+)\]$/);
+      return attr ? el.hasAttribute(attr[1]) : false;
+    }
+    return el.tag === selector;
+  };
+
+  element.querySelectorAll = (selector) => {
+    const found = [];
+    const walk = (el) => {
+      el.children.forEach((child) => {
+        if (matches(child, selector)) found.push(child);
+        walk(child);
+      });
+    };
+    walk(element);
+    return found;
+  };
+  element.querySelector = (selector) => element.querySelectorAll(selector)[0] || null;
+
+  return element;
+}
 
 const sandbox = {
   console,
@@ -50,8 +153,8 @@ const sandbox = {
     getPropertyValue: (name) => TOKENS[name] || "",
   }),
   document: {
-    createElement: () => ({ style: {}, classList: { add() {}, remove() {} }, appendChild() {} }),
-    createElementNS: () => ({ setAttribute() {}, appendChild() {}, style: {} }),
+    createElement: (tag) => makeElement(tag),
+    createElementNS: (ns, tag) => makeElement(tag),
     createTextNode: () => ({}),
     getElementById: () => null,
     querySelector: () => null,
@@ -149,6 +252,107 @@ const conn = (source, target) => ({ id: `${source}->${target}`, source_id: sourc
   assert.ok(inside(pos, vpc, vpcCentre), "instance is inside the VPC box");
 }
 
+// ── the service sections fill the canvas width instead of stacking ─────────
+// The sections are placed left to right and they wrap into rows, so a
+// diagram with many services is wide instead of a tall narrow column.
+{
+  const types = [
+    "aws:ecs:cluster",
+    "aws:ecr:repository",
+    "aws:lambda:function",
+    "aws:apigateway:restapi",
+    "aws:elb:listener",
+    "aws:s3:bucket",
+    "aws:rds:instance",
+    "aws:dynamodb:table",
+    "aws:sns:topic",
+    "aws:sqs:queue",
+    "aws:logs:loggroup",
+    "aws:iam:role",
+  ];
+  const layerDefs = {};
+  types.forEach((type) => {
+    const key = type.split(":")[1];
+    if (!layerDefs[key]) layerDefs[key] = { name: key, color: "#fff" };
+  });
+
+  const resources = types.map((type, i) => ({
+    id: "r" + i,
+    name: "r" + i,
+    type,
+    properties: {},
+  }));
+  // A chain: every service feeds the next one, so the flow order is known.
+  const connections = resources.slice(1).map((r, i) => ({
+    id: "c" + i,
+    source_id: resources[i].id,
+    target_id: r.id,
+  }));
+
+  const canvasWidth = 1600;
+  const layout = Viewer.computeDiagramLayout(
+    resources,
+    connections,
+    layerDefs,
+    canvasWidth,
+  );
+
+  const sections = Object.entries(layout.layerLayouts)
+    .filter(([, l]) => l.bounds)
+    .map(([key, l]) => ({ key, ...l.bounds }));
+  assert.strictEqual(sections.length, types.length, "every service has a section");
+
+  // The sections wrap: they sit side by side in the rows, they do not
+  // stack one per row.
+  const rows = new Set(sections.map((s) => s.y));
+  assert.ok(rows.size > 1, "the sections wrap into more than one row");
+  assert.ok(
+    rows.size < sections.length,
+    "the sections share the rows instead of stacking one per row",
+  );
+
+  // Every section stays inside the content width of the canvas.
+  const maxContentWidth = canvasWidth - 40 * 2 - 24 * 2;
+  const contentRight = 40 + 24 + maxContentWidth + 24;
+  sections.forEach((s) => {
+    assert.ok(s.x >= 40, `section ${s.key} keeps the left margin`);
+    assert.ok(
+      s.x + s.width <= contentRight,
+      `section ${s.key} stays inside the content width`,
+    );
+  });
+
+  // No two sections overlap.
+  for (let i = 0; i < sections.length; i++) {
+    for (let j = i + 1; j < sections.length; j++) {
+      const a = sections[i];
+      const b = sections[j];
+      const overlap =
+        a.x < b.x + b.width &&
+        b.x < a.x + a.width &&
+        a.y < b.y + b.height &&
+        b.y < a.y + a.height;
+      assert.ok(!overlap, `sections ${a.key} and ${b.key} do not overlap`);
+    }
+  }
+
+  // The reading order is the flow order: left to right, top to bottom.
+  const readingOrder = sections
+    .slice()
+    .sort((a, b) => a.y - b.y || a.x - b.x)
+    .map((s) => s.key);
+  assert.deepStrictEqual(
+    readingOrder,
+    types.map((t) => t.split(":")[1]),
+    "the sections read in the flow order",
+  );
+
+  // The diagram is wider than it is tall: the canvas width is used.
+  const width = Math.max(...sections.map((s) => s.x + s.width)) - 40;
+  const height = Math.max(...sections.map((s) => s.y + s.height)) - 80;
+  assert.ok(width > height, "the diagram is wider than it is tall");
+}
+
 // ── unknown terraform types are grouped by their service segment ─────────────
 {
   const layerDefs = { ec2: { name: "EC2", color: "#fff" }, dynamodb: { name: "DynamoDB", color: "#fff" } };
@@ -208,6 +412,67 @@ const conn = (source, target) => ({ id: `${source}->${target}`, source_id: sourc
   // the connection type is the link label
   assert.ok(mermaid.includes('-->|"data"|'), "edge label is the connection type");
   assert.ok(mermaid.includes('-->|"access"|'), "edge label is the connection type");
+}
+
+// ── simplified / executive view ─────────────────────────────────────────────
+{
+  // Three EC2 instances collapse into one group, two subnets into another, and
+  // the vpc stays on its own. An external (referenced-but-missing) placeholder
+  // stays individual.
+  const resources = [
+    { id: "i1", type: "aws:ec2:instance", name: "web-1", icon_url: "/icons/x.svg", in_state_file: true },
+    { id: "i2", type: "aws:ec2:instance", name: "web-2", icon_url: "/icons/x.svg", in_state_file: true },
+    { id: "i3", type: "aws:ec2:instance", name: "web-3", icon_url: "/icons/x.svg", in_state_file: true },
+    { id: "s1", type: "aws:ec2:subnet", name: "subnet-a", in_state_file: true },
+    { id: "s2", type: "aws:ec2:subnet", name: "subnet-b", in_state_file: true },
+    { id: "v1", type: "aws:ec2:vpc", name: "vpc-main", in_state_file: true },
+    { id: "ext1", type: "aws:acm:certificate", name: "missing-cert", in_state_file: false },
+  ];
+  const connections = [
+    { id: "e1", source_id: "i1", target_id: "s1", type: "networking" },
+    { id: "e2", source_id: "i2", target_id: "s1", type: "networking" }, // duplicate pair collapsed
+    { id: "e3", source_id: "i3", target_id: "s2", type: "networking" },
+    { id: "e4", source_id: "s1", target_id: "v1", type: "networking" },
+    { id: "e5", source_id: "s2", target_id: "v1", type: "networking" },
+    { id: "self", source_id: "i1", target_id: "i2", type: "dependency" }, // same group -> self-edge dropped
+  ];
+  const out = Viewer.buildSimplifiedGraph(resources, connections);
+
+  // 1. one group per (layer, type) PLUS the external placeholder
+  assert.strictEqual(out.resources.length, 4, "3 groups + 1 external placeholder");
+  const groups = out.resources.filter((r) => !r._simplified_members || r.in_state_file !== false);
+  const instanceGroup = out.resources.find((r) => (r.name || "").startsWith("3 "));
+  assert.ok(instanceGroup, "instance group exists");
+  assert.strictEqual(instanceGroup._simplified_members.length, 3);
+  assert.ok(instanceGroup.name.includes("instance"), "group name carries the type label");
+
+  // external placeholder stays individual
+  const ext = out.resources.find((r) => r.id === "ext1");
+  assert.ok(ext, "external placeholder survives individual");
+  assert.strictEqual(ext.in_state_file, false);
+
+  // 2. self-edge dropped: no self-loop
+  assert.ok(
+    out.connections.every((c) => c.source_id !== c.target_id),
+    "no self-edges survive",
+  );
+
+  // 3. the duplicate instance->subnet pair is collapsed to one edge
+  const i2s = out.connections.filter(
+    (c) => c.source_id.includes("instance") && c.target_id.includes("subnet") ||
+           c.source_id.includes("ec2::aws:ec2:instance"),
+  );
+  assert.strictEqual(i2s.length, 1, "duplicate pairs collapsed");
+
+  // 4. every endpoint points at a real resource in the simplified set
+  const ids = new Set(out.resources.map((r) => r.id));
+  for (const c of out.connections) {
+    assert.ok(ids.has(c.source_id), "source resolves");
+    assert.ok(ids.has(c.target_id), "target resolves");
+  }
+
+  // 5. the total visible resource count went down (it actually simplified)
+  assert.ok(out.resources.length < resources.length, "graph got simpler");
 }
 
 // ── exports: graphviz dot ───────────────────────────────────────────────────
@@ -384,8 +649,10 @@ const conn = (source, target) => ({ id: `${source}->${target}`, source_id: sourc
     "export-csv",
     "export-dot",
     "export-mermaid",
+    "export-pdf",
     "export-png",
     "export-svg",
+    "simplified-view",
     "toggle-flow",
     "toggle-grid",
     "toggle-labels",
@@ -502,7 +769,178 @@ const conn = (source, target) => ({ id: `${source}->${target}`, source_id: sourc
   assert.strictEqual(counter.textContent, 1);
 }
 
-// ── the UI has no emoji left ────────────────────────────────────────────────
+// ── the header is a tool readout, not a metric panel ────────────────────────
+{
+  assert.ok(template.includes('class="header-status"'), "the header has a status strip");
+  assert.ok(!template.includes("header-stats"), "the hero metric block is gone");
+  assert.ok(!template.includes("stat-value"), "the hero metric numbers are gone");
+  assert.ok(!template.includes("stat-label"), "the hero metric labels are gone");
+  assert.ok(
+    template.includes('id="resource-count"') &&
+      template.includes('id="connection-count"'),
+    "the status strip still carries the counts",
+  );
+}
+
+// ── the browser surfaces carry the design ───────────────────────────────────
+{
+  assert.ok(template.includes("::selection"), "the text selection is themed");
+  assert.ok(template.includes("caret-color"), "the caret is themed");
+  assert.ok(
+    template.includes("font-variant-numeric: tabular-nums"),
+    "the counts and the table use tabular numerals",
+  );
+  assert.ok(
+    /::-webkit-scrollbar\s*\{[^}]*width:\s*10px/.test(template),
+    "the scrollbar is themed and usable",
+  );
+  assert.ok(
+    !/:focus-visible\s*\{[^}]*border-radius/.test(template),
+    "the focus ring does not reshape the element",
+  );
+  assert.ok(
+    !template.includes("border-left: 2px solid #"),
+    "no coloured left border on the list items",
+  );
+}
+
+// ── the canvas type follows the token scale ────────────────────────────────
+{
+  assert.ok(
+    !/font-size:\s*"[0-9]/.test(source),
+    "no literal font size in the canvas code",
+  );
+  assert.ok(
+    source.includes("this.theme.fontType") && source.includes("this.theme.fontName"),
+    "the canvas type sizes come from the tokens",
+  );
+  assert.ok(
+    /\.resource-label\s*\{[^}]*font-size:\s*var\(--sm-text-md\)/.test(template),
+    "the canvas name label uses the token scale",
+  );
+  assert.ok(
+    template.includes("@keyframes tv-node-rise"),
+    "the canvas has an authored entrance",
+  );
+  assert.ok(
+    /@media \(prefers-reduced-motion: reduce\)[\s\S]*tv-node-rise|@media \(prefers-reduced-motion: reduce\)[\s\S]*animation: none/.test(
+      template,
+    ),
+    "the entrance respects the reduced motion preference",
+  );
+}
+
+// ── the node card carries its service colour ───────────────────────────────
+{
+  const viewer = Object.create(Viewer.prototype);
+  viewer.theme = {
+    nodeFill: "#1e1e1e",
+    nodeBorder: "rgba(255, 255, 255, 0.14)",
+    nodeLabel: "#f5f5f7",
+    nodeType: "rgba(245, 245, 247, 0.6)",
+    fontName: "13px",
+    fontSmall: "11px",
+    fontType: "10px",
+    layers: { s3: "#3f891a" },
+  };
+  viewer.filteredResources = [
+    { id: "b", name: "prod-assets-bucket", type: "aws:s3:bucket", layer: "s3" },
+  ];
+  viewer._containerBoxes = new Map();
+  viewer.showLabels = true;
+
+  const nodes = makeElement("g");
+  viewer.renderNodes(nodes);
+
+  const node = nodes.children[0];
+  assert.ok(node, "the node is drawn");
+  assert.strictEqual(node.attrs["data-id"], "b");
+
+  // The service colour is structural: it is the band on top of the card.
+  const tab = node.querySelector(".node-card-tab");
+  assert.ok(tab, "the card has a service band");
+  assert.strictEqual(tab.attrs.fill, "#3f891a");
+
+  // The card body is a quiet surface, the border is not the service colour.
+  const card = node.querySelector(".node-card-bg");
+  assert.ok(card, "the card has a body");
+  assert.strictEqual(card.attrs.stroke, "rgba(255, 255, 255, 0.14)");
+  assert.strictEqual(card.attrs.fill, "#1e1e1e");
+
+  // The decorative ring is gone: the card is drawn with a single rectangle.
+  assert.strictEqual(
+    node.querySelectorAll("rect").length,
+    1,
+    "no decorative ring around the card",
+  );
+
+  // The type label is the machine side of the card: mono, token sized.
+  const typeLabel = node.querySelector(".node-type-label");
+  assert.ok(typeLabel, "the card shows the resource type");
+  assert.strictEqual(typeLabel.attrs["font-size"], "10px");
+  assert.ok(
+    typeLabel.attrs["font-family"].includes("JetBrains Mono"),
+    "the type is set in the mono face",
+  );
+
+  // The name is the human side: it inherits the sans face from the stylesheet.
+  assert.ok(node.querySelector(".resource-label"), "the card shows the name");
+
+  // The entrance marks the group that moves, not the node itself.
+  const inner = node.querySelector(".node-inner");
+  assert.strictEqual(inner.attrs["data-entrance"], "node");
+  assert.strictEqual(inner.style.getPropertyValue("--i"), "0");
+  assert.strictEqual(
+    node.style.getPropertyValue("--node-service"),
+    "#3f891a",
+    "the service colour is available to the hover state",
+  );
+}
+
+// ── the exported diagram shows the settled graph ───────────────────────────
+{
+  const marked = makeElement("g");
+  marked.setAttribute("data-entrance", "node");
+  marked.setAttribute("opacity", "0.42");
+  const root = makeElement("svg");
+  root.appendChild(marked);
+
+  Viewer.stripEntranceState(root);
+
+  assert.strictEqual(marked.getAttribute("opacity"), null);
+  assert.strictEqual(marked.getAttribute("data-entrance"), null);
+}
+
+// ── the service band is a rounded top edge, not a rectangle ────────────────
+{
+  const path = Viewer.serviceTabPath(60, 52, 8, 8);
+  assert.ok(path.startsWith("M -52,-52"), "the band starts at the top left");
+  assert.ok(path.includes("A 8,8 0 0 1 60,-44"), "the top corners are rounded");
+  assert.ok(path.includes("H -60"), "the band has a flat bottom");
+  assert.ok(path.endsWith("Z"), "the band is closed");
+}
+
+// ── the canvas labels stay inside their width budget ───────────────────────
+{
+  assert.strictEqual(Viewer.truncateLabel("short", 18), "short");
+  assert.strictEqual(
+    Viewer.truncateLabel("aws:ec2:securitygroup", 18).length,
+    18,
+    "a truncated label never exceeds the budget",
+  );
+  assert.strictEqual(
+    Viewer.canvasTypeLabel("aws:ec2:instance"),
+    "ec2:instance",
+    "the provider prefix is dropped on the card",
+  );
+  assert.strictEqual(
+    Viewer.canvasTypeLabel("unknown"),
+    "unknown",
+    "a type without a provider keeps its text",
+  );
+}
+
+
 {
   [template, source].forEach((text) => {
     ["\u{1F3D7}\uFE0F", "\u25BC", "\u2630", "\u{1F4C1}", "\u{1F4C2}", "\u{1F4E6}", "\u00D7"]
