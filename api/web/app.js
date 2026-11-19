@@ -425,10 +425,10 @@ function renderGraph(g) {
   const layers = {};
   for (const n of nodes) (layers[depth[n.id]] ||= []).push(n.id);
 
-  const H = Math.max(260, 130 * Math.max(1, ...Object.values(layers).map((l) => l.length)));
-  const W = Math.max(700, 300 * Object.keys(layers).length);
+  const H = Math.max(260, 112 * Math.max(1, ...Object.values(layers).map((l) => l.length)));
+  const W = Math.max(700, 230 * Object.keys(layers).length);
   setBaseView(svg, W, H);
-  const nw = 190, nh = 74, gapX = 280;
+  const nw = 180, nh = 74, gapX = 215;
   const pos = {};
   for (const [d, ids] of Object.entries(layers)) {
     ids.sort();
@@ -577,31 +577,31 @@ function renderResourceGraph(svg, owner) {
   const rowsFor = (list) => Math.ceil(list.length / cols);
   const panelH = (list) => 34 + rowsFor(list) * tileH + (rowsFor(list) + 1) * gap;
 
-  const localLayout = [];
-  let ly = 52, rowH = 0;
-  [...locals.entries()].sort().forEach(([label, list], i) => {
-    if (i > 0 && i % 2 === 0) { ly += rowH + 22; rowH = 0; }
-    const h = panelH(list);
-    localLayout.push({ label, list, x: 40 + (i % 2) * (panelW + 22), y: ly, w: panelW, h });
-    rowH = Math.max(rowH, h);
-  });
-  const localEndY = ly + rowH;
-  const extX = 40 + 2 * (panelW + 22) + 16;
-  const extLayout = [];
-  let ey = 52;
-  [...externals.entries()].sort().forEach(([label, list]) => {
-    const h = panelH(list);
-    extLayout.push({ label, list, x: extX, y: ey, w: panelW, h, external: true });
-    ey += h + 22;
-  });
+  // Two-column masonry: local component panels first, then the connected
+  // statefiles. Stacking vertically uses the tall canvas much better.
+  const colX = [40, 40 + panelW + 22];
+  const colY = [52, 52];
+  const panels = [];
+  for (const [label, list] of [...locals.entries()].sort()) {
+    panels.push({ label, list, external: false, h: panelH(list) });
+  }
+  for (const [label, list] of [...externals.entries()].sort()) {
+    panels.push({ label, list, external: true, h: panelH(list) });
+  }
+  for (const panel of panels) {
+    const c = colY[0] <= colY[1] ? 0 : 1;
+    panel.x = colX[c];
+    panel.y = colY[c];
+    panel.w = panelW;
+    colY[c] += panel.h + 22;
+  }
 
-  const W = Math.max(1160, extX + panelW + 40);
-  const H = Math.max(400, localEndY + 40, ey + 40);
+  const W = colX[1] + panelW + 40;
+  const H = Math.max(400, Math.max(...colY) + 40);
   setBaseView(svg, W, H);
   svg.appendChild(svgEl("rect", { x: 12, y: 12, width: W - 24, height: H - 24, rx: 12, class: "outer-box" }));
   svg.appendChild(svgEl("text", { x: 28, y: 38, class: "outer-title" }, `${owner} — architecture`));
 
-  const panels = [...localLayout, ...extLayout];
   for (const p of panels) {
     svg.appendChild(svgEl("rect", { x: p.x, y: p.y, width: p.w, height: p.h, rx: 8, class: "group-box" }));
     svg.appendChild(svgEl("text", { x: p.x + 12, y: p.y + 20, class: "group-title" },

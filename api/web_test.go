@@ -168,7 +168,7 @@ func TestIndexReferencesEmbeddedAssets(t *testing.T) {
 	}
 	html := string(index)
 	for _, ref := range []string{
-		`href="style.css?v=18"`, `src="app.js?v=18"`, `src="icons/aws.svg"`,
+		`href="style.css?v=19"`, `src="app.js?v=19"`, `src="icons/aws.svg"`,
 		`id="services"`, `id="graphHint"`,
 		`id="enlargeBtn"`, `id="archFull"`,
 		`id="graphWrap"`, `id="zoomInBtn"`, `id="canvasBackBtn"`,
