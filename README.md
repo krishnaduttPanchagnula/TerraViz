@@ -26,8 +26,8 @@ brew install krishnaduttPanchagnula/TerraViz/terraviz
 # Dashboard: multi-state dependencies, SQL, samples
 terraviz -serve -addr :8080 -db terraviz.db
 # open http://localhost:8080 → "+ Add statefiles" → "Bundled samples"
-# click a state to see its resources; click "Resource diagram" for the
-# resource-level explorer at http://localhost:8080/terraviz/
+# click a state to see its resources; switch to the "Resource diagram" tab
+# in the left nav for the resource-level explorer (same page, no new tab)
 
 # One-shot cross-state analysis
 terraviz -v -db terraviz.db network=network.tfstate app=app.tfstate
@@ -74,9 +74,16 @@ column for a tall sticky, pannable/zoomable architecture canvas.
   icon set.
 - **SQL box** for arbitrary read-only queries.
 
-The **Resource diagram** nav item opens the resource-level explorer at
-`/terraviz/`, preserving TerraViz's search/filter, minimap, multi-hop trace,
-hide/show, custom connections, and PNG/SVG/CSV/Mermaid/DOT export.
+The **Resource diagram** nav item switches the same page to the resource-level
+explorer (served at `/terraviz/`, embedded in the workspace). It preserves
+TerraViz's search/filter, minimap, multi-hop trace, hide/show, custom
+connections, and PNG/SVG/CSV/Mermaid/DOT export.
+
+The dashboard canvas now carries those same tools: search, cloud/evidence-kind
+filters, view options (dot grid, labels, flow animation, minimap, legend,
+simplified view), multi-hop trace, presentation mode, SVG/PNG/CSV/Mermaid/DOT
+export, double-click to hide a resource, and Shift-click two services to add a
+custom connection.
 
 ### S3 configuration
 

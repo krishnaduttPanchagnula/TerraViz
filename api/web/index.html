@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0d1117">
 <title>terraquery</title>
-<link rel="stylesheet" href="style.css?v=16">
+<link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
 <a href="#mainContent" class="skip-link">Skip to main content</a>
@@ -31,41 +31,54 @@
   <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
   <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
   <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 13a9 9 0 1 1-10-10 7 7 0 0 0 10 10Z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></symbol>
+  <symbol id="i-present" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+  <symbol id="i-minimize" viewBox="0 0 24 24"><path d="M4 14h6v6M20 10h-6V4M10 14 3 21M14 10l7-7"/></symbol>
+  <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.9 5.2A10 10 0 0 1 12 5c5 0 9 4.5 10 7a13 13 0 0 1-2.2 3.2M6.2 6.2A13 13 0 0 0 2 12c1 2.5 5 7 10 7a10 10 0 0 0 3-.4"/></symbol>
 </svg>
 
 <div class="app-shell">
   <aside class="sidebar" aria-label="Main navigation">
     <a href="#mainContent" class="brand">
       <img src="icons/aws.svg" alt="" width="24" height="24">
-      <span>terraquery</span>
+      <span>TerraViz</span>
     </a>
 
-    <nav class="nav" aria-label="Sections">
-      <a href="#overview" class="nav-link active" aria-current="page">
+    <nav class="nav" aria-label="Views">
+      <button type="button" class="nav-link active" data-view="dashboard" aria-current="page">
+        <svg class="icon" aria-hidden="true"><use href="#i-grid"/></svg>
+        <span>Dashboard</span>
+      </button>
+      <button type="button" class="nav-link" data-view="diagram">
+        <svg class="icon" aria-hidden="true"><use href="#i-network"/></svg>
+        <span>Resource diagram</span>
+      </button>
+    </nav>
+
+    <nav class="nav" aria-label="Dashboard sections">
+      <a href="#overview" class="nav-link section-link">
         <svg class="icon" aria-hidden="true"><use href="#i-grid"/></svg>
         <span>Overview</span>
       </a>
-      <a href="#graphSection" class="nav-link">
+      <a href="#graphSection" class="nav-link section-link">
         <svg class="icon" aria-hidden="true"><use href="#i-network"/></svg>
         <span>Architecture</span>
       </a>
-      <a href="/terraviz/" target="_blank" rel="noopener" class="nav-link">
-        <svg class="icon" aria-hidden="true"><use href="#i-network"/></svg>
-        <span>Resource diagram</span>
-      </a>
-      <a href="#servicesSection" class="nav-link">
+      <a href="#servicesSection" class="nav-link section-link">
         <svg class="icon" aria-hidden="true"><use href="#i-layers"/></svg>
         <span>Services</span>
       </a>
-      <a href="#depsSection" class="nav-link">
+      <a href="#depsSection" class="nav-link section-link">
         <svg class="icon" aria-hidden="true"><use href="#i-link"/></svg>
         <span>Dependencies</span>
       </a>
-      <a href="#edgesSection" class="nav-link">
+      <a href="#edgesSection" class="nav-link section-link">
         <svg class="icon" aria-hidden="true"><use href="#i-list"/></svg>
         <span>Evidence</span>
       </a>
-      <a href="#sqlSection" class="nav-link">
+      <a href="#sqlSection" class="nav-link section-link">
         <svg class="icon" aria-hidden="true"><use href="#i-database"/></svg>
         <span>SQL</span>
       </a>
@@ -95,6 +108,7 @@
 
     <div id="srStatus" class="sr-only" role="status" aria-live="polite"></div>
 
+    <div id="viewDashboard" class="view-pane">
     <main id="mainContent" class="dashboard" aria-busy="false">
       <div class="col-left">
         <section class="card" id="overview">
@@ -160,6 +174,58 @@
               </button>
             </div>
           </div>
+          <div class="canvas-toolbar" role="toolbar" aria-label="Canvas tools">
+            <label class="sr-only" for="graphSearch">Search resources</label>
+            <input type="search" id="graphSearch" placeholder="Search services…" autocomplete="off">
+            <label class="sr-only" for="graphProvider">Filter by cloud</label>
+            <select id="graphProvider" aria-label="Filter by cloud">
+              <option value="">All clouds</option><option value="aws">AWS</option>
+              <option value="gcp">GCP</option><option value="azure">Azure</option>
+            </select>
+            <label class="sr-only" for="graphKind">Filter by evidence kind</label>
+            <select id="graphKind" aria-label="Filter by evidence kind">
+              <option value="">All kinds</option><option value="arn">ARN</option>
+              <option value="host">Host</option><option value="id">ID</option>
+              <option value="name">Name</option><option value="remote_state">Remote state</option>
+            </select>
+            <div class="popover-wrap">
+              <button type="button" id="viewMenuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu">
+                <svg class="icon" aria-hidden="true"><use href="#i-sliders"/></svg> View
+              </button>
+              <div class="tool-popover" id="viewMenu" hidden>
+                <label><input type="checkbox" id="optGrid" checked> Dot grid</label>
+                <label><input type="checkbox" id="optLabels" checked> Labels</label>
+                <label><input type="checkbox" id="optFlow" checked> Flow animation</label>
+                <label><input type="checkbox" id="optMinimap" checked> Minimap</label>
+                <label><input type="checkbox" id="optLegend"> Connection legend</label>
+                <label><input type="checkbox" id="optSimple"> Simplified view</label>
+                <button type="button" id="showAllNodes">Show hidden resources</button>
+                <button type="button" id="clearCustom">Clear custom links</button>
+              </div>
+            </div>
+            <div class="popover-wrap">
+              <button type="button" id="exportMenuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="exportMenu">
+                <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg> Export
+              </button>
+              <div class="tool-popover" id="exportMenu" hidden>
+                <button type="button" data-export="svg">SVG</button>
+                <button type="button" data-export="png">PNG</button>
+                <button type="button" data-export="csv">CSV</button>
+                <button type="button" data-export="mermaid">Mermaid</button>
+                <button type="button" data-export="dot">DOT</button>
+              </div>
+            </div>
+            <label class="trace-control">Trace
+              <select id="traceDepth" aria-label="Trace depth">
+                <option value="0">Off</option><option value="1">1 hop</option>
+                <option value="2">2 hops</option><option value="3">3 hops</option>
+                <option value="all">All</option>
+              </select>
+            </label>
+            <button type="button" id="presentBtn" title="Presentation mode" aria-label="Presentation mode">
+              <svg class="icon" aria-hidden="true"><use href="#i-present"/></svg>
+            </button>
+          </div>
           <p class="hint" id="graphHint">Drag to pan, scroll to zoom. Click a state to inspect its services.</p>
           <div class="graphwrap" id="graphWrap">
             <button type="button" id="canvasBackBtn" class="canvas-back" hidden
@@ -172,10 +238,21 @@
               <button type="button" id="resetViewBtn" title="Reset view" aria-label="Reset view"><svg class="icon" aria-hidden="true"><use href="#i-fit"/></svg></button>
             </div>
             <svg id="graph" role="group" aria-label="Dependency graph" aria-describedby="graphHint"></svg>
+            <div id="minimap" class="minimap"><svg id="minimapSvg" aria-hidden="true"></svg></div>
+            <div id="canvasLegend" class="canvas-legend" hidden>
+              <span><i style="background:#2563eb"></i> ARN</span>
+              <span><i style="background:#3b82f6"></i> Host</span>
+              <span><i style="background:#60a5fa"></i> Remote state</span>
+              <span><i style="background:#93c5fd"></i> ID</span>
+            </div>
           </div>
         </section>
       </div>
     </main>
+    </div>
+    <div id="viewDiagram" class="view-pane" hidden>
+      <iframe id="diagramFrame" src="/terraviz/" title="Resource diagram"></iframe>
+    </div>
   </div>
 </div>
 
@@ -257,6 +334,6 @@
   <span id="errorText"></span>
   <button type="button" id="errorRetry"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg> Retry</button>
 </div>
-<script src="app.js?v=16"></script>
+<script src="app.js?v=17"></script>
 </body>
 </html>

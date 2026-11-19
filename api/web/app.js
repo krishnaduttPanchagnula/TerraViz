@@ -9,7 +9,8 @@ const PROVIDER_COLORS = { aws: "#FF9900", gcp: "#4285F4", azure: "#0078D4", unkn
 
 const state = {
   states: [], hidden: new Set(), deps: [], edges: [], graph: null,
-  resources: [], drill: null, view: null,
+  resources: [], drill: null, view: null, traceKeys: null,
+  hiddenResources: new Set(), customLinks: [], linkStart: null,
   s3: { bucket: "", prefix: "", token: "", selected: new Set(), objects: [] },
   samples: new Map(), picked: [],
 };
@@ -20,6 +21,28 @@ function savedTheme() {
 function storeTheme(theme) {
   try { localStorage.setItem("tq-theme", theme); } catch { /* storage disabled */ }
 }
+function updateHash() {
+  const p = new URLSearchParams();
+  if (!$("viewDiagram").hidden) p.set("view", "diagram");
+  if (state.drill) p.set("state", state.drill);
+  const hash = p.toString() ? `#${p}` : "";
+  if (location.hash !== hash) history.replaceState(null, "", location.pathname + location.search + hash);
+}
+
+function setView(view) {
+  const diagram = view === "diagram";
+  $("viewDashboard").hidden = diagram;
+  $("viewDiagram").hidden = !diagram;
+  for (const b of document.querySelectorAll("nav button[data-view]")) {
+    const active = (b.dataset.view === "diagram") === diagram;
+    b.classList.toggle("active", active);
+    if (active) b.setAttribute("aria-current", "page");
+    else b.removeAttribute("aria-current");
+  }
+  updateHash();
+  if (!diagram) $("graphWrap")?.scrollIntoView?.({ block: "nearest" });
+}
+
 function applyTheme(theme, persist = true) {
   document.documentElement.dataset.theme = theme;
   const btn = $("themeBtn");
@@ -171,13 +194,15 @@ function render() {
   renderStateFilter();
   renderDonut(edges);
   renderGraph(state.graph);
+  state.traceKeys = null;
+  applyCanvasFilters();
+  drawMinimap();
   renderServices();
   $("canvasBackBtn").hidden = !state.drill;
   $("archFullTitle").textContent = state.drill ? `${state.drill} — architecture` : "Dependency graph";
-  const hash = state.drill ? `#state=${encodeURIComponent(state.drill)}` : "";
-  if (location.hash !== hash) history.replaceState(null, "", location.pathname + location.search + hash);
+  updateHash();
   $("graphHint").textContent = state.drill
-    ? "Every box is a resource; dashed boxes live in other statefiles. Arrows point to what it depends on. Click a resource for details."
+    ? "Dashed boxes are in other statefiles. Click for details, Shift-click two services to link them, double-click to hide one."
     : "Drag to pan, scroll to zoom. Click a state box to inspect its services.";
 
   table($("depsTable"), ["From", "To", "Conf", "Evidence", "Kinds"],
@@ -315,7 +340,8 @@ function drawEdges(svg, lines, pos, nw, nh) {
   for (const e of lines) {
     const a = pos[e.from], b = pos[e.to];
     if (!a || !b) continue;
-    eg.appendChild(svgEl("line", { class: "flow-line", x1: a.x, y1: a.y + nh / 2, x2: b.x + nw,
+    eg.appendChild(svgEl("line", { class: "flow-line", "data-from": e.from, "data-to": e.to,
+      "data-kind": e.kind || "", x1: a.x, y1: a.y + nh / 2, x2: b.x + nw,
       y2: b.y + nh / 2, "stroke-width": 1.5, "marker-end": "url(#arrow)" }));
   }
   svg.appendChild(eg);
@@ -432,7 +458,7 @@ function renderGraph(g) {
   const ng = svgEl("g");
   for (const n of nodes) {
     const p = pos[n.id], provider = providerOf(n.id);
-    const g2 = svgEl("g", { class: "node" });
+    const g2 = svgEl("g", { class: "node", "data-key": n.id, "data-provider": provider });
     g2.appendChild(svgEl("rect", { x: p.x, y: p.y, width: nw, height: nh, rx: 9,
       stroke: PROVIDER_COLORS[provider] || "#8b98a5" }));
     g2.appendChild(svgImage(`/icons/${provider}.svg`, { x: p.x + 11, y: p.y + 18,
@@ -444,7 +470,11 @@ function renderGraph(g) {
     g2.setAttribute("tabindex", "0");
     g2.setAttribute("role", "button");
     g2.setAttribute("aria-label", `Inspect ${n.id}, ${n.resources} resources`);
-    const drillIn = () => { state.drill = n.id; render(); };
+    const drillIn = () => {
+      if ($("traceDepth").value !== "0") { traceFrom(n.id); return; }
+      state.drill = n.id;
+      render();
+    };
     g2.addEventListener("click", () => { if (!state.dragged) drillIn(); });
     g2.addEventListener("keydown", (e) => {
       if (e.key !== "Enter" && e.key !== " ") return;
@@ -507,7 +537,8 @@ function drawNumberedEdges(svg, lines, pos) {
   for (const l of lines) {
     const a = pos[l.from], b = pos[l.to];
     if (!a || !b) continue;
-    eg.appendChild(svgEl("line", { class: "flow-line", x1: a.cx, y1: a.cy, x2: b.cx,
+    eg.appendChild(svgEl("line", { class: "flow-line", "data-from": l.from, "data-to": l.to,
+      "data-kind": l.kind || "", x1: a.cx, y1: a.cy, x2: b.cx,
       y2: b.cy, "stroke-width": 1.5, "marker-end": "url(#arrow)" }));
   }
   svg.appendChild(eg);
@@ -539,7 +570,7 @@ function renderResourceGraph(svg, owner) {
     if (e.from !== owner && e.to !== owner) continue;
     const from = addNode(e.from, e.from_addr || "output");
     const to = addNode(e.to, e.to_addr || "remote state");
-    lines.push({ from, to, confidence: e.confidence, matched: e.matched });
+    lines.push({ from, to, confidence: e.confidence, matched: e.matched, kind: e.kind });
   }
   state.resources.filter((r) => r.state === owner)
     .forEach((r) => addNode(owner, r.address, r.type));
@@ -603,12 +634,20 @@ function renderResourceGraph(svg, owner) {
     });
   }
   drawNumberedEdges(svg, lines, pos);
+  for (const link of state.customLinks) {
+    const a = pos[link.from], b = pos[link.to];
+    if (!a || !b) continue;
+    svg.appendChild(svgEl("line", { class: "flow-line", "data-from": link.from, "data-to": link.to,
+      "data-kind": "custom", x1: a.cx, y1: a.cy, x2: b.cx, y2: b.cy, stroke: "var(--accent)",
+      "stroke-width": 2, "stroke-dasharray": "4 3", "marker-end": "url(#arrow)" }));
+  }
 
   for (const n of nodes.values()) {
     const p = pos[n.key];
     if (!p) continue;
     const color = PROVIDER_COLORS[cloudOf(n.type)] || "#8b98a5";
-    const g2 = svgEl("g", { class: "node" });
+    const g2 = svgEl("g", { class: "node", "data-key": n.key, "data-provider": cloudOf(n.type) });
+    if (state.hiddenResources.has(n.key)) g2.style.display = "none";
     g2.appendChild(svgEl("rect", { class: "tile-box", x: p.x, y: p.y, width: tileW - 8,
       height: tileH - 10, rx: 7, stroke: color }));
     g2.appendChild(svgImage(serviceIcon(n.type), {
@@ -634,7 +673,25 @@ function renderResourceGraph(svg, owner) {
     g2.setAttribute("tabindex", "0");
     g2.setAttribute("role", "button");
     g2.setAttribute("aria-label", `${n.owner}: ${n.type} ${n.name}. Activate for connections.`);
-    g2.addEventListener("click", () => { if (!state.dragged) showDetail(); });
+    g2.addEventListener("click", (e) => {
+      if (state.dragged) return;
+      if (e.shiftKey) {
+        if (!state.linkStart) { state.linkStart = n.key; showDetail(); return; }
+        if (state.linkStart !== n.key) {
+          state.customLinks.push({ from: state.linkStart, to: n.key });
+          state.linkStart = null;
+          render();
+        }
+        return;
+      }
+      showDetail();
+      if ($("traceDepth").value !== "0") traceFrom(n.key);
+    });
+    g2.addEventListener("dblclick", () => {
+      if (state.hiddenResources.has(n.key)) state.hiddenResources.delete(n.key);
+      else state.hiddenResources.add(n.key);
+      render();
+    });
     g2.addEventListener("keydown", (e) => {
       if (e.key !== "Enter" && e.key !== " ") return;
       e.preventDefault();
@@ -698,6 +755,156 @@ $("stateFilterBtn").addEventListener("click", () => {
 });
 document.addEventListener("click", (e) => {
   if (!$("stateMenu").hidden && !e.target.closest(".state-filter")) closeStateMenu();
+});
+
+// ---- canvas tools shared with the resource-level explorer ----
+function downloadFile(name, content, mime) {
+  const url = URL.createObjectURL(new Blob([content], { type: mime }));
+  const a = el("a", { href: url, download: name });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function drawMinimap() {
+  const svg = $("minimapSvg");
+  svg.replaceChildren();
+  const base = $("graph").dataset.baseView?.split(" ").map(Number);
+  if (!base) return;
+  const w = 180, h = 120, sx = w / base[2], sy = h / base[3];
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  for (const l of $("graph").querySelectorAll("line")) {
+    svg.appendChild(svgEl("line", {
+      x1: Number(l.getAttribute("x1")) * sx, y1: Number(l.getAttribute("y1")) * sy,
+      x2: Number(l.getAttribute("x2")) * sx, y2: Number(l.getAttribute("y2")) * sy,
+      stroke: "var(--line-strong)", "stroke-width": 1, opacity: l.style.opacity || 1,
+    }));
+  }
+  for (const g of $("graph").querySelectorAll("g.node")) {
+    const r = g.querySelector("rect");
+    if (!r) continue;
+    svg.appendChild(svgEl("rect", {
+      x: Number(r.getAttribute("x")) * sx, y: Number(r.getAttribute("y")) * sy,
+      width: Number(r.getAttribute("width")) * sx, height: Number(r.getAttribute("height")) * sy,
+      fill: g.classList.contains("dim") ? "var(--line)" : "var(--accent)",
+    }));
+  }
+}
+
+function applyCanvasFilters() {
+  const q = $("graphSearch").value.trim().toLowerCase();
+  const provider = $("graphProvider").value;
+  const kind = $("graphKind").value;
+  for (const n of $("graph").querySelectorAll("g.node")) {
+    const text = (n.textContent + " " + (n.getAttribute("data-key") || "")).toLowerCase();
+    const ok = (!q || text.includes(q)) && (!provider || n.dataset.provider === provider);
+    n.classList.toggle("dim", !ok && state.traceKeys === null);
+  }
+  for (const l of $("graph").querySelectorAll("line[data-kind]")) {
+    l.style.opacity = !kind || l.dataset.kind === kind ? "" : "0.08";
+  }
+  drawMinimap();
+}
+
+function traceFrom(key) {
+  const depth = $("traceDepth").value;
+  if (depth === "0" || !key) { state.traceKeys = null; applyCanvasFilters(); return; }
+  const max = depth === "all" ? Infinity : Number(depth);
+  const adj = new Map();
+  for (const l of $("graph").querySelectorAll("line[data-from][data-to]")) {
+    const a = l.dataset.from, b = l.dataset.to;
+    if (!adj.has(a)) adj.set(a, new Set());
+    if (!adj.has(b)) adj.set(b, new Set());
+    adj.get(a).add(b);
+    adj.get(b).add(a);
+  }
+  const seen = new Set([key]);
+  let frontier = [key];
+  for (let d = 0; d < max && frontier.length; d++) {
+    const next = [];
+    for (const k of frontier) for (const nb of adj.get(k) || []) {
+      if (!seen.has(nb)) { seen.add(nb); next.push(nb); }
+    }
+    frontier = next;
+  }
+  state.traceKeys = seen;
+  for (const n of $("graph").querySelectorAll("g.node")) {
+    const hit = seen.has(n.dataset.key);
+    n.classList.toggle("dim", !hit);
+    n.classList.toggle("trace", hit);
+  }
+  drawMinimap();
+}
+
+function exportCanvas(format) {
+  const svg = $("graph");
+  const stamp = new Date().toISOString().slice(0, 10);
+  if (format === "svg") {
+    const clone = svg.cloneNode(true);
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    downloadFile(`terraviz-${stamp}.svg`, new XMLSerializer().serializeToString(clone), "image/svg+xml");
+  } else if (format === "png") {
+    const clone = svg.cloneNode(true);
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    const source = new XMLSerializer().serializeToString(clone);
+    const img = new Image();
+    const url = URL.createObjectURL(new Blob([source], { type: "image/svg+xml" }));
+    img.onload = () => {
+      const c = el("canvas");
+      c.width = img.width || 1600; c.height = img.height || 900;
+      c.getContext("2d").drawImage(img, 0, 0);
+      c.toBlob((b) => {
+        const u = URL.createObjectURL(b);
+        const a = el("a", { href: u, download: `terraviz-${stamp}.png` });
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(u); URL.revokeObjectURL(url);
+      });
+    };
+    img.src = url;
+  } else if (format === "csv") {
+    const rows = [["from", "to", "kind", "matched", "confidence"]].concat(
+      state.edges.map((e) => [e.from, e.to, e.kind, e.matched, e.confidence]));
+    downloadFile(`terraviz-${stamp}.csv`, rows.map((r) => r.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"), "text/csv");
+  } else if (format === "mermaid") {
+    const lines = ["flowchart LR"];
+    for (const e of state.graph?.edges || []) lines.push(`  ${e.from} --> ${e.to}`);
+    downloadFile(`terraviz-${stamp}.mmd`, lines.join("\n") + "\n", "text/plain");
+  } else if (format === "dot") {
+    const lines = ["digraph terraquery {", "  rankdir=LR;"];
+    for (const e of state.graph?.edges || []) lines.push(`  "${e.from}" -> "${e.to}";`);
+    downloadFile(`terraviz-${stamp}.dot`, lines.join("\n") + "}\n", "text/plain");
+  }
+}
+
+for (const [btn, menu] of [["viewMenuBtn", "viewMenu"], ["exportMenuBtn", "exportMenu"]]) {
+  $(btn).addEventListener("click", () => {
+    const m = $(menu);
+    m.hidden = !m.hidden;
+    $(btn).setAttribute("aria-expanded", String(!m.hidden));
+  });
+}
+$("optGrid").addEventListener("change", (e) => $("graphWrap").classList.toggle("grid", e.target.checked));
+$("optLabels").addEventListener("change", (e) => $("graph").classList.toggle("nolabels", !e.target.checked));
+$("optFlow").addEventListener("change", (e) => $("graph").classList.toggle("flow", e.target.checked));
+$("optMinimap").addEventListener("change", (e) => { $("minimap").hidden = !e.target.checked; drawMinimap(); });
+$("optLegend").addEventListener("change", (e) => { $("canvasLegend").hidden = !e.target.checked; });
+$("optSimple").addEventListener("change", (e) => $("graph").classList.toggle("simple", e.target.checked));
+for (const input of ["graphSearch", "graphProvider", "graphKind"]) {
+  $(input).addEventListener("input", () => { state.traceKeys = null; applyCanvasFilters(); });
+}
+$("traceDepth").addEventListener("change", () => {
+  if ($("traceDepth").value === "0") { state.traceKeys = null; applyCanvasFilters(); }
+});
+for (const b of document.querySelectorAll("[data-export]")) {
+  b.addEventListener("click", () => exportCanvas(b.dataset.export));
+}
+$("showAllNodes").addEventListener("click", () => { state.hiddenResources.clear(); render(); });
+$("clearCustom").addEventListener("click", () => { state.customLinks = []; state.linkStart = null; render(); });
+$("presentBtn").addEventListener("click", () => {
+  document.body.classList.toggle("present");
+  if (document.body.classList.contains("present")) document.documentElement.requestFullscreen?.().catch(() => {});
+  else document.exitFullscreen?.().catch(() => {});
 });
 
 // ---- dialogs: focus management + trap ----
@@ -946,8 +1153,21 @@ $("sqlBtn").addEventListener("click", async () => {
   } catch (err) { showError(err.message); }
 });
 
-const drillFromHash = location.hash.match(/state=([^&]+)/);
-if (drillFromHash) state.drill = decodeURIComponent(drillFromHash[1]);
+const initialParams = new URLSearchParams(location.hash.slice(1));
+if (initialParams.get("state")) state.drill = initialParams.get("state");
+if (initialParams.get("view") === "diagram") setView("diagram");
+
+for (const b of document.querySelectorAll("nav button[data-view]")) {
+  b.addEventListener("click", () => setView(b.dataset.view));
+}
+for (const a of document.querySelectorAll(".section-link")) {
+  a.addEventListener("click", (e) => {
+    e.preventDefault();
+    setView("dashboard");
+    const target = document.querySelector(a.getAttribute("href"));
+    if (target) setTimeout(() => target.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  });
+}
 
 loadS3Status();
 loadSamples().catch((err) => drawerMsg(err.message, false));
