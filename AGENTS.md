@@ -9,7 +9,7 @@ Go CLI tool that parses Terraform `.tfstate` files (v4 raw or `terraform show -j
 ## Build / Run / Verify
 
 ```bash
-go build -o terraviz ./cmd/main.go   # Build (from project root)
+go build -o terraviz .   # Build (from project root)
 go vet ./...                                       # Static analysis
 go test ./...                                      # Go unit tests (models, parsers)
 node scripts/check-diagram-js.js                   # Frontend layout/trace self-check
@@ -18,7 +18,7 @@ node scripts/check-diagram-js.js                   # Frontend layout/trace self-
 With version info:
 ```bash
 go build -ldflags "-s -w -X main.version=dev -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-  -o terraviz ./cmd/main.go
+  -o terraviz .
 ```
 
 There are Go unit tests under `internal/models` and `internal/parsers`. The frontend has no test framework; `scripts/check-diagram-js.js` runs the layout and trace logic in a vm sandbox with a DOM stub.
@@ -26,7 +26,7 @@ There are Go unit tests under `internal/models` and `internal/parsers`. The fron
 ## Project Layout
 
 ```
-cmd/main.go                         Cobra CLI entry point (scan, compare, serve)
+main.go                             Cobra CLI entry point (scan, compare, serve)
                                     Has build-time vars: version, commit, date (set via -ldflags)
 internal/
   models/
@@ -68,7 +68,7 @@ The built binary is fully self-contained -- no external files or CDN dependencie
 
 ## Do NOT Modify
 
-- `web/embed.go` -- go:embed directive, no logic to change
+- `legacyweb/embed.go` -- go:embed directive, no logic to change
 
 ## Release Process
 
@@ -95,7 +95,7 @@ GoReleaser config (`.goreleaser.yml`):
 
 ### Homebrew Tap
 
-The formula lives in `HomebrewFormula/terraviz.rb` (same repo).
+The cask lives in `Casks/terraviz.rb` (same repo).
 Users install via: `brew install krishnaduttPanchagnula/TerraViz/terraviz`
 
 GoReleaser auto-generates and commits the formula on every non-prerelease tag.
@@ -169,7 +169,7 @@ API routes are under `/api/` -- see `server.go:setupRoutes()` for full list.
 2. Add mapping in `terraformTypeMap` in `parsers/terraform.go`
 3. Add connection analyzer in `parsers/connections.go` (use existing helpers)
 4. Add icon mapping in `resourceIconMap` in `models/models.go`
-5. Build and vet: `go build -o terraviz ./cmd/main.go && go vet ./...`
+5. Build and vet: `go build -o terraviz . && go vet ./...`
 
 ### Adding a new AWS service to the live scanner
 1. Add AWS SDK import in `scanners/aws.go` with consistent alias (e.g., `svcTypes`)

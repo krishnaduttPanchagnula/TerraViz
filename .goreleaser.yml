@@ -9,7 +9,7 @@ before:
 
 builds:
   - id: terraviz
-    main: ./cmd/main.go
+    main: .
     binary: terraviz
     env:
       - CGO_ENABLED=0
@@ -28,12 +28,14 @@ builds:
 
 archives:
   - id: default
-    format: tar.gz
+    formats:
+      - tar.gz
     name_template: >-
       {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
     format_overrides:
       - goos: windows
-        format: zip
+        formats:
+          - zip
 
 checksum:
   name_template: "checksums.txt"
@@ -55,23 +57,23 @@ release:
   prerelease: auto
   name_template: "v{{ .Version }}"
 
-brews:
+homebrew_casks:
   - name: terraviz
+    binaries:
+      - terraviz
     repository:
       owner: krishnaduttPanchagnula
       name: TerraViz
       branch: main
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: HomebrewFormula
+    directory: Casks
     homepage: "https://github.com/krishnaduttPanchagnula/TerraViz"
-    description: "Generate interactive architecture diagrams from Terraform state files or live AWS accounts"
-    license: "MIT"
-    install: |
-      bin.install "terraviz"
-    test: |
-      assert_match version.to_s, shell_output("#{bin}/terraviz --version")
+    description: "Cross-state Terraform dependencies and interactive architecture diagrams"
+    caveats: >-
+      If macOS blocks the binary, run:
+      xattr -d com.apple.quarantine $(brew --prefix)/bin/terraviz
     commit_author:
       name: "github-actions[bot]"
       email: "github-actions[bot]@users.noreply.github.com"
-    commit_msg_template: "chore(brew): update formula to {{ .Tag }}"
+    commit_msg_template: "chore(brew): update cask to {{ .Tag }}"
     skip_upload: auto

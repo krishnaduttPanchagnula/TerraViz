@@ -25,7 +25,7 @@ jobs:
       - name: Verify build
         run: |
           go vet ./...
-          go build -o /dev/null ./cmd/main.go
+          go build -o /dev/null .
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6

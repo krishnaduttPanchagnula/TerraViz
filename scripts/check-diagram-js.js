@@ -1,5 +1,5 @@
 /**
- * Self-check for the relation-graph logic in web/static/js/diagram_enhanced.js.
+ * Self-check for the relation-graph logic in legacyweb/static/js/diagram_enhanced.js.
  *
  * The browser script is not a module, so it is evaluated in a vm sandbox with a
  * minimal DOM stub and the pure helpers are driven through the class prototype.
@@ -13,8 +13,8 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
-const FILE = path.join(__dirname, "..", "web", "static", "js", "diagram_enhanced.js");
-const TEMPLATE = path.join(__dirname, "..", "web", "templates", "index_enhanced.html");
+const FILE = path.join(__dirname, "..", "legacyweb", "static", "js", "diagram_enhanced.js");
+const TEMPLATE = path.join(__dirname, "..", "legacyweb", "templates", "index_enhanced.html");
 const source = fs.readFileSync(FILE, "utf8");
 const template = fs.readFileSync(TEMPLATE, "utf8");
 

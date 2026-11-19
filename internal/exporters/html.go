@@ -10,26 +10,26 @@ import (
 	"strings"
 
 	"terraviz/internal/models"
-	"terraviz/web"
+	"terraviz/legacyweb"
 )
 
 // The embedded assets the exported file is built from.
 const (
 	htmlTemplatePath = "templates/index_enhanced.html"
 	htmlScriptPath   = "static/js/diagram_enhanced.js"
-	htmlScriptTag    = `<script src="/static/js/diagram_enhanced.js"></script>`
+	htmlScriptTag    = `<script src="/terraviz/static/js/diagram_enhanced.js"></script>`
 	htmlFontDir      = "static/fonts/"
 	htmlIconDir      = "icons/"
 )
 
 var (
 	// htmlFontRef finds the font files the template asks for.
-	htmlFontRef = regexp.MustCompile(`/static/fonts/([A-Za-z0-9._-]+)`)
+	htmlFontRef = regexp.MustCompile(`/terraviz/static/fonts/([A-Za-z0-9._-]+)`)
 	// htmlIconRef finds the icon files the diagram and the script point at.
-	htmlIconRef = regexp.MustCompile(`/icons/([A-Za-z0-9._/-]+\.svg)`)
+	htmlIconRef = regexp.MustCompile(`/(?:terraviz/)?icons/([A-Za-z0-9._/-]+\.svg)`)
 	// htmlIconLiteral finds an icon path that stands on its own in the
 	// script, so it can be replaced by a lookup instead of a data URI.
-	htmlIconLiteral = regexp.MustCompile(`"/icons/([A-Za-z0-9._/-]+\.svg)"`)
+	htmlIconLiteral = regexp.MustCompile(`"/(?:terraviz/)?icons/([A-Za-z0-9._/-]+\.svg)"`)
 )
 
 // htmlFetchShim answers the diagram request of the app from the data that
@@ -39,7 +39,7 @@ const htmlFetchShim = `<script id="terraviz-fetch-shim">
   var originalFetch = window.fetch ? window.fetch.bind(window) : null;
   window.fetch = function (input, init) {
     var url = typeof input === "string" ? input : (input && input.url) || "";
-    if (url.indexOf("/api/diagram") !== -1) {
+    if (url.indexOf("/api/diagram") !== -1 || url.indexOf("/terraviz/api/diagram") !== -1) {
       var payload = window.__TERRAVIZ_DIAGRAM__;
       if (typeof Response === "function") {
         return Promise.resolve(new Response(JSON.stringify(payload), {
@@ -69,7 +69,7 @@ func HTML(d *models.Diagram) ([]byte, error) {
 		return nil, fmt.Errorf("building HTML: no diagram")
 	}
 
-	raw, err := web.EmbeddedFiles.ReadFile(htmlTemplatePath)
+	raw, err := legacyweb.EmbeddedFiles.ReadFile(htmlTemplatePath)
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", htmlTemplatePath, err)
 	}
@@ -100,18 +100,18 @@ func HTML(d *models.Diagram) ([]byte, error) {
 		}
 		seenFonts[name] = true
 
-		font, err := web.EmbeddedFiles.ReadFile(htmlFontDir + name)
+		font, err := legacyweb.EmbeddedFiles.ReadFile(htmlFontDir + name)
 		if err != nil {
 			return nil, fmt.Errorf("reading font %s: %w", name, err)
 		}
 		fontBytes += len(font)
-		html = strings.ReplaceAll(html, "/static/fonts/"+name, fontDataURI(font))
+		html = strings.ReplaceAll(html, "/terraviz/static/fonts/"+name, fontDataURI(font))
 	}
 
 	// The script and the icons it falls back to. Every icon of the pack that
 	// the script names is stored once, under its path, and the script looks
 	// it up, so the file does not carry the same data URI over and over.
-	script, err := web.EmbeddedFiles.ReadFile(htmlScriptPath)
+	script, err := legacyweb.EmbeddedFiles.ReadFile(htmlScriptPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", htmlScriptPath, err)
 	}
@@ -127,7 +127,7 @@ func HTML(d *models.Diagram) ([]byte, error) {
 		}
 		seenIcons[path] = true
 
-		icon, err := web.EmbeddedFiles.ReadFile(htmlIconDir + path)
+		icon, err := legacyweb.EmbeddedFiles.ReadFile(htmlIconDir + path)
 		if err != nil {
 			// The pack has no such icon: drop the path so the file keeps
 			// pointing at nothing but itself.
@@ -201,7 +201,7 @@ func inlineIconURL(url string) string {
 	if match == nil {
 		return url
 	}
-	icon, err := web.EmbeddedFiles.ReadFile(htmlIconDir + match[1])
+	icon, err := legacyweb.EmbeddedFiles.ReadFile(htmlIconDir + match[1])
 	if err != nil {
 		return ""
 	}

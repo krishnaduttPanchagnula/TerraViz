@@ -191,6 +191,24 @@ func (p *TerraformParser) addExternalReferences(diagram *models.Diagram, builder
 				if value == "" || findByProperty(ti, spec.targetType, spec.property, value) != nil {
 					continue
 				}
+				// An ECS service may reference a newer revision of a task
+				// definition whose family is already in state. That is an
+				// in-state dependency, not an external resource.
+				if spec.sourceType == models.ResourceTypeECSService && spec.targetType == models.ResourceTypeECSTaskDefinition {
+					family := taskDefinitionFamily(value)
+					if family != "" {
+						inState := false
+						for _, td := range findAllByType(ti, models.ResourceTypeECSTaskDefinition) {
+							if f, _ := td.Properties["family"].(string); f == family {
+								inState = true
+								break
+							}
+						}
+						if inState {
+							continue
+						}
+					}
+				}
 				key := string(spec.targetType) + "\x00" + spec.property + "\x00" + value
 				if seen[key] {
 					continue

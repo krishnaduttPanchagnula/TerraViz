@@ -16,7 +16,7 @@ import (
 
 	"terraviz/internal/models"
 	"terraviz/internal/parsers"
-	"terraviz/web"
+	"terraviz/legacyweb"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -128,6 +128,10 @@ func (s *Server) rebuildResourceIndex() {
 	s.resourceIndex = idx
 }
 
+// Handler exposes the gin engine so it can be mounted under a prefix by the
+// consolidated TerraViz server.
+func (s *Server) Handler() http.Handler { return s.router }
+
 // Start starts the web server.
 func (s *Server) Start() error {
 	address := fmt.Sprintf("%s:%d", s.host, s.port)
@@ -138,18 +142,18 @@ func (s *Server) Start() error {
 // setupRoutes sets up all the routes for the web server.
 func (s *Server) setupRoutes() {
 	// Parse HTML templates from the embedded filesystem.
-	tmpl := template.Must(template.ParseFS(web.EmbeddedFiles, "templates/*"))
+	tmpl := template.Must(template.ParseFS(legacyweb.EmbeddedFiles, "templates/*"))
 	s.router.SetHTMLTemplate(tmpl)
 
 	// Serve static assets (JS, fonts, legacy icons) from the embedded filesystem.
-	staticFS, err := fs.Sub(web.EmbeddedFiles, "static")
+	staticFS, err := fs.Sub(legacyweb.EmbeddedFiles, "static")
 	if err != nil {
 		panic(fmt.Sprintf("failed to create static sub-filesystem: %v", err))
 	}
 	s.router.StaticFS("/static", http.FS(staticFS))
 
 	// Serve AWS icon packs from the embedded filesystem.
-	iconsFS, err := fs.Sub(web.EmbeddedFiles, "icons")
+	iconsFS, err := fs.Sub(legacyweb.EmbeddedFiles, "icons")
 	if err != nil {
 		panic(fmt.Sprintf("failed to create icons sub-filesystem: %v", err))
 	}

@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0d1117">
+<title>terraquery</title>
+<link rel="stylesheet" href="style.css?v=16">
+</head>
+<body>
+<a href="#mainContent" class="skip-link">Skip to main content</a>
+
+<svg class="icon-sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+  <symbol id="i-network" viewBox="0 0 24 24"><rect x="2" y="4" width="7" height="5" rx="1"/><rect x="15" y="15" width="7" height="5" rx="1"/><path d="M9 6.5h4a2 2 0 0 1 2 2v9"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5M3 17l9 5 9-5"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+  <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H6a4 4 0 0 1-.5-8A6 6 0 0 1 17 9a5 5 0 0 1 .5 10Z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="m7 4 13 8-13 8V4Z"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2 6"/><path d="M20 4v7h-7"/></symbol>
+  <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5m7-7-7 7 7 7"/></symbol>
+  <symbol id="i-maximize" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  <symbol id="i-zoom-in" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4M11 8v6M8 11h6"/></symbol>
+  <symbol id="i-zoom-out" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4M8 11h6"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 9v5M12 17h.01"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 13a9 9 0 1 1-10-10 7 7 0 0 0 10 10Z"/></symbol>
+</svg>
+
+<div class="app-shell">
+  <aside class="sidebar" aria-label="Main navigation">
+    <a href="#mainContent" class="brand">
+      <img src="icons/aws.svg" alt="" width="24" height="24">
+      <span>terraquery</span>
+    </a>
+
+    <nav class="nav" aria-label="Sections">
+      <a href="#overview" class="nav-link active" aria-current="page">
+        <svg class="icon" aria-hidden="true"><use href="#i-grid"/></svg>
+        <span>Overview</span>
+      </a>
+      <a href="#graphSection" class="nav-link">
+        <svg class="icon" aria-hidden="true"><use href="#i-network"/></svg>
+        <span>Architecture</span>
+      </a>
+      <a href="/terraviz/" target="_blank" rel="noopener" class="nav-link">
+        <svg class="icon" aria-hidden="true"><use href="#i-network"/></svg>
+        <span>Resource diagram</span>
+      </a>
+      <a href="#servicesSection" class="nav-link">
+        <svg class="icon" aria-hidden="true"><use href="#i-layers"/></svg>
+        <span>Services</span>
+      </a>
+      <a href="#depsSection" class="nav-link">
+        <svg class="icon" aria-hidden="true"><use href="#i-link"/></svg>
+        <span>Dependencies</span>
+      </a>
+      <a href="#edgesSection" class="nav-link">
+        <svg class="icon" aria-hidden="true"><use href="#i-list"/></svg>
+        <span>Evidence</span>
+      </a>
+      <a href="#sqlSection" class="nav-link">
+        <svg class="icon" aria-hidden="true"><use href="#i-database"/></svg>
+        <span>SQL</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-foot">
+      <span class="pill" id="s3Pill"><svg class="icon" aria-hidden="true"><use href="#i-cloud"/></svg> <span id="s3PillText">S3: checking…</span></span>
+      <button type="button" class="primary block" id="addBtn">
+        <svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg><span>Add statefiles</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="workspace">
+    <header class="topbar">
+      <div>
+        <h1>Dashboard</h1>
+        <p>Cross-state Terraform dependencies · one binary, one database</p>
+      </div>
+      <div class="topbar-actions">
+        <span class="badge"><svg class="icon" aria-hidden="true"><use href="#i-cloud"/></svg> <span id="graphCountTop">0 states</span><span id="accountCountTop">· 0 accounts</span></span>
+        <button type="button" id="themeBtn" class="icon-btn" title="Switch theme" aria-label="Switch theme">
+          <svg class="icon" aria-hidden="true"><use id="themeIcon" href="#i-sun"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div id="srStatus" class="sr-only" role="status" aria-live="polite"></div>
+
+    <main id="mainContent" class="dashboard" aria-busy="false">
+      <div class="col-left">
+        <section class="card" id="overview">
+          <div class="card-head">
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-grid"/></svg> Overview</h2>
+          </div>
+          <div class="stats">
+            <div class="stat"><svg class="icon" aria-hidden="true"><use href="#i-layers"/></svg><b id="statStates">0</b><span>states</span></div>
+            <div class="stat"><svg class="icon" aria-hidden="true"><use href="#i-link"/></svg><b id="statDeps">0</b><span>dependencies</span></div>
+            <div class="stat"><svg class="icon" aria-hidden="true"><use href="#i-list"/></svg><b id="statEdges">0</b><span>evidence links</span></div>
+            <div class="stat"><svg class="icon" aria-hidden="true"><use href="#i-cloud"/></svg><b id="statClouds">0</b><span>clouds</span></div>
+          </div>
+          <h3>Evidence by kind</h3>
+          <div class="donut-wrap">
+            <svg id="donut" viewBox="0 0 160 160" role="img" aria-label="Evidence by kind"></svg>
+            <div class="legend" id="donutLegend"></div>
+          </div>
+        </section>
+
+        <section class="card" id="servicesSection">
+          <h2><svg class="icon" aria-hidden="true"><use href="#i-layers"/></svg> Services <span class="badge" id="serviceCount">0</span></h2>
+          <p class="hint" id="servicesHint">Resource types across all visible states.</p>
+          <div id="services" class="services"></div>
+        </section>
+
+        <section class="card" id="depsSection">
+          <h2><svg class="icon" aria-hidden="true"><use href="#i-link"/></svg> Dependencies <span class="badge" id="depCount">0</span></h2>
+          <div class="tablewrap"><table id="depsTable"></table></div>
+        </section>
+
+        <section class="card" id="edgesSection">
+          <h2><svg class="icon" aria-hidden="true"><use href="#i-list"/></svg> Evidence <span class="badge" id="edgeCount">0</span></h2>
+          <div class="tablewrap"><table id="edgesTable"></table></div>
+        </section>
+
+        <section class="card" id="sqlSection">
+          <h2><svg class="icon" aria-hidden="true"><use href="#i-database"/></svg> SQL <span class="hint inline">read-only · try <code>SELECT * FROM dependencies</code></span></h2>
+          <label class="sr-only" for="sql">SQL query</label>
+          <textarea id="sql" rows="2" spellcheck="false" aria-label="SQL query">SELECT from_state, to_state, confidence, evidence FROM dependencies ORDER BY confidence DESC</textarea>
+          <div class="sqlbar"><button type="button" id="sqlBtn"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg> Run query</button></div>
+          <div class="tablewrap"><table id="sqlTable"></table></div>
+        </section>
+      </div>
+
+      <div class="col-right">
+        <section class="card" id="graphSection">
+          <div class="card-head">
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-network"/></svg> Architecture <span class="badge" id="graphCount">0 links</span></h2>
+            <div class="graph-actions">
+              <div class="state-filter">
+                <button type="button" id="stateFilterBtn" aria-haspopup="true" aria-expanded="false" aria-controls="stateMenu">
+                  <svg class="icon" aria-hidden="true"><use href="#i-layers"/></svg>
+                  <span id="stateFilterLabel">All states</span>
+                  <svg class="icon chevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+                </button>
+                <div class="state-menu" id="stateMenu" hidden>
+                  <p class="state-menu-head">Show statefiles</p>
+                  <div id="stateChecks"></div>
+                </div>
+              </div>
+              <button type="button" id="enlargeBtn" class="icon-btn" title="Open full screen" aria-label="Open full screen">
+                <svg class="icon" aria-hidden="true"><use href="#i-maximize"/></svg>
+              </button>
+            </div>
+          </div>
+          <p class="hint" id="graphHint">Drag to pan, scroll to zoom. Click a state to inspect its services.</p>
+          <div class="graphwrap" id="graphWrap">
+            <button type="button" id="canvasBackBtn" class="canvas-back" hidden
+                    title="Back to all states" aria-label="Back to all states">
+              <svg class="icon" aria-hidden="true"><use href="#i-arrow-left"/></svg>
+            </button>
+            <div class="canvas-controls">
+              <button type="button" id="zoomInBtn" title="Zoom in" aria-label="Zoom in"><svg class="icon" aria-hidden="true"><use href="#i-zoom-in"/></svg></button>
+              <button type="button" id="zoomOutBtn" title="Zoom out" aria-label="Zoom out"><svg class="icon" aria-hidden="true"><use href="#i-zoom-out"/></svg></button>
+              <button type="button" id="resetViewBtn" title="Reset view" aria-label="Reset view"><svg class="icon" aria-hidden="true"><use href="#i-fit"/></svg></button>
+            </div>
+            <svg id="graph" role="group" aria-label="Dependency graph" aria-describedby="graphHint"></svg>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <aside class="drawer" role="dialog" aria-modal="true" aria-label="Add statefiles">
+    <div class="drawer-head">
+      <h2>Add statefiles</h2>
+      <button type="button" class="icon" id="closeBtn" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+    </div>
+
+    <div class="tabs" role="tablist" aria-label="Statefile sources">
+      <button type="button" class="tab active" id="tab-s3-btn" data-tab="s3" role="tab"
+              aria-controls="tab-s3" aria-selected="true" tabindex="0">S3 browser</button>
+      <button type="button" class="tab" id="tab-samples-btn" data-tab="samples" role="tab"
+              aria-controls="tab-samples" aria-selected="false" tabindex="-1">Bundled samples</button>
+      <button type="button" class="tab" id="tab-upload-btn" data-tab="upload" role="tab"
+              aria-controls="tab-upload" aria-selected="false" tabindex="-1">Upload files</button>
+    </div>
+
+    <div class="tabpane active" id="tab-s3" role="tabpanel" aria-labelledby="tab-s3-btn" tabindex="0">
+      <p class="hint" id="s3Hint">Configure AWS_REGION and credentials to browse buckets.</p>
+      <label class="field">Bucket
+        <select id="bucket"></select>
+      </label>
+      <label class="field">Prefix
+        <input type="text" id="prefix" name="prefix" placeholder="terraform/…" autocomplete="off">
+      </label>
+      <div class="filelist" id="s3List"></div>
+      <div class="drawer-foot">
+        <button type="button" id="s3More" hidden>More…</button>
+        <button type="button" class="primary" id="s3Add" disabled>Add selected</button>
+      </div>
+    </div>
+
+    <div class="tabpane" id="tab-samples" role="tabpanel" aria-labelledby="tab-samples-btn" tabindex="0">
+      <p class="hint">Multi-cloud demo states with cross-references. Safe to load repeatedly.</p>
+      <div class="filelist" id="sampleList"></div>
+      <div class="drawer-foot">
+        <button type="button" class="primary" id="sampleAdd" disabled>Add selected</button>
+      </div>
+    </div>
+
+    <div class="tabpane" id="tab-upload" role="tabpanel" aria-labelledby="tab-upload-btn" tabindex="0">
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose or drop statefiles">
+        <strong>Drop .tfstate files here</strong> or click to choose
+        <input type="file" id="files" multiple accept=".tfstate,.json" aria-label="Statefiles">
+      </div>
+      <p class="hint" id="fileNames">No files selected.</p>
+      <label class="field">Optional names (comma-separated, same order as files)
+        <input type="text" id="names" name="names" placeholder="network, app, …" autocomplete="off">
+      </label>
+      <div class="drawer-foot">
+        <button type="button" class="primary" id="uploadBtn" disabled>Upload &amp; resolve</button>
+      </div>
+    </div>
+
+    <p class="status" id="drawerMsg" role="status" aria-live="polite"></p>
+  </aside>
+</div>
+
+<div class="archfull" id="archFull" hidden role="dialog" aria-modal="true" aria-label="Architecture full screen">
+  <div class="archfull-bar">
+    <span id="archFullTitle">Architecture</span>
+    <button type="button" id="archFullClose" class="icon-btn" aria-label="Close full screen" title="Close full screen">
+      <svg class="icon" aria-hidden="true"><use href="#i-close"/></svg>
+    </button>
+  </div>
+  <div class="archfull-body" id="archFullBody"></div>
+</div>
+
+<footer class="attribution">
+  AWS service icons © Amazon.com, Inc. / AWS Labs,
+  <a href="https://github.com/awslabs/aws-icons-for-plantuml" target="_blank" rel="noopener">aws-icons-for-plantuml</a>,
+  CC BY-ND 2.0.
+</footer>
+
+<div id="error" role="alert" hidden>
+  <svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg>
+  <span id="errorText"></span>
+  <button type="button" id="errorRetry"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg> Retry</button>
+</div>
+<script src="app.js?v=16"></script>
+</body>
+</html>
