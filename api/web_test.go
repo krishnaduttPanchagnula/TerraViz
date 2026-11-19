@@ -125,7 +125,8 @@ func TestLayoutAndDiagramLabels(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, ref := range []string{`.app-shell{display:flex;height:100vh`, `.graphwrap{position:relative`} {
+	for _, ref := range []string{`.app-shell{display:flex;min-height:100vh`, `.graphwrap{position:relative`,
+		`.graphwrap.nogrid{background-image:none}`} {
 		if !strings.Contains(string(css), ref) {
 			t.Errorf("style.css missing %s", ref)
 		}
@@ -167,7 +168,7 @@ func TestIndexReferencesEmbeddedAssets(t *testing.T) {
 	}
 	html := string(index)
 	for _, ref := range []string{
-		`href="style.css?v=17"`, `src="app.js?v=17"`, `src="icons/aws.svg"`,
+		`href="style.css?v=18"`, `src="app.js?v=18"`, `src="icons/aws.svg"`,
 		`id="services"`, `id="graphHint"`,
 		`id="enlargeBtn"`, `id="archFull"`,
 		`id="graphWrap"`, `id="zoomInBtn"`, `id="canvasBackBtn"`,
@@ -178,9 +179,9 @@ func TestIndexReferencesEmbeddedAssets(t *testing.T) {
 		`class="col-left"`, `class="col-right"`, `id="graphCountTop"`,
 		`class="icon-sprite"`, `id="i-network"`, `id="i-maximize"`, `id="i-plus"`,
 		`id="themeBtn"`, `id="themeIcon"`, `id="i-sun"`, `id="i-moon"`,
-		`id="accountCountTop"`, `src="/terraviz/"`, `Resource diagram`,
-		`id="viewDashboard"`, `id="viewDiagram"`, `data-view="diagram"`,
+		`id="accountCountTop"`,
 		`id="graphSearch"`, `id="exportMenu"`, `id="minimapSvg"`, `id="traceDepth"`,
+		`class="floating-toolbar"`, `class="canvas-filters"`, `id="viewMenu"`,
 	} {
 		if !strings.Contains(html, ref) {
 			t.Errorf("index.html missing %s", ref)
@@ -206,7 +207,7 @@ func TestIndexReferencesEmbeddedAssets(t *testing.T) {
 		`renderStateFilter`, `closeStateMenu`, `canvasBackBtn`,
 		`accountsFor`, `accountBadge`, `shortAccount`, `scope_kind`,
 		`applyTheme`, `savedTheme`, `prefers-color-scheme`,
-		`setView`, `updateHash`, `drawMinimap`, `traceFrom`, `exportCanvas`,
+		`updateHash`, `drawMinimap`, `traceFrom`, `exportCanvas`,
 	} {
 		if !strings.Contains(string(js), ref) {
 			t.Errorf("app.js missing %s", ref)

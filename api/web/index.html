@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0d1117">
 <title>terraquery</title>
-<link rel="stylesheet" href="style.css?v=17">
+<link rel="stylesheet" href="style.css?v=18">
 </head>
 <body>
 <a href="#mainContent" class="skip-link">Skip to main content</a>
@@ -45,17 +45,6 @@
       <img src="icons/aws.svg" alt="" width="24" height="24">
       <span>TerraViz</span>
     </a>
-
-    <nav class="nav" aria-label="Views">
-      <button type="button" class="nav-link active" data-view="dashboard" aria-current="page">
-        <svg class="icon" aria-hidden="true"><use href="#i-grid"/></svg>
-        <span>Dashboard</span>
-      </button>
-      <button type="button" class="nav-link" data-view="diagram">
-        <svg class="icon" aria-hidden="true"><use href="#i-network"/></svg>
-        <span>Resource diagram</span>
-      </button>
-    </nav>
 
     <nav class="nav" aria-label="Dashboard sections">
       <a href="#overview" class="nav-link section-link">
@@ -108,7 +97,6 @@
 
     <div id="srStatus" class="sr-only" role="status" aria-live="polite"></div>
 
-    <div id="viewDashboard" class="view-pane">
     <main id="mainContent" class="dashboard" aria-busy="false">
       <div class="col-left">
         <section class="card" id="overview">
@@ -174,69 +162,91 @@
               </button>
             </div>
           </div>
-          <div class="canvas-toolbar" role="toolbar" aria-label="Canvas tools">
-            <label class="sr-only" for="graphSearch">Search resources</label>
-            <input type="search" id="graphSearch" placeholder="Search services…" autocomplete="off">
-            <label class="sr-only" for="graphProvider">Filter by cloud</label>
-            <select id="graphProvider" aria-label="Filter by cloud">
-              <option value="">All clouds</option><option value="aws">AWS</option>
-              <option value="gcp">GCP</option><option value="azure">Azure</option>
-            </select>
-            <label class="sr-only" for="graphKind">Filter by evidence kind</label>
-            <select id="graphKind" aria-label="Filter by evidence kind">
-              <option value="">All kinds</option><option value="arn">ARN</option>
-              <option value="host">Host</option><option value="id">ID</option>
-              <option value="name">Name</option><option value="remote_state">Remote state</option>
-            </select>
-            <div class="popover-wrap">
-              <button type="button" id="viewMenuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu">
-                <svg class="icon" aria-hidden="true"><use href="#i-sliders"/></svg> View
-              </button>
-              <div class="tool-popover" id="viewMenu" hidden>
-                <label><input type="checkbox" id="optGrid" checked> Dot grid</label>
-                <label><input type="checkbox" id="optLabels" checked> Labels</label>
-                <label><input type="checkbox" id="optFlow" checked> Flow animation</label>
-                <label><input type="checkbox" id="optMinimap" checked> Minimap</label>
-                <label><input type="checkbox" id="optLegend"> Connection legend</label>
-                <label><input type="checkbox" id="optSimple"> Simplified view</label>
-                <button type="button" id="showAllNodes">Show hidden resources</button>
-                <button type="button" id="clearCustom">Clear custom links</button>
-              </div>
-            </div>
-            <div class="popover-wrap">
-              <button type="button" id="exportMenuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="exportMenu">
-                <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg> Export
-              </button>
-              <div class="tool-popover" id="exportMenu" hidden>
-                <button type="button" data-export="svg">SVG</button>
-                <button type="button" data-export="png">PNG</button>
-                <button type="button" data-export="csv">CSV</button>
-                <button type="button" data-export="mermaid">Mermaid</button>
-                <button type="button" data-export="dot">DOT</button>
-              </div>
-            </div>
-            <label class="trace-control">Trace
-              <select id="traceDepth" aria-label="Trace depth">
-                <option value="0">Off</option><option value="1">1 hop</option>
-                <option value="2">2 hops</option><option value="3">3 hops</option>
-                <option value="all">All</option>
-              </select>
-            </label>
-            <button type="button" id="presentBtn" title="Presentation mode" aria-label="Presentation mode">
-              <svg class="icon" aria-hidden="true"><use href="#i-present"/></svg>
-            </button>
-          </div>
           <p class="hint" id="graphHint">Drag to pan, scroll to zoom. Click a state to inspect its services.</p>
           <div class="graphwrap" id="graphWrap">
+            <div class="canvas-filters">
+              <label class="sr-only" for="graphSearch">Search resources</label>
+              <input type="search" id="graphSearch" placeholder="Search services…" autocomplete="off">
+              <label class="sr-only" for="graphProvider">Filter by cloud</label>
+              <select id="graphProvider" aria-label="Filter by cloud">
+                <option value="">All clouds</option><option value="aws">AWS</option>
+                <option value="gcp">GCP</option><option value="azure">Azure</option>
+              </select>
+              <label class="sr-only" for="graphKind">Filter by evidence kind</label>
+              <select id="graphKind" aria-label="Filter by evidence kind">
+                <option value="">All kinds</option><option value="arn">ARN</option>
+                <option value="host">Host</option><option value="id">ID</option>
+                <option value="name">Name</option><option value="remote_state">Remote state</option>
+              </select>
+              <label class="sr-only" for="traceDepth">Trace depth</label>
+              <select id="traceDepth" aria-label="Trace depth">
+                <option value="0">No trace</option><option value="1">Trace 1 hop</option>
+                <option value="2">Trace 2 hops</option><option value="3">Trace 3 hops</option>
+                <option value="all">Trace all</option>
+              </select>
+            </div>
+
             <button type="button" id="canvasBackBtn" class="canvas-back" hidden
                     title="Back to all states" aria-label="Back to all states">
-              <svg class="icon" aria-hidden="true"><use href="#i-arrow-left"/></svg>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5m7-7-7 7 7 7"/></svg>
             </button>
-            <div class="canvas-controls">
-              <button type="button" id="zoomInBtn" title="Zoom in" aria-label="Zoom in"><svg class="icon" aria-hidden="true"><use href="#i-zoom-in"/></svg></button>
-              <button type="button" id="zoomOutBtn" title="Zoom out" aria-label="Zoom out"><svg class="icon" aria-hidden="true"><use href="#i-zoom-out"/></svg></button>
-              <button type="button" id="resetViewBtn" title="Reset view" aria-label="Reset view"><svg class="icon" aria-hidden="true"><use href="#i-fit"/></svg></button>
+
+            <div class="floating-toolbar" role="toolbar" aria-label="Canvas tools">
+              <div class="toolbar-group">
+                <button class="toolbar-btn" type="button" id="zoomInBtn" title="Zoom in" aria-label="Zoom in">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                  <span class="toolbar-tooltip">Zoom in</span>
+                </button>
+                <button class="toolbar-btn" type="button" id="zoomOutBtn" title="Zoom out" aria-label="Zoom out">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                  <span class="toolbar-tooltip">Zoom out</span>
+                </button>
+                <button class="toolbar-btn" type="button" id="resetViewBtn" title="Fit to view" aria-label="Fit to view">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+                  <span class="toolbar-tooltip">Fit to view</span>
+                </button>
+              </div>
+              <div class="toolbar-divider"></div>
+              <div class="toolbar-group">
+                <button class="toolbar-btn" type="button" id="viewMenuBtn" title="View options" aria-label="View options" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/></svg>
+                  <span class="toolbar-tooltip">View</span>
+                </button>
+                <div class="tool-popover" id="viewMenu" hidden>
+                  <div class="settings-heading">View</div>
+                  <label><input type="checkbox" id="optGrid" checked> Dot grid</label>
+                  <label><input type="checkbox" id="optLabels" checked> Labels</label>
+                  <label><input type="checkbox" id="optFlow" checked> Flow animation</label>
+                  <label><input type="checkbox" id="optMinimap" checked> Minimap</label>
+                  <label><input type="checkbox" id="optLegend"> Connection legend</label>
+                  <label><input type="checkbox" id="optSimple"> Simplified view</label>
+                  <div class="settings-heading">Edit</div>
+                  <button type="button" id="showAllNodes">Show hidden resources</button>
+                  <button type="button" id="clearCustom">Clear custom links</button>
+                </div>
+              </div>
+              <div class="toolbar-divider"></div>
+              <div class="toolbar-group">
+                <button class="toolbar-btn" type="button" id="exportMenuBtn" title="Export" aria-label="Export" aria-haspopup="true" aria-expanded="false" aria-controls="exportMenu">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  <span class="toolbar-tooltip">Export</span>
+                </button>
+                <div class="tool-popover" id="exportMenu" hidden>
+                  <div class="settings-heading">Export</div>
+                  <button type="button" data-export="svg">SVG</button>
+                  <button type="button" data-export="png">PNG</button>
+                  <button type="button" data-export="csv">CSV</button>
+                  <button type="button" data-export="mermaid">Mermaid</button>
+                  <button type="button" data-export="dot">DOT</button>
+                </div>
+              </div>
+              <div class="toolbar-divider"></div>
+              <button class="toolbar-btn" type="button" id="presentBtn" title="Presentation mode" aria-label="Presentation mode">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                <span class="toolbar-tooltip">Present</span>
+              </button>
             </div>
+
             <svg id="graph" role="group" aria-label="Dependency graph" aria-describedby="graphHint"></svg>
             <div id="minimap" class="minimap"><svg id="minimapSvg" aria-hidden="true"></svg></div>
             <div id="canvasLegend" class="canvas-legend" hidden>
@@ -249,10 +259,6 @@
         </section>
       </div>
     </main>
-    </div>
-    <div id="viewDiagram" class="view-pane" hidden>
-      <iframe id="diagramFrame" src="/terraviz/" title="Resource diagram"></iframe>
-    </div>
   </div>
 </div>
 
@@ -334,6 +340,6 @@
   <span id="errorText"></span>
   <button type="button" id="errorRetry"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg> Retry</button>
 </div>
-<script src="app.js?v=17"></script>
+<script src="app.js?v=18"></script>
 </body>
 </html>

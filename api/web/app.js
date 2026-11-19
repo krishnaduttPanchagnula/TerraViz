@@ -22,25 +22,8 @@ function storeTheme(theme) {
   try { localStorage.setItem("tq-theme", theme); } catch { /* storage disabled */ }
 }
 function updateHash() {
-  const p = new URLSearchParams();
-  if (!$("viewDiagram").hidden) p.set("view", "diagram");
-  if (state.drill) p.set("state", state.drill);
-  const hash = p.toString() ? `#${p}` : "";
+  const hash = state.drill ? `#state=${encodeURIComponent(state.drill)}` : "";
   if (location.hash !== hash) history.replaceState(null, "", location.pathname + location.search + hash);
-}
-
-function setView(view) {
-  const diagram = view === "diagram";
-  $("viewDashboard").hidden = diagram;
-  $("viewDiagram").hidden = !diagram;
-  for (const b of document.querySelectorAll("nav button[data-view]")) {
-    const active = (b.dataset.view === "diagram") === diagram;
-    b.classList.toggle("active", active);
-    if (active) b.setAttribute("aria-current", "page");
-    else b.removeAttribute("aria-current");
-  }
-  updateHash();
-  if (!diagram) $("graphWrap")?.scrollIntoView?.({ block: "nearest" });
 }
 
 function applyTheme(theme, persist = true) {
@@ -884,7 +867,7 @@ for (const [btn, menu] of [["viewMenuBtn", "viewMenu"], ["exportMenuBtn", "expor
     $(btn).setAttribute("aria-expanded", String(!m.hidden));
   });
 }
-$("optGrid").addEventListener("change", (e) => $("graphWrap").classList.toggle("grid", e.target.checked));
+$("optGrid").addEventListener("change", (e) => $("graphWrap").classList.toggle("nogrid", !e.target.checked));
 $("optLabels").addEventListener("change", (e) => $("graph").classList.toggle("nolabels", !e.target.checked));
 $("optFlow").addEventListener("change", (e) => $("graph").classList.toggle("flow", e.target.checked));
 $("optMinimap").addEventListener("change", (e) => { $("minimap").hidden = !e.target.checked; drawMinimap(); });
@@ -1155,19 +1138,6 @@ $("sqlBtn").addEventListener("click", async () => {
 
 const initialParams = new URLSearchParams(location.hash.slice(1));
 if (initialParams.get("state")) state.drill = initialParams.get("state");
-if (initialParams.get("view") === "diagram") setView("diagram");
-
-for (const b of document.querySelectorAll("nav button[data-view]")) {
-  b.addEventListener("click", () => setView(b.dataset.view));
-}
-for (const a of document.querySelectorAll(".section-link")) {
-  a.addEventListener("click", (e) => {
-    e.preventDefault();
-    setView("dashboard");
-    const target = document.querySelector(a.getAttribute("href"));
-    if (target) setTimeout(() => target.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
-  });
-}
 
 loadS3Status();
 loadSamples().catch((err) => drawerMsg(err.message, false));
