@@ -374,8 +374,8 @@ function zoomAt(factor, px = 0.5, py = 0.5) {
   wrap.addEventListener("pointerdown", (e) => {
     if (e.button !== 0 || !state.view) return;
     state.dragged = false;
-    // Capturing the pointer retargets the click away from nodes and controls.
-    if (e.target.closest?.(".node, button")) return;
+    // Capturing the pointer retargets clicks away from nodes and controls.
+    if (e.target.closest?.(".node, button, input, select, textarea, a, label, .tool-popover, .canvas-filters, .floating-toolbar, .minimap, .canvas-legend")) return;
     drag = { x: e.clientX, y: e.clientY, view: { ...state.view } };
     wrap.setPointerCapture(e.pointerId);
     wrap.classList.add("dragging");
@@ -873,6 +873,16 @@ $("optFlow").addEventListener("change", (e) => $("graph").classList.toggle("flow
 $("optMinimap").addEventListener("change", (e) => { $("minimap").hidden = !e.target.checked; drawMinimap(); });
 $("optLegend").addEventListener("change", (e) => { $("canvasLegend").hidden = !e.target.checked; });
 $("optSimple").addEventListener("change", (e) => $("graph").classList.toggle("simple", e.target.checked));
+
+function syncViewOptions() {
+  $("graphWrap").classList.toggle("nogrid", !$("optGrid").checked);
+  $("graph").classList.toggle("nolabels", !$("optLabels").checked);
+  $("graph").classList.toggle("flow", $("optFlow").checked);
+  $("minimap").hidden = !$("optMinimap").checked;
+  $("canvasLegend").hidden = !$("optLegend").checked;
+  $("graph").classList.toggle("simple", $("optSimple").checked);
+}
+syncViewOptions();
 for (const input of ["graphSearch", "graphProvider", "graphKind"]) {
   $(input).addEventListener("input", () => { state.traceKeys = null; applyCanvasFilters(); });
 }

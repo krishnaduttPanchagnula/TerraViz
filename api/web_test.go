@@ -153,8 +153,11 @@ func TestLayoutAndDiagramLabels(t *testing.T) {
 			t.Errorf("%s still labels edges with confidence", fn.start)
 		}
 	}
-	if !strings.Contains(string(js), `e.target.closest?.(".node, button")`) {
-		t.Error("pan handler still captures clicks on nodes or canvas buttons")
+	if !strings.Contains(string(js), `e.target.closest?.(".node, button, input, select, textarea, a, label, .tool-popover, .canvas-filters, .floating-toolbar, .minimap, .canvas-legend")`) {
+		t.Error("pan handler still captures clicks on nodes or canvas controls")
+	}
+	if !strings.Contains(string(js), `syncViewOptions()`) {
+		t.Error("view options are not synchronised on load")
 	}
 	if !strings.Contains(string(js), `$("canvasBackBtn").addEventListener("click", drillOut)`) {
 		t.Error("canvas back button is not wired to drillOut")
@@ -168,7 +171,7 @@ func TestIndexReferencesEmbeddedAssets(t *testing.T) {
 	}
 	html := string(index)
 	for _, ref := range []string{
-		`href="style.css?v=19"`, `src="app.js?v=19"`, `src="icons/aws.svg"`,
+		`href="style.css?v=20"`, `src="app.js?v=20"`, `src="icons/aws.svg"`,
 		`id="services"`, `id="graphHint"`,
 		`id="enlargeBtn"`, `id="archFull"`,
 		`id="graphWrap"`, `id="zoomInBtn"`, `id="canvasBackBtn"`,
