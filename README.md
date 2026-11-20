@@ -1,16 +1,40 @@
 # TerraViz
 
-One Go binary for Terraform infrastructure visibility:
+[![Release](https://img.shields.io/github/v/release/krishnaduttPanchagnula/TerraViz?style=flat-square)](https://github.com/krishnaduttPanchagnula/TerraViz/releases/latest)
+[![Go](https://img.shields.io/github/go-mod/go-version/krishnaduttPanchagnula/TerraViz?style=flat-square)](https://go.dev/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 
-- **Cross-state dependencies** — ingest many `.tfstate` files, infer which app
-  depends on which other app, store everything in embedded SQLite, query with
-  read-only SQL, and explore an account-aware architecture dashboard.
-- **Resource-level diagrams** — scan a single state file or a live AWS account
-  into an interactive SVG diagram with search, filters, minimap, multi-hop
-  trace, export and comparison.
+**TerraViz turns Terraform and OpenTofu statefiles into a queryable, visual map
+of your infrastructure — across apps, clouds and accounts — in a single Go
+binary.**
 
-No Node.js runtime, external database or CDN is required. The UI, fonts and
-the full AWS icon set are embedded in the binary.
+Ingest statefiles from your machine, S3, GCS, Azure Blob or OCI Object Storage.
+TerraViz infers which app depends on which other app from shared ARNs, hosts,
+IDs and names, stores the result in embedded SQLite, and lets you explore it
+with read-only SQL and an interactive architecture diagram. It also scans live
+AWS accounts and exports diagrams to SVG, PNG, CSV, Mermaid and DOT.
+
+- **Cross-state dependency resolution** — evidence-backed edges between
+  statefiles, rolled up into app-level dependencies.
+- **Account-aware architecture** — AWS accounts, GCP projects, Azure
+  subscriptions and OCI compartments are detected and shown as badges and
+  filters.
+- **Rich single-page dashboard** — dotted pannable/zoomable canvas, minimap,
+  search, multi-hop trace, view options and light/dark themes.
+- **Resource-level explorer** — search, filters, minimap, trace, hide/show,
+  custom connections and exports.
+- **No runtime dependencies** — the UI, fonts and official AWS/GCP/Azure icons
+  are embedded; no Node.js, external database or CDN.
+
+## Screenshots
+
+| Dashboard | Architecture drill-down |
+|-----------|-------------------------|
+| ![TerraViz dashboard showing cross-state dependencies and services](docs/screenshots/dashboard.png) | ![Architecture diagram with official provider icons](docs/screenshots/architecture.png) |
+
+| Remote state sources | Dark theme |
+|----------------------|------------|
+| ![Remote state browser for AWS, GCP, Azure and OCI](docs/screenshots/remote-state.png) | ![TerraViz dashboard in dark theme](docs/screenshots/dark-theme.png) |
 
 ## Install
 
