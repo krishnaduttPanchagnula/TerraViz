@@ -75,6 +75,22 @@ func TestProviderIconsHaveExplicitSize(t *testing.T) {
 			t.Errorf("icon %s lacks explicit size: %s", name, s[:80])
 		}
 	}
+	for _, name := range []string{"oci", "kubernetes", "terraform", "opentofu", "docker", "cloudflare"} {
+		b, err := webFS.ReadFile("web/icons/" + name + ".svg")
+		if err != nil || len(b) == 0 {
+			t.Errorf("provider icon %s missing or empty: %v", name, err)
+		}
+	}
+	for _, path := range []string{
+		"web/icons/gcp/cloud_run.svg", "web/icons/gcp/cloud_storage.svg",
+		"web/icons/azure/app_service.svg", "web/icons/azure/key_vault.svg",
+		"web/icons/TF2D2-LICENSE",
+	} {
+		b, err := webFS.ReadFile(path)
+		if err != nil || len(b) == 0 {
+			t.Errorf("official icon asset %s missing or empty: %v", path, err)
+		}
+	}
 	for _, name := range []string{"lambda", "s3", "sqs", "api-gateway", "alb"} {
 		b, err := webFS.ReadFile("web/icons/aws/" + name + ".png")
 		if err != nil || len(b) < 100 {
@@ -105,9 +121,12 @@ const cases = {
   'aws_ecs_task_definition': '/icons/aws/ecs.png',
   'aws_lb': '/icons/aws/alb.png',
   'aws_cost_report': '/icons/aws.svg',
-  'google_cloud_run_service': '/icons/gcp.svg',
-  'azurerm_storage_account': '/icons/azure.svg',
   'oci_core_vcn': '/icons/oci.svg',
+  'google_cloud_run_service': '/icons/gcp/cloud_run.svg',
+  'google_storage_bucket': '/icons/gcp/cloud_storage.svg',
+  'azurerm_linux_web_app': '/icons/azure/app_service.svg',
+  'azurerm_key_vault': '/icons/azure/key_vault.svg',
+  'kubernetes_namespace': '/icons/kubernetes.svg',
 };
 for (const [type, want] of Object.entries(cases)) {
   const got = serviceIcon(type);
@@ -173,7 +192,7 @@ func TestIndexReferencesEmbeddedAssets(t *testing.T) {
 	}
 	html := string(index)
 	for _, ref := range []string{
-		`href="style.css?v=21"`, `src="app.js?v=21"`, `src="icons/aws.svg"`,
+		`href="style.css?v=22"`, `src="app.js?v=22"`, `src="icons/aws.svg"`,
 		`id="services"`, `id="graphHint"`,
 		`id="enlargeBtn"`, `id="archFull"`,
 		`id="graphWrap"`, `id="zoomInBtn"`, `id="canvasBackBtn"`,

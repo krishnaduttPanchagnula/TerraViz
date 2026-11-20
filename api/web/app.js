@@ -97,7 +97,11 @@ function svgIcon(id) {
   return svg;
 }
 
-var KNOWN_ICONS = new Set(["aws", "gcp", "azure", "oci", "unknown"]);
+var KNOWN_ICONS = new Set([
+  "aws", "gcp", "azure", "oci", "unknown", "kubernetes", "terraform", "opentofu",
+  "docker", "cloudflare", "datadog", "github", "gitlab", "postgresql", "mysql",
+  "mongodb", "redis", "elasticsearch",
+]);
 function iconPath(p) { return `/icons/${KNOWN_ICONS.has(p) ? p : "unknown"}.svg`; }
 const icon = (provider, cls = "") => el("img", {
   src: iconPath(provider), alt: provider || "",
@@ -503,10 +507,33 @@ const AWS_ICONS = {
   aws_instance: "ec2",
 };
 
+const GCP_ICONS = {
+  google_cloud_run_service: "cloud_run", google_cloudfunctions_function: "cloud_run",
+  google_storage_bucket: "cloud_storage", google_pubsub_topic: "pubsub",
+  google_pubsub_subscription: "pubsub", google_sql_database_instance: "cloud_sql",
+  google_compute_instance: "compute_engine", google_container_cluster: "gke",
+  google_bigquery_dataset: "bigquery", google_spanner_instance: "spanner",
+};
+const AZURE_ICONS = {
+  azurerm_linux_web_app: "app_service", azurerm_windows_web_app: "app_service",
+  azurerm_storage_account: "storage_account", azurerm_storage_container: "storage_account",
+  azurerm_key_vault: "key_vault", azurerm_sql_database: "sql_database",
+  azurerm_mssql_database: "sql_database", azurerm_virtual_machine: "virtual_machine",
+  azurerm_linux_virtual_machine: "virtual_machine", azurerm_virtual_network: "virtual_network",
+};
+
 function serviceIcon(type) {
   if (type.startsWith("aws_")) {
     const name = AWS_ICONS[type] || AWS_ICONS[Object.keys(AWS_ICONS).find((p) => type.startsWith(p))];
     return name ? `/icons/aws/${name}.png` : "/icons/aws.svg";
+  }
+  if (type.startsWith("google_")) {
+    const name = GCP_ICONS[type] || GCP_ICONS[Object.keys(GCP_ICONS).find((p) => type.startsWith(p))];
+    return name ? `/icons/gcp/${name}.svg` : "/icons/gcp.svg";
+  }
+  if (type.startsWith("azurerm_")) {
+    const name = AZURE_ICONS[type] || AZURE_ICONS[Object.keys(AZURE_ICONS).find((p) => type.startsWith(p))];
+    return name ? `/icons/azure/${name}.svg` : "/icons/azure.svg";
   }
   return iconPath(cloudOf(type));
 }

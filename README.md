@@ -139,8 +139,13 @@ samples include an OCI statefile with cross-cloud references.
 
 AWS service icons come from the
 [AWS Labs architecture icon set](https://github.com/awslabs/aws-icons-for-plantuml)
-(CC BY-ND 2.0); license at `api/web/icons/aws/LICENSE`. Brand marks for
-GCP/Azure and other bundled assets retain their own licenses.
+(CC BY-ND 2.0); license at `api/web/icons/aws/LICENSE`. Official GCP product
+icons and Azure architecture icons come from the
+[tf2d2/icons](https://github.com/tf2d2/icons) collection (Apache 2.0, license at
+`api/web/icons/TF2D2-LICENSE`). Other provider and product marks (OCI,
+Kubernetes, Terraform, OpenTofu, Docker, Cloudflare, Datadog, GitHub, GitLab,
+PostgreSQL, MySQL, MongoDB, Redis, Elasticsearch) are embedded as brand SVGs.
+All icons ship inside the binary.
 
 ## License
 
