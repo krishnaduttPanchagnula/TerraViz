@@ -224,6 +224,23 @@ func TestScopesPersisted(t *testing.T) {
 	}
 }
 
+func TestProviderFromResource(t *testing.T) {
+	cases := []struct{ provider, typ, want string }{
+		{`provider["registry.terraform.io/hashicorp/aws"]`, "aws_s3_bucket", "aws"},
+		{`provider["registry.terraform.io/hashicorp/google"]`, "google_storage_bucket", "gcp"},
+		{`provider["registry.terraform.io/hashicorp/azurerm"]`, "azurerm_storage_account", "azure"},
+		{`provider["registry.terraform.io/oracle/oci"]`, "oci_core_vcn", "oci"},
+		{`provider["registry.terraform.io/hashicorp/kubernetes"]`, "kubernetes_namespace", "kubernetes"},
+		{"", "oci_core_subnet", "oci"},
+		{"", "random_id", "unknown"},
+	}
+	for _, c := range cases {
+		if got := providerOf(c.provider, c.typ); got != c.want {
+			t.Errorf("providerOf(%q, %q) = %q, want %q", c.provider, c.typ, got, c.want)
+		}
+	}
+}
+
 func TestResourcesList(t *testing.T) {
 	d := openTemp(t)
 	if err := d.Ingest(sources(t)); err != nil {

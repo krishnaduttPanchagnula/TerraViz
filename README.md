@@ -80,17 +80,27 @@ simplified view), multi-hop trace, presentation mode, SVG/PNG/CSV/Mermaid/DOT
 export, double-click to hide a resource, and Shift-click two services to add a
 custom connection.
 
-### S3 configuration
+### Remote state configuration
 
-Uses the standard AWS credential chain. Set `AWS_REGION` (or
-`AWS_DEFAULT_REGION`); `AWS_ENDPOINT_URL_S3` supports S3-compatible emulators.
-Required IAM actions: `s3:ListAllMyBuckets`, `s3:ListBucket`, `s3:GetObject`.
+The **Remote state** tab supports AWS S3, Google Cloud Storage, Azure Blob
+Storage and OCI Object Storage. Each provider uses its own standard credential
+chain:
+
+| Provider | Required configuration |
+|----------|------------------------|
+| AWS | `AWS_REGION` + AWS credentials; `AWS_ENDPOINT_URL_S3` for emulators |
+| GCP | `GOOGLE_CLOUD_PROJECT` + application-default credentials |
+| Azure | `AZURE_STORAGE_ACCOUNT` (or `AZURE_STORAGE_ENDPOINT`) + Azure default credentials |
+| OCI | `OCI_COMPARTMENT_ID` (or tenancy OCID) + `~/.oci/config` |
+
+Missing credentials are reported in the UI with the exact variable to set.
+The legacy `/api/s3/*` endpoints remain as AWS-only aliases.
 
 ## HTTP API
 
 Dashboard API at `/api/...` (see the source for the full list): `health`,
 `states`, `resources`, `deps`, `edges`, `graph`, `query` (read-only SQL),
-`s3/*`, `samples/*`, `resolve`.
+`remote/*` (AWS/GCP/Azure/OCI), `s3/*` (AWS alias), `samples/*`, `resolve`.
 
 The resource-level explorer is mounted at `/terraviz/` with its own
 `/terraviz/api/*` endpoints. The full icon pack is served at `/icons/`.
@@ -98,7 +108,7 @@ The resource-level explorer is mounted at `/terraviz/` with its own
 ## Data model
 
 - `states(name UNIQUE, filename, version, serial, lineage, raw, ingested_at)`
-- `state_scopes(state_id, kind, id)` — AWS accounts, GCP projects, Azure subscriptions
+- `state_scopes(state_id, kind, id)` — AWS accounts, GCP projects, Azure subscriptions, OCI compartments
 - `resources(..., scope_kind, scope_id)` — one row per resource instance
 - `edges(from_state, from_addr, to_state, to_addr, kind, matched, confidence)`
 - `dependencies` view — state-level rollup at the default 0.5 threshold
@@ -121,6 +131,11 @@ Layout: `state/`, `resolver/`, `db/`, `s3source/` and `api/` (dashboard) plus
 `legacyweb/` (resource-level explorer and 620 AWS icons).
 
 ## Attribution
+
+Provider badges are derived from the Terraform `provider` address, so any
+Terraform/OpenTofu provider (including OCI and Kubernetes) is labelled; unknown
+providers fall back to a neutral icon instead of being dropped. The bundled
+samples include an OCI statefile with cross-cloud references.
 
 AWS service icons come from the
 [AWS Labs architecture icon set](https://github.com/awslabs/aws-icons-for-plantuml)

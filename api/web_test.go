@@ -94,6 +94,7 @@ func TestServiceIconMapping(t *testing.T) {
 const fs = require('fs');
 const src = fs.readFileSync('web/app.js', 'utf8');
 const cut = (a, b) => { const i = src.indexOf(a), j = src.indexOf(b, i); if (i < 0 || j < 0) throw new Error('markers missing'); return src.slice(i, j); };
+eval(cut('var KNOWN_ICONS = new Set(', 'const icon = '));
 eval(cut('function cloudOf(type) {', '// ---- free-flowing canvas'));
 eval(cut('const AWS_ICONS = {', '// Some SVG renderers'));
 const cases = {
@@ -106,6 +107,7 @@ const cases = {
   'aws_cost_report': '/icons/aws.svg',
   'google_cloud_run_service': '/icons/gcp.svg',
   'azurerm_storage_account': '/icons/azure.svg',
+  'oci_core_vcn': '/icons/oci.svg',
 };
 for (const [type, want] of Object.entries(cases)) {
   const got = serviceIcon(type);
@@ -171,7 +173,7 @@ func TestIndexReferencesEmbeddedAssets(t *testing.T) {
 	}
 	html := string(index)
 	for _, ref := range []string{
-		`href="style.css?v=20"`, `src="app.js?v=20"`, `src="icons/aws.svg"`,
+		`href="style.css?v=21"`, `src="app.js?v=21"`, `src="icons/aws.svg"`,
 		`id="services"`, `id="graphHint"`,
 		`id="enlargeBtn"`, `id="archFull"`,
 		`id="graphWrap"`, `id="zoomInBtn"`, `id="canvasBackBtn"`,
@@ -185,6 +187,7 @@ func TestIndexReferencesEmbeddedAssets(t *testing.T) {
 		`id="accountCountTop"`,
 		`id="graphSearch"`, `id="exportMenu"`, `id="minimapSvg"`, `id="traceDepth"`,
 		`class="floating-toolbar"`, `class="canvas-filters"`, `id="viewMenu"`,
+		`id="remoteProvider"`, `Remote state`, `>OCI Object Storage<`,
 	} {
 		if !strings.Contains(html, ref) {
 			t.Errorf("index.html missing %s", ref)

@@ -11,7 +11,7 @@ const state = {
   states: [], hidden: new Set(), deps: [], edges: [], graph: null,
   resources: [], drill: null, view: null, traceKeys: null,
   hiddenResources: new Set(), customLinks: [], linkStart: null,
-  s3: { bucket: "", prefix: "", token: "", selected: new Set(), objects: [] },
+  s3: { provider: "aws", bucket: "", prefix: "", token: "", selected: new Set(), objects: [] },
   samples: new Map(), picked: [],
 };
 
@@ -97,8 +97,10 @@ function svgIcon(id) {
   return svg;
 }
 
+var KNOWN_ICONS = new Set(["aws", "gcp", "azure", "oci", "unknown"]);
+function iconPath(p) { return `/icons/${KNOWN_ICONS.has(p) ? p : "unknown"}.svg`; }
 const icon = (provider, cls = "") => el("img", {
-  src: `/icons/${provider || "unknown"}.svg`, alt: provider || "",
+  src: iconPath(provider), alt: provider || "",
   width: "18", height: "18", class: cls,
 });
 // ---- data loading + rendering ----
@@ -331,9 +333,10 @@ function drawEdges(svg, lines, pos, nw, nh) {
 }
 
 function cloudOf(type) {
-  if (type.startsWith("aws_")) return "aws";
-  if (type.startsWith("google_")) return "gcp";
-  if (type.startsWith("azurerm_")) return "azure";
+  const p = String(type || "").split("_")[0].toLowerCase();
+  if (p === "google") return "gcp";
+  if (p === "azurerm") return "azure";
+  if (KNOWN_ICONS.has(p) && p !== "unknown") return p;
   return "unknown";
 }
 
@@ -505,7 +508,7 @@ function serviceIcon(type) {
     const name = AWS_ICONS[type] || AWS_ICONS[Object.keys(AWS_ICONS).find((p) => type.startsWith(p))];
     return name ? `/icons/aws/${name}.png` : "/icons/aws.svg";
   }
-  return `/icons/${cloudOf(type)}.svg`;
+  return iconPath(cloudOf(type));
 }
 
 // Some SVG renderers only honour the legacy xlink:href attribute on <image>.
@@ -985,22 +988,33 @@ async function afterIngest(data) {
   await loadAll();
 }
 
-// S3 browser
-let s3Configured = false;
+// Remote state browser (AWS S3 / GCS / Azure Blob / OCI Object Storage)
+const REMOTE_LABELS = {
+  aws: { name: "AWS S3", bucket: "Bucket", hint: "AWS_REGION and AWS credentials" },
+  gcp: { name: "Google Cloud Storage", bucket: "Bucket", hint: "GOOGLE_CLOUD_PROJECT and Google application-default credentials" },
+  azure: { name: "Azure Blob Storage", bucket: "Container", hint: "AZURE_STORAGE_ACCOUNT and Azure default credentials" },
+  oci: { name: "OCI Object Storage", bucket: "Bucket", hint: "OCI_COMPARTMENT_ID and ~/.oci/config" },
+};
+
 async function loadS3Status() {
+  const provider = state.s3.provider;
+  const label = REMOTE_LABELS[provider];
+  $("bucketLabel").firstChild.textContent = `${label.bucket} `;
   try {
-    const s = await api("/api/s3/status");
-    s3Configured = s.configured;
+    const s = await api(`/api/remote/status?provider=${provider}`);
     const pill = $("s3Pill");
-    $("s3PillText").textContent = s.configured ? `S3: ${s.region || "configured"}` : "S3: not configured";
+    $("s3PillText").textContent = s.configured ? `${label.name}: ready` : `${label.name}: not configured`;
     pill.className = `pill ${s.configured ? "ok" : "off"}`;
+    const detail = [s.region, s.project, s.account, s.compartment].filter(Boolean).join(" · ");
     $("s3Hint").textContent = s.configured
-      ? `Region ${s.region || "default"}${s.endpoint ? ` · endpoint ${s.endpoint}` : ""}`
-      : `Not configured: ${s.error || "set AWS_REGION and credentials"}. Use Bundled samples or Upload instead.`;
+      ? `${detail || "credentials ready"}${s.endpoint ? ` · endpoint ${s.endpoint}` : ""}`
+      : `Not configured: ${s.error || `set ${label.hint}`}. Use Bundled samples or Upload instead.`;
+    state.s3.bucket = ""; state.s3.objects = []; state.s3.selected.clear();
+    $("s3List").replaceChildren();
     if (!s.configured) return;
-    const data = await api("/api/s3/buckets");
+    const data = await api(`/api/remote/buckets?provider=${provider}`);
     const sel = $("bucket");
-    sel.replaceChildren(el("option", { value: "" }, "Select a bucket…"));
+    sel.replaceChildren(el("option", { value: "" }, `Select a ${label.bucket.toLowerCase()}…`));
     for (const b of data.buckets) sel.appendChild(el("option", { value: b.name }, b.name));
     if (data.buckets.length) { sel.value = data.buckets[0].name; state.s3.bucket = sel.value; await loadObjects(); }
   } catch (err) { $("s3Hint").textContent = err.message; }
@@ -1008,10 +1022,12 @@ async function loadS3Status() {
 
 async function loadObjects(next = false) {
   if (!state.s3.bucket) return;
-  const params = new URLSearchParams({ bucket: state.s3.bucket, prefix: state.s3.prefix });
+  const params = new URLSearchParams({
+    provider: state.s3.provider, bucket: state.s3.bucket, prefix: state.s3.prefix,
+  });
   if (next && state.s3.token) params.set("token", state.s3.token);
   try {
-    const data = await api(`/api/s3/objects?${params}`);
+    const data = await api(`/api/remote/objects?${params}`);
     state.s3.objects = next ? [...state.s3.objects, ...data.objects] : data.objects;
     state.s3.token = data.next_token || "";
     $("s3More").hidden = !state.s3.token;
@@ -1059,11 +1075,18 @@ $("bucket").addEventListener("change", (e) => {
 $("prefix").addEventListener("change", (e) => {
   state.s3.prefix = e.target.value; state.s3.token = ""; state.s3.selected.clear(); loadObjects();
 });
+$("remoteProvider").addEventListener("change", (e) => {
+  state.s3.provider = e.target.value;
+  state.s3.bucket = ""; state.s3.prefix = ""; state.s3.token = "";
+  state.s3.selected.clear(); state.s3.objects = [];
+  $("prefix").value = "";
+  loadS3Status();
+});
 $("s3More").addEventListener("click", () => loadObjects(true));
 $("s3Add").addEventListener("click", async () => {
   try {
-    const data = await api("/api/s3/ingest", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bucket: state.s3.bucket, keys: [...state.s3.selected] }) });
+    const data = await api("/api/remote/ingest", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: state.s3.provider, bucket: state.s3.bucket, keys: [...state.s3.selected] }) });
     await afterIngest(data);
   } catch (err) { drawerMsg(err.message, false); }
 });

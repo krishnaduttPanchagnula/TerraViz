@@ -240,7 +240,7 @@ func TestServerEndToEnd(t *testing.T) {
 		Samples []struct{ Name, Provider string } `json:"samples"`
 	}
 	getJSON(t, client, base+"/api/samples", &samples)
-	if len(samples.Samples) != 6 {
+	if len(samples.Samples) != 7 {
 		t.Fatalf("bundled samples: %+v", samples.Samples)
 	}
 

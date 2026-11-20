@@ -326,12 +326,6 @@ type StateInfo struct {
 func (d *DB) States() ([]StateInfo, error) {
 	out := []StateInfo{}
 	rows, err := d.r.Query(`SELECT s.name, s.filename,
-		CASE
-			WHEN (SELECT COUNT(*) FROM resources WHERE state_id=s.id AND type GLOB 'aws_*') > 0 THEN 'aws'
-			WHEN (SELECT COUNT(*) FROM resources WHERE state_id=s.id AND type GLOB 'google_*') > 0 THEN 'gcp'
-			WHEN (SELECT COUNT(*) FROM resources WHERE state_id=s.id AND type GLOB 'azurerm_*') > 0 THEN 'azure'
-			ELSE 'unknown'
-		END,
 		s.version, s.serial, s.lineage, s.ingested_at,
 		(SELECT COUNT(*) FROM resources WHERE state_id=s.id)
 		FROM states s ORDER BY s.name`)
@@ -342,7 +336,7 @@ func (d *DB) States() ([]StateInfo, error) {
 	for rows.Next() {
 		var s StateInfo
 		s.Accounts = []state.Scope{}
-		if err := rows.Scan(&s.Name, &s.Filename, &s.Provider, &s.Version, &s.Serial,
+		if err := rows.Scan(&s.Name, &s.Filename, &s.Version, &s.Serial,
 			&s.Lineage, &s.IngestedAt, &s.Resources); err != nil {
 			return nil, err
 		}
@@ -353,6 +347,29 @@ func (d *DB) States() ([]StateInfo, error) {
 	}
 	rows.Close()
 	for i := range out {
+		providers, err := d.r.Query(`SELECT DISTINCT provider, type FROM resources
+			WHERE state_id=(SELECT id FROM states WHERE name=?)`, out[i].Name)
+		if err != nil {
+			return nil, err
+		}
+		found := "unknown"
+		for providers.Next() {
+			var prov, typ string
+			if err := providers.Scan(&prov, &typ); err != nil {
+				providers.Close()
+				return nil, err
+			}
+			if p := providerOf(prov, typ); p != "unknown" {
+				found = p
+				break
+			}
+		}
+		providers.Close()
+		if err := providers.Err(); err != nil {
+			return nil, err
+		}
+		out[i].Provider = found
+
 		scopes, err := d.r.Query(`SELECT kind, id FROM state_scopes
 			WHERE state_id=(SELECT id FROM states WHERE name=?) ORDER BY kind, id`, out[i].Name)
 		if err != nil {
@@ -372,6 +389,47 @@ func (d *DB) States() ([]StateInfo, error) {
 		}
 	}
 	return out, nil
+}
+
+// providerOf derives a short provider name from a Terraform provider string
+// (e.g. provider["registry.terraform.io/hashicorp/aws"]) with a resource-type
+// fallback. Unknown providers are reported by name so the UI can still label
+// them instead of silently collapsing them into "unknown".
+func providerOf(provider, resourceType string) string {
+	s := strings.TrimSpace(provider)
+	if i := strings.Index(s, "["); i >= 0 {
+		s = strings.Trim(s[i+1:], `]"`)
+	}
+	s = strings.Trim(s, `"`)
+	if i := strings.LastIndex(s, "/"); i >= 0 {
+		s = s[i+1:]
+	}
+	s = strings.ToLower(s)
+	switch s {
+	case "":
+	case "google":
+		return "gcp"
+	case "azurerm":
+		return "azure"
+	case "oracle", "oci":
+		return "oci"
+	default:
+		if s != "unknown" {
+			return s
+		}
+	}
+	t := strings.ToLower(resourceType)
+	switch {
+	case strings.HasPrefix(t, "aws_"):
+		return "aws"
+	case strings.HasPrefix(t, "google_"):
+		return "gcp"
+	case strings.HasPrefix(t, "azurerm_"):
+		return "azure"
+	case strings.HasPrefix(t, "oci_"):
+		return "oci"
+	}
+	return "unknown"
 }
 
 func splitKinds(s string) []string {

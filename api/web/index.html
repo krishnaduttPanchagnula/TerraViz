@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0d1117">
 <title>terraquery</title>
-<link rel="stylesheet" href="style.css?v=20">
+<link rel="stylesheet" href="style.css?v=21">
 </head>
 <body>
 <a href="#mainContent" class="skip-link">Skip to main content</a>
@@ -74,7 +74,7 @@
     </nav>
 
     <div class="sidebar-foot">
-      <span class="pill" id="s3Pill"><svg class="icon" aria-hidden="true"><use href="#i-cloud"/></svg> <span id="s3PillText">S3: checking…</span></span>
+      <span class="pill" id="s3Pill"><svg class="icon" aria-hidden="true"><use href="#i-cloud"/></svg> <span id="s3PillText">Remote: checking…</span></span>
       <button type="button" class="primary block" id="addBtn">
         <svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg><span>Add statefiles</span>
       </button>
@@ -271,7 +271,7 @@
 
     <div class="tabs" role="tablist" aria-label="Statefile sources">
       <button type="button" class="tab active" id="tab-s3-btn" data-tab="s3" role="tab"
-              aria-controls="tab-s3" aria-selected="true" tabindex="0">S3 browser</button>
+              aria-controls="tab-s3" aria-selected="true" tabindex="0">Remote state</button>
       <button type="button" class="tab" id="tab-samples-btn" data-tab="samples" role="tab"
               aria-controls="tab-samples" aria-selected="false" tabindex="-1">Bundled samples</button>
       <button type="button" class="tab" id="tab-upload-btn" data-tab="upload" role="tab"
@@ -279,8 +279,16 @@
     </div>
 
     <div class="tabpane active" id="tab-s3" role="tabpanel" aria-labelledby="tab-s3-btn" tabindex="0">
-      <p class="hint" id="s3Hint">Configure AWS_REGION and credentials to browse buckets.</p>
-      <label class="field">Bucket
+      <p class="hint" id="s3Hint">Choose a cloud provider and configure its credentials to browse remote state.</p>
+      <label class="field">Provider
+        <select id="remoteProvider" aria-label="Remote state provider">
+          <option value="aws">AWS S3</option>
+          <option value="gcp">Google Cloud Storage</option>
+          <option value="azure">Azure Blob Storage</option>
+          <option value="oci">OCI Object Storage</option>
+        </select>
+      </label>
+      <label class="field" id="bucketLabel">Bucket
         <select id="bucket"></select>
       </label>
       <label class="field">Prefix
@@ -340,6 +348,6 @@
   <span id="errorText"></span>
   <button type="button" id="errorRetry"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg> Retry</button>
 </div>
-<script src="app.js?v=20"></script>
+<script src="app.js?v=21"></script>
 </body>
 </html>

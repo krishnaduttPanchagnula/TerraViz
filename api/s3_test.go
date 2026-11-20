@@ -144,8 +144,8 @@ func TestSamplesEndpoints(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &list); err != nil {
 		t.Fatal(err)
 	}
-	if len(list.Samples) != 6 {
-		t.Fatalf("expected 6 samples, got %+v", list.Samples)
+	if len(list.Samples) != 7 {
+		t.Fatalf("expected 7 samples, got %+v", list.Samples)
 	}
 	providers := map[string]bool{}
 	for _, x := range list.Samples {

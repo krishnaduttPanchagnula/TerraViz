@@ -63,6 +63,7 @@ var hostKeys = map[string]bool{
 	"bucket_domain_name": true, "bucket_regional_domain_name": true,
 	"primary_endpoint_address": true, "reader_endpoint": true, "cname": true,
 	"default_hostname": true, "vault_uri": true, "primary_blob_endpoint": true,
+	"hostname": true,
 }
 
 var nameKeys = map[string]bool{

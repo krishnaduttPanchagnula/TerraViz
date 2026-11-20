@@ -116,6 +116,7 @@ var (
 	gcpProject    = regexp.MustCompile(`(?:^|/)projects/([a-z][a-z0-9-]{4,28}[a-z0-9])/`) // e.g. projects/acme-prod/
 	azureSub      = regexp.MustCompile(`(?i)/subscriptions/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})`)
 	bareAccountID = regexp.MustCompile(`^(\d{12})$`)
+	ociOCID       = regexp.MustCompile(`^ocid1\.[a-z0-9_.-]+$`)
 )
 
 // Scope identifies the cloud account/project/subscription a resource lives in.
@@ -142,6 +143,10 @@ func Scopes(attrs map[string]any) []Scope {
 			if m := bareAccountID.FindStringSubmatch(v); m != nil {
 				seen[Scope{"aws", m[1]}] = true
 			}
+		}
+		if ociOCID.MatchString(v) &&
+			(strings.Contains(strings.ToLower(path), "compartment") || strings.Contains(strings.ToLower(path), "tenancy")) {
+			seen[Scope{"oci", v}] = true
 		}
 	})
 	out := make([]Scope, 0, len(seen))

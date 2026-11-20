@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"terraviz/db"
+	"terraviz/remote"
 	"terraviz/resolver"
 	"terraviz/s3source"
 	"terraviz/state"
@@ -39,10 +40,16 @@ type Server struct {
 	s3Once sync.Once
 	s3c    s3source.Client
 	s3Err  error
+
+	remoteMu    sync.Mutex
+	remoteCache map[string]remote.Client
+	remoteErrs  map[string]error
+	Remote      map[string]remote.Client // injected clients, keyed by provider (tests)
 }
 
 func New(d *db.DB) *Server {
-	return &Server{DB: d, MaxBytes: 32 << 20, SamplesDir: "samples"}
+	return &Server{DB: d, MaxBytes: 32 << 20, SamplesDir: "samples",
+		remoteCache: map[string]remote.Client{}, remoteErrs: map[string]error{}}
 }
 
 func (s *Server) s3Client() (s3source.Client, error) {
@@ -62,6 +69,39 @@ func s3Error(w http.ResponseWriter, err error) {
 		return
 	}
 	fail(w, 502, err)
+}
+
+func remoteError(w http.ResponseWriter, err error) {
+	if errors.Is(err, remote.ErrNotConfigured) {
+		writeJSON(w, http.StatusServiceUnavailable, errResp{Error: err.Error()})
+		return
+	}
+	fail(w, 502, err)
+}
+
+func (s *Server) remoteClient(provider string) (remote.Client, error) {
+	provider = remote.Normalize(provider)
+	s.remoteMu.Lock()
+	defer s.remoteMu.Unlock()
+	if c, ok := s.Remote[provider]; ok && c != nil {
+		return c, nil
+	}
+	if c, ok := s.remoteCache[provider]; ok {
+		return c, s.remoteErrs[provider]
+	}
+	if provider == "aws" && s.S3 != nil {
+		c := remote.FromS3(s.S3)
+		s.remoteCache[provider] = c
+		return c, nil
+	}
+	c, err := remote.New(context.Background(), provider)
+	s.remoteCache[provider] = c
+	s.remoteErrs[provider] = err
+	return c, err
+}
+
+func remoteProvider(r *http.Request) string {
+	return remote.Normalize(r.URL.Query().Get("provider"))
 }
 
 type errResp struct {
@@ -135,6 +175,10 @@ func (s *Server) Mux() *http.ServeMux {
 	mux.HandleFunc("/api/s3/buckets", s.handleS3Buckets)
 	mux.HandleFunc("/api/s3/objects", s.handleS3Objects)
 	mux.HandleFunc("/api/s3/ingest", s.handleS3Ingest)
+	mux.HandleFunc("/api/remote/status", s.handleRemoteStatus)
+	mux.HandleFunc("/api/remote/buckets", s.handleRemoteBuckets)
+	mux.HandleFunc("/api/remote/objects", s.handleRemoteObjects)
+	mux.HandleFunc("/api/remote/ingest", s.handleRemoteIngest)
 	mux.HandleFunc("/api/samples", s.handleSamples)
 	mux.HandleFunc("/api/samples/ingest", s.handleSamplesIngest)
 
@@ -514,6 +558,101 @@ func (s *Server) handleS3Ingest(w http.ResponseWriter, r *http.Request) {
 	s.persist(w, inputs)
 }
 
+// ---- provider-agnostic remote state (AWS / GCP / Azure / OCI) ----
+
+func (s *Server) handleRemoteStatus(w http.ResponseWriter, r *http.Request) {
+	if !method(w, r, http.MethodGet) {
+		return
+	}
+	provider := remoteProvider(r)
+	_, err := s.remoteClient(provider)
+	status := remote.ConfigStatus(provider)
+	status["configured"] = err == nil
+	if err != nil {
+		status["error"] = err.Error()
+	}
+	writeJSON(w, 200, status)
+}
+
+func (s *Server) handleRemoteBuckets(w http.ResponseWriter, r *http.Request) {
+	if !method(w, r, http.MethodGet) {
+		return
+	}
+	c, err := s.remoteClient(remoteProvider(r))
+	if err != nil {
+		remoteError(w, err)
+		return
+	}
+	buckets, err := c.Buckets(r.Context())
+	if err != nil {
+		remoteError(w, err)
+		return
+	}
+	sort.Slice(buckets, func(i, j int) bool { return buckets[i].Name < buckets[j].Name })
+	writeJSON(w, 200, map[string]any{"buckets": buckets, "provider": remoteProvider(r)})
+}
+
+func (s *Server) handleRemoteObjects(w http.ResponseWriter, r *http.Request) {
+	if !method(w, r, http.MethodGet) {
+		return
+	}
+	bucket := r.URL.Query().Get("bucket")
+	if bucket == "" {
+		fail(w, 400, errors.New("bucket is required"))
+		return
+	}
+	c, err := s.remoteClient(remoteProvider(r))
+	if err != nil {
+		remoteError(w, err)
+		return
+	}
+	res, err := c.List(r.Context(), bucket, r.URL.Query().Get("prefix"), r.URL.Query().Get("token"))
+	if err != nil {
+		remoteError(w, err)
+		return
+	}
+	writeJSON(w, 200, res)
+}
+
+func (s *Server) handleRemoteIngest(w http.ResponseWriter, r *http.Request) {
+	if !method(w, r, http.MethodPost) {
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, s.MaxBytes)
+	var req struct {
+		Provider string   `json:"provider"`
+		Bucket   string   `json:"bucket"`
+		Keys     []string `json:"keys"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		fail(w, 400, fmt.Errorf("invalid JSON: %w", err))
+		return
+	}
+	provider := remote.Normalize(req.Provider)
+	if req.Bucket == "" || len(req.Keys) == 0 {
+		fail(w, 400, errors.New("bucket and keys are required"))
+		return
+	}
+	c, err := s.remoteClient(provider)
+	if err != nil {
+		remoteError(w, err)
+		return
+	}
+	inputs := make([]ingestInput, 0, len(req.Keys))
+	for _, key := range req.Keys {
+		if strings.HasSuffix(key, "/") {
+			continue
+		}
+		b, err := c.Get(r.Context(), req.Bucket, key)
+		if err != nil {
+			remoteError(w, fmt.Errorf("read %s://%s/%s: %w", provider, req.Bucket, key, err))
+			return
+		}
+		inputs = append(inputs, ingestInput{Name: remote.StateName(key), Filename: key, Content: string(b)})
+	}
+	s.persist(w, inputs)
+}
+
 // ---- bundled samples (works without AWS credentials) ----
 
 type sampleInfo struct {
@@ -532,6 +671,8 @@ func sampleProvider(b []byte) string {
 		return "gcp"
 	case strings.Contains(s, `"azurerm_`):
 		return "azure"
+	case strings.Contains(s, `"oci_`):
+		return "oci"
 	default:
 		return "unknown"
 	}
