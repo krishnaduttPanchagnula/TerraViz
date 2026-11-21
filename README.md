@@ -21,8 +21,6 @@ AWS accounts and exports diagrams to SVG, PNG, CSV, Mermaid and DOT.
   filters.
 - **Rich single-page dashboard** — dotted pannable/zoomable canvas, minimap,
   search, multi-hop trace, view options and light/dark themes.
-- **Resource-level explorer** — search, filters, minimap, trace, hide/show,
-  custom connections and exports.
 - **No runtime dependencies** — the UI, fonts and official AWS/GCP/Azure icons
   are embedded; no Node.js, external database or CDN.
 
@@ -124,10 +122,10 @@ The legacy `/api/s3/*` endpoints remain as AWS-only aliases.
 
 Dashboard API at `/api/...` (see the source for the full list): `health`,
 `states`, `resources`, `deps`, `edges`, `graph`, `query` (read-only SQL),
-`remote/*` (AWS/GCP/Azure/OCI), `s3/*` (AWS alias), `samples/*`, `resolve`.
+`remote/*` (AWS/GCP/Azure/OCI), `s3/*` (AWS alias), `samples/*`, `resolve`,
+plus `summary`, `costs`, `export/drawio` and `snapshots`.
 
-The resource-level explorer is mounted at `/terraviz/` with its own
-`/terraviz/api/*` endpoints. The full icon pack is served at `/icons/`.
+Icons are served at `/icons/` from the embedded `api/web/icons/` pack.
 
 ## Data model
 
@@ -146,13 +144,13 @@ are stripped. SQL access uses a separate read-only connection.
 go test ./...                 # all unit + API + integration tests
 go test -race ./...
 go vet ./...
-node scripts/check-diagram-js.js
 node --check api/web/app.js
+npm run test:e2e          # Playwright browser tests
 ```
 
-Layout: `state/`, `resolver/`, `db/`, `s3source/` and `api/` (dashboard) plus
-`internal/{models,parsers,scanners,relations,exporters,server}` and
-`legacyweb/` (resource-level explorer and 620 AWS icons).
+Layout: `state/`, `resolver/`, `db/`, `s3source/` and `api/` (the only UI,
+embedded from `api/web/`) plus `internal/{models,parsers,scanners,relations,
+exporters,costs,mcp,snapshots,summary}`.
 
 ## Attribution
 

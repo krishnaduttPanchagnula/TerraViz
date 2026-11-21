@@ -54,41 +54,6 @@ func TestMermaidEscaping(t *testing.T) {
 	}
 }
 
-func TestHTMLSelfContained(t *testing.T) {
-	out, err := HTML(sampleDiagram())
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := string(out)
-	if !strings.Contains(s, "<script>") {
-		t.Error("inlined script missing")
-	}
-	// embedded payload must be present (the diagram JSON and the escaped name)
-	if !strings.Contains(s, "Listener") {
-		t.Error("diagram payload missing")
-	}
-	// no external references to static assets remain
-	for _, needle := range []string{"/static/", "/icons/"} {
-		if strings.Contains(s, needle) {
-			t.Errorf("external reference leaked: %s", needle)
-		}
-	}
-	// ensure schema url namespaces are allowed (xml namespace URIs in data)
-	if len(out) < 100000 {
-		t.Errorf("html suspiciously small: %d", len(out))
-	}
-}
-
-func TestHTMLContainsDataURIs(t *testing.T) {
-	out, err := HTML(sampleDiagram())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(out), "data:image/svg+xml") {
-		t.Error("icons not inlined as data URIs")
-	}
-}
-
 func TestMarkdownHasMermaidFence(t *testing.T) {
 	out, err := Markdown(sampleDiagram())
 	if err != nil {

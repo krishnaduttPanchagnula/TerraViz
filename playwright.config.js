@@ -8,7 +8,8 @@ const HOST = '127.0.0.1';
 const HOME = '/tmp/opencode/terraviz-e2e-home';
 
 // Keep snapshot tests isolated from the developer's real config directory.
-fs.rmSync(HOME, { recursive: true, force: true });
+// Never delete this directory: workers re-evaluate this config while the
+// web server is running, and removing the db file breaks its read connection.
 fs.mkdirSync(HOME, { recursive: true });
 
 export default defineConfig({
@@ -32,10 +33,10 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: `./terraviz serve diagram_small.json --addr ${HOST}:${PORT} --db ${HOME}/test.db`,
+    command: `./terraviz serve samples/network.tfstate --addr ${HOST}:${PORT} --db ${HOME}/test.db`,
     env: { ...process.env, TERRAVIZ_HOME: HOME },
-    url: `http://${HOST}:${PORT}/terraviz/api/diagram`,
-    reuseExistingServer: !process.env.CI,
+    url: `http://${HOST}:${PORT}/api/health`,
+    reuseExistingServer: false,
     timeout: 60_000,
     stdout: 'ignore',
     stderr: 'pipe',

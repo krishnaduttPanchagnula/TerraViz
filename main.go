@@ -36,10 +36,8 @@ import (
 	"terraviz/internal/models"
 	"terraviz/internal/parsers"
 	"terraviz/internal/scanners"
-	"terraviz/internal/server"
 	"terraviz/internal/snapshots"
 	"terraviz/internal/summary"
-	"terraviz/legacyweb"
 	"terraviz/resolver"
 	"terraviz/state"
 )
@@ -250,19 +248,26 @@ func runServer(addr, dbPath, diagramFile string) error {
 	}
 	defer d.Close()
 
-	legacy := server.NewServer(defaultHost, defaultPort)
+	// An optional statefile argument is ingested into the SQLite graph so the
+	// dashboard opens with data already loaded.
 	if diagramFile != "" {
-		if err := legacy.LoadDiagram(diagramFile); err != nil {
+		f, err := state.Load(diagramFile)
+		if err != nil {
+			return err
+		}
+		if err := d.Ingest([]resolver.Source{{Name: f.Lineage, Filename: diagramFile, File: f}}); err != nil {
+			return err
+		}
+		if err := d.ResolveAll(); err != nil {
 			return err
 		}
 	}
+
 	apiServer := api.New(d)
 	mux := apiServer.Mux()
-	mux.Handle("/terraviz/", http.StripPrefix("/terraviz", legacy.Handler()))
 
-	// Root-level /icons/ serves the full embedded AWS pack plus the small
-	// provider/service icons used by the dashboard.
-	iconsFS, err := fs.Sub(legacyweb.EmbeddedFiles, "icons")
+	// Icons are served from the embedded dashboard assets.
+	iconsFS, err := fs.Sub(api.WebFS(), "icons")
 	if err != nil {
 		return err
 	}
@@ -286,7 +291,7 @@ func runServer(addr, dbPath, diagramFile string) error {
 		_ = srv.Shutdown(shutdownCtx)
 	}()
 	fmt.Printf("TerraViz listening on %s (db %s)\n", addr, d.Path())
-	fmt.Printf("Dashboard: http://%s/  ·  Resource diagram: http://%s/terraviz/\n", addr, addr)
+	fmt.Printf("Dashboard: http://%s/\n", addr)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
@@ -425,20 +430,25 @@ var summaryCmd = &cobra.Command{
 }
 
 var snapshotCmd = &cobra.Command{
-	Use:   "snapshot [diagram-file]",
-	Short: "Save a local snapshot of a scan",
+	Use:   "snapshot [state.tfstate]",
+	Short: "Save a local snapshot of a Terraform statefile",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		result, err := loadScanResult(args[0])
+		data, err := os.ReadFile(args[0])
 		if err != nil {
 			fatalf("snapshot: %v", err)
 		}
+		f, err := state.Parse(data, args[0])
+		if err != nil {
+			fatalf("snapshot: %v", err)
+		}
+		states := []db.RawState{{Name: f.Lineage, Filename: args[0], Content: string(data)}}
 		name, _ := cmd.Flags().GetString("name")
-		snap, err := snapshots.Save(result, name)
+		snap, err := snapshots.Save(name, states, len(states))
 		if err != nil {
 			fatalf("snapshot: %v", err)
 		}
-		fmt.Printf("Saved snapshot %s (%s) with %d resources\n", snap.ID, snap.Name, snap.Resources)
+		fmt.Printf("Saved snapshot %s (%s) with %d statefile(s)\n", snap.ID, snap.Name, snap.Items)
 	},
 }
 
@@ -456,15 +466,15 @@ var snapshotsCmd = &cobra.Command{
 			return
 		}
 		for _, s := range list {
-			fmt.Printf("%s  %-24s %d resources, %d connections  %s\n",
-				s.ID, s.Name, s.Resources, s.Connections, s.CreatedAt.Format(time.RFC3339))
+			fmt.Printf("%s  %-24s %d statefile(s)  %s\n",
+				s.ID, s.Name, s.Items, s.CreatedAt.Format(time.RFC3339))
 		}
 	},
 }
 
 var exportCmd = &cobra.Command{
 	Use:   "export [input]",
-	Short: "Export a diagram to HTML, PNG, SVG, CSV, Mermaid, DOT, draw.io or Markdown",
+	Short: "Export a diagram to CSV, Mermaid, DOT, draw.io or Markdown",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		printHeader()
@@ -548,7 +558,7 @@ func init() {
 	rootCmd.Flags().String("db", "terraviz.db", "SQLite file; empty disables persistence")
 	rootCmd.Flags().String("query", "", "Run a read-only SQL query and print JSON")
 
-	exportCmd.Flags().StringP("format", "f", exporters.FormatHTML,
+	exportCmd.Flags().StringP("format", "f", exporters.FormatDrawIO,
 		"Export format: "+strings.Join(exporters.Formats, "|"))
 	exportCmd.Flags().StringP("output", "o", "", "Output file (default: input name with format extension)")
 	awsCmd.Flags().StringSliceP("regions", "r", []string{defaultRegion}, "AWS regions to scan")

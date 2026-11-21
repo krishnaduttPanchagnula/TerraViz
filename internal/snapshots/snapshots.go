@@ -1,4 +1,4 @@
-// Package snapshots stores local, timestamped copies of a scan. It is the
+// Package snapshots stores local, timestamped copies of a graph. It is the
 // account-free alternative to a hosted diagram history: files live under the
 // user's config directory and never leave the machine.
 package snapshots
@@ -13,24 +13,21 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"terraviz/internal/models"
 )
 
 const dirPermissions = 0o700
 
-// Snapshot is the listing metadata for one stored scan.
+// Snapshot is the listing metadata for one stored graph.
 type Snapshot struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	CreatedAt   time.Time `json:"created_at"`
-	Resources   int       `json:"resources"`
-	Connections int       `json:"connections"`
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"created_at"`
+	Items     int       `json:"items"`
 }
 
 type stored struct {
-	Snapshot Snapshot          `json:"snapshot"`
-	Result   models.ScanResult `json:"result"`
+	Snapshot Snapshot        `json:"snapshot"`
+	Payload  json.RawMessage `json:"payload"`
 }
 
 // Dir returns the snapshot directory, creating it if needed. TERRAVIZ_HOME
@@ -52,36 +49,32 @@ func Dir() (string, error) {
 	return dir, nil
 }
 
-// Save stores a scan and returns its metadata.
-func Save(result *models.ScanResult, name string) (Snapshot, error) {
-	if result == nil {
-		return Snapshot{}, fmt.Errorf("saving snapshot: no scan result")
-	}
+// Save stores an arbitrary JSON payload and returns its metadata.
+func Save(name string, payload any, items int) (Snapshot, error) {
 	dir, err := Dir()
 	if err != nil {
 		return Snapshot{}, err
 	}
-
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return Snapshot{}, fmt.Errorf("encoding snapshot: %w", err)
+	}
 	id := newID()
 	snap := Snapshot{
-		ID:          id,
-		Name:        strings.TrimSpace(name),
-		CreatedAt:   time.Now().UTC(),
-		Resources:   len(result.Diagram.Resources),
-		Connections: len(result.Diagram.Connections),
-	}
-	if snap.Name == "" {
-		snap.Name = result.Diagram.Name
+		ID:        id,
+		Name:      strings.TrimSpace(name),
+		CreatedAt: time.Now().UTC(),
+		Items:     items,
 	}
 	if snap.Name == "" {
 		snap.Name = "Untitled"
 	}
 
-	data, err := json.MarshalIndent(stored{Snapshot: snap, Result: *result}, "", "  ")
+	body, err := json.MarshalIndent(stored{Snapshot: snap, Payload: data}, "", "  ")
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("encoding snapshot: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, id+".json"), data, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, id+".json"), body, 0o600); err != nil {
 		return Snapshot{}, fmt.Errorf("writing snapshot: %w", err)
 	}
 	return snap, nil
@@ -115,8 +108,8 @@ func List() ([]Snapshot, error) {
 	return out, nil
 }
 
-// Load reads a snapshot by ID.
-func Load(id string) (*models.ScanResult, error) {
+// Load reads a snapshot's raw payload by ID.
+func Load(id string) (json.RawMessage, error) {
 	if !validID(id) {
 		return nil, fmt.Errorf("invalid snapshot id")
 	}
@@ -132,7 +125,7 @@ func Load(id string) (*models.ScanResult, error) {
 	if err := json.Unmarshal(data, &s); err != nil {
 		return nil, fmt.Errorf("decoding snapshot %s: %w", id, err)
 	}
-	return &s.Result, nil
+	return s.Payload, nil
 }
 
 // Delete removes a snapshot by ID.

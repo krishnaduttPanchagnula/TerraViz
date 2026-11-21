@@ -497,6 +497,31 @@ type ResourceInfo struct {
 	ScopeID   string `json:"scope_id"`
 }
 
+// RawState is a sanitized statefile as stored in the database.
+type RawState struct {
+	Name     string `json:"name"`
+	Filename string `json:"filename"`
+	Content  string `json:"content"`
+}
+
+// RawStates returns every ingested statefile, for local snapshots and export.
+func (d *DB) RawStates() ([]RawState, error) {
+	rows, err := d.r.Query(`SELECT name, filename, raw FROM states ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []RawState{}
+	for rows.Next() {
+		var s RawState
+		if err := rows.Scan(&s.Name, &s.Filename, &s.Content); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
 // Resources returns every resource instance, or just one state's when state
 // is non-empty.
 func (d *DB) Resources(state string) ([]ResourceInfo, error) {

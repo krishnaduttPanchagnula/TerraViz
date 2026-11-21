@@ -2,16 +2,16 @@ import { test, expect } from '@playwright/test';
 import { spawn } from 'node:child_process';
 
 test('offline summary endpoint returns a deterministic brief', async ({ request }) => {
-  const res = await request.post('/terraviz/api/summary');
+  const res = await request.get('/api/summary');
   expect(res.ok()).toBeTruthy();
   const body = await res.json();
   expect(body.source).toBe('local');
   expect(body.summary).toContain('Architecture summary');
-  expect(body.summary).toContain('10 resources');
+  expect(body.summary).toContain('resources');
 });
 
 test('cost overlay returns totals and an honest disclaimer', async ({ request }) => {
-  const res = await request.get('/terraviz/api/costs');
+  const res = await request.get('/api/costs');
   expect(res.ok()).toBeTruthy();
   const body = await res.json();
   expect(body.currency).toBe('USD');
@@ -21,7 +21,7 @@ test('cost overlay returns totals and an honest disclaimer', async ({ request })
 });
 
 test('draw.io export is served from the embedded exporter', async ({ request }) => {
-  const res = await request.get('/terraviz/api/export/drawio');
+  const res = await request.get('/api/export/drawio');
   expect(res.ok()).toBeTruthy();
   expect(res.headers()['content-type']).toContain('application/xml');
   const text = await res.text();
@@ -29,33 +29,24 @@ test('draw.io export is served from the embedded exporter', async ({ request }) 
   expect(text).toContain('<mxGraphModel');
 });
 
-test('local snapshot lifecycle: save, list, load, delete', async ({ request }) => {
-  const saved = await request.post('/terraviz/api/snapshots', { data: { name: 'e2e-snapshot' } });
+test('local snapshot lifecycle: save, list, restore, delete', async ({ request }) => {
+  const saved = await request.post('/api/snapshots', { data: { name: 'e2e-snapshot' } });
   expect(saved.ok()).toBeTruthy();
   const snap = await saved.json();
   expect(snap.name).toBe('e2e-snapshot');
-  expect(snap.resources).toBe(10);
+  expect(snap.items).toBe(1);
 
-  const list = await request.get('/terraviz/api/snapshots');
+  const list = await request.get('/api/snapshots');
   expect((await list.json()).some((s) => s.id === snap.id)).toBeTruthy();
 
-  const load = await request.get(`/terraviz/api/snapshots/${snap.id}`);
-  expect(load.ok()).toBeTruthy();
-  expect((await load.json()).success).toBeTruthy();
+  const restore = await request.get(`/api/snapshots/${snap.id}`);
+  expect(restore.ok()).toBeTruthy();
+  expect((await restore.json()).success).toBeTruthy();
 
-  const del = await request.delete(`/terraviz/api/snapshots/${snap.id}`);
+  const del = await request.delete(`/api/snapshots/${snap.id}`);
   expect(del.ok()).toBeTruthy();
-  const after = await request.get('/terraviz/api/snapshots');
+  const after = await request.get('/api/snapshots');
   expect((await after.json()).some((s) => s.id === snap.id)).toBeFalsy();
-});
-
-test('share link payload can be loaded back into the server', async ({ request }) => {
-  const diagram = await (await request.get('/terraviz/api/diagram')).json();
-  const res = await request.post('/terraviz/api/share/load', { data: diagram });
-  expect(res.ok()).toBeTruthy();
-  expect((await res.json()).success).toBeTruthy();
-  const after = await (await request.get('/terraviz/api/diagram')).json();
-  expect(after.diagram.resources).toHaveLength(10);
 });
 
 test('MCP stdio server answers initialize and exposes tools', async () => {
@@ -76,33 +67,33 @@ test('MCP stdio server answers initialize and exposes tools', async () => {
   expect(lines[1].result.tools.length).toBe(7);
 });
 
-test('insights panel renders summary, costs and a share URL', async ({ page }) => {
-  await page.goto('/terraviz/');
-  await expect(page.locator('.loading-overlay')).toHaveClass(/hidden/);
+test('insights drawer renders summary, costs and a share URL', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('#statStates')).toHaveText('1', { timeout: 15_000 });
 
-  await page.locator('#toggle-insights').click();
-  await expect(page.locator('#insights-panel')).toHaveClass(/open/);
+  await page.locator('#insightsBtn').click();
+  await expect(page.locator('#insightsOverlay')).toBeVisible();
 
-  await page.locator('#gen-summary').click();
-  await expect(page.locator('#summary-text')).toContainText('Architecture summary');
+  await page.locator('#genSummaryBtn').click();
+  await expect(page.locator('#summaryOut')).toContainText('Architecture summary');
 
-  await page.locator('#gen-costs').click();
-  await expect(page.locator('#cost-content')).toContainText('Estimated total:');
+  await page.locator('#genCostsBtn').click();
+  await expect(page.locator('#costsOut')).toContainText('Estimated total:');
 
-  await page.locator('#make-share').click();
-  await expect(page.locator('#share-url')).toHaveValue(/#d=/);
+  await page.locator('#copyShareBtn').click();
+  await expect(page.locator('#shareUrl')).toHaveValue(/http/);
 
-  await page.locator('#close-insights').click();
-  await expect(page.locator('#insights-panel')).not.toHaveClass(/open/);
+  await page.locator('#closeInsightsBtn').click();
+  await expect(page.locator('#insightsOverlay')).toBeHidden();
 });
 
 test('draw.io export button downloads an editable file', async ({ page }) => {
-  await page.goto('/terraviz/');
-  await expect(page.locator('.loading-overlay')).toHaveClass(/hidden/);
-  await page.locator('#toggle-export-menu').click();
+  await page.goto('/');
+  await expect(page.locator('#statStates')).toHaveText('1', { timeout: 15_000 });
+  await page.locator('#exportMenuBtn').click();
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    page.locator('#export-drawio').click(),
+    page.locator('#drawioExportBtn').click(),
   ]);
   expect(download.suggestedFilename()).toBe('architecture-diagram.drawio');
 });

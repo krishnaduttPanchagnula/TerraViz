@@ -2,7 +2,7 @@
 
 ## What This Project Does
 
-Go CLI tool that parses Terraform `.tfstate` files (v4 raw or `terraform show -json`) and live AWS accounts, then serves interactive SVG-based infrastructure diagrams via a Gin web server. The frontend renders zoomable, filterable diagrams in the browser.
+Go CLI tool that ingests Terraform `.tfstate` files into an embedded SQLite graph, resolves cross-state dependencies, and serves a single embedded dashboard with an interactive architecture canvas and read-only SQL over the graph.
 
 **Repository:** `krishnaduttPanchagnula/TerraViz`
 
@@ -11,8 +11,8 @@ Go CLI tool that parses Terraform `.tfstate` files (v4 raw or `terraform show -j
 ```bash
 go build -o terraviz .   # Build (from project root)
 go vet ./...                                       # Static analysis
-go test ./...                                      # Go unit tests (models, parsers)
-node scripts/check-diagram-js.js                   # Frontend layout/trace self-check
+go test ./...                                      # Go unit tests
+npm run test:e2e                                   # Playwright E2E (builds, serves, tests the dashboard)
 ```
 
 With version info:
@@ -21,7 +21,7 @@ go build -ldflags "-s -w -X main.version=dev -X main.commit=$(git rev-parse HEAD
   -o terraviz .
 ```
 
-There are Go unit tests under `internal/models` and `internal/parsers`. The frontend has no test framework; `scripts/check-diagram-js.js` runs the layout and trace logic in a vm sandbox with a DOM stub.
+There are Go unit tests across `api`, `db`, `internal/*`, `remote`, `resolver`, `state` and the CLI. Browser coverage lives in `e2e/` and runs with Playwright (`npm run test:e2e`).
 
 ## Project Layout
 
@@ -41,16 +41,17 @@ internal/
     relations.go                    Shared edge collector + generic analysers (VPC/subnet/security group)
   scanners/
     aws.go                          Live AWS scanner (EC2, S3, RDS, Lambda via aws-sdk-go-v2)
-  server/
-    server.go                       Gin HTTP server, REST API, sync.RWMutex-protected diagram state
-web/
-  embed.go                          go:embed directive -- embeds templates, static, icons into binary
-  templates/                        Go HTML templates (index_enhanced.html, error.html)
-  static/js/                        Frontend JS (diagram_enhanced.js)
-  static/fonts/                     Bundled WOFF2 fonts (Inter, JetBrains Mono) -- no CDN at runtime
-  icons/                            Full AWS icon packs (~620 SVGs, served at /icons, used by both UIs)
-scripts/
-  check-diagram-js.js               Self-check for the frontend layout, containment and trace logic
+  costs/                            Offline, illustrative cost overlay
+  mcp/                              stdio MCP server exposing the diagram graph as tools
+  snapshots/                        Local, timestamped graph/statefile snapshots
+  summary/                          Offline-first architecture summaries
+api/
+  api.go                            net/http router; //go:embed web (the only UI)
+  features.go                       Summary, cost, draw.io and snapshot endpoints
+  web/                              The dashboard: index.html, app.js, style.css, icons/
+db/                                 SQLite persistence for states, resources, edges, dependencies
+state/, resolver/, remote/, s3source/  State parsing, dependency resolution, remote state sources
+e2e/                                Playwright specs for the dashboard and API
 docs/
   competitor-research.md         Benchmark analysis of 5 competitors (Cloudcraft, TerraVision, Rover, Pluralith, Inframap)
   feature-evidence.md            Per-feature evidence behind the benchmark analysis
@@ -63,12 +64,12 @@ docs/
 go.mod                              Module: terraviz, Go 1.25.0
 ```
 
-All static assets (templates, JS, fonts, icons) are embedded into the binary via `go:embed`.
+All dashboard assets (HTML, JS, CSS, icons) are embedded into the binary via `//go:embed web` in `api/api.go`.
 The built binary is fully self-contained -- no external files or CDN dependencies needed at runtime.
 
 ## Do NOT Modify
 
-- `legacyweb/embed.go` -- go:embed directive, no logic to change
+- The `//go:embed web` directive in `api/api.go` -- embed declaration, no logic to change
 
 ## Release Process
 

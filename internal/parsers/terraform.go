@@ -533,6 +533,12 @@ var terraformTypeMap = map[string]models.ResourceType{
 	"aws_xray_group":         models.ResourceTypeXRayGroup,
 }
 
+// MapTerraformType maps a Terraform resource type to the internal type. It is
+// the stateless form used by callers that only need the type mapping.
+func MapTerraformType(tfType string) models.ResourceType {
+	return (&TerraformParser{}).mapTerraformType(tfType)
+}
+
 // mapTerraformType maps a Terraform resource type string to an internal ResourceType.
 func (p *TerraformParser) mapTerraformType(tfType string) models.ResourceType {
 	if rt, ok := terraformTypeMap[tfType]; ok {

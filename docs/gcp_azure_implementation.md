@@ -51,7 +51,7 @@ The following areas are currently AWS-specific:
 - `internal/scanners/aws.go` combines authentication, collection, normalization, concurrency, and relationship inference.
 - `internal/models/models.go` defines AWS resource constants and an AWS-only icon map.
 - `cmd/main.go` constructs the AWS scanner directly.
-- `internal/server/server.go` directly implements S3 imports.
+- `api/api.go` and `s3source/` implement S3 imports.
 - `web/static/js/diagram_enhanced.js` derives hierarchy from AWS resource type segments and uses AWS fallback icons.
 
 The existing `Resource.Provider`, `DiagramBuilder`, connection model, filters, and diagram API are suitable foundations but require explicit provider-neutral classification and identity metadata.

@@ -1202,3 +1202,108 @@ if (initialParams.get("state")) state.drill = initialParams.get("state");
 loadS3Status();
 loadSamples().catch((err) => drawerMsg(err.message, false));
 loadAll();
+
+// ---- insights: summary, cost overlay, local snapshots, share links ----
+(function () {
+  const overlay = $("insightsOverlay");
+  if (!overlay) return;
+
+  function openInsights() {
+    focusBeforeDialog = document.activeElement;
+    overlay.hidden = false;
+    $("closeInsightsBtn").focus();
+    renderSnapshots();
+  }
+  function closeInsights() {
+    overlay.hidden = true;
+    restoreFocus();
+  }
+  $("insightsBtn").addEventListener("click", openInsights);
+  $("closeInsightsBtn").addEventListener("click", closeInsights);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeInsights(); });
+  overlay.addEventListener("keydown", trapFocus);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !overlay.hidden) closeInsights();
+  });
+
+  $("genSummaryBtn").addEventListener("click", async () => {
+    const out = $("summaryOut");
+    out.hidden = false;
+    out.textContent = "Generating…";
+    try {
+      const data = await api("/api/summary");
+      out.textContent = data.summary + "\n(source: " + data.source + ")";
+    } catch (err) {
+      out.textContent = "Summary failed: " + err.message;
+    }
+  });
+
+  $("genCostsBtn").addEventListener("click", async () => {
+    const out = $("costsOut");
+    out.hidden = false;
+    out.textContent = "Estimating…";
+    try {
+      const data = await api("/api/costs");
+      out.textContent = "Estimated total: $" + Number(data.total_monthly_usd).toFixed(2) +
+        " / month (" + data.currency + ")\n" + data.unpriced + " resources unpriced\n\n" + data.disclaimer;
+    } catch (err) {
+      out.textContent = "Cost estimate failed: " + err.message;
+    }
+  });
+
+  async function renderSnapshots() {
+    const list = $("snapshotList");
+    let snaps = [];
+    try { snaps = await api("/api/snapshots"); } catch { /* nothing saved yet */ }
+    list.replaceChildren();
+    if (!snaps.length) {
+      list.appendChild(el("div", { class: "snapshot-item" }, "No snapshots saved yet."));
+      return;
+    }
+    for (const snap of snaps) {
+      const row = el("div", { class: "snapshot-item" });
+      row.appendChild(el("span", {}, snap.name + " · " + snap.items + " file(s)"));
+      const load = el("button", { type: "button" }, "Load");
+      load.addEventListener("click", async () => {
+        await api("/api/snapshots/" + encodeURIComponent(snap.id));
+        closeInsights();
+        await loadAll();
+      });
+      const del = el("button", { type: "button" }, "Delete");
+      del.addEventListener("click", async () => {
+        await api("/api/snapshots/" + encodeURIComponent(snap.id), { method: "DELETE" });
+        renderSnapshots();
+      });
+      row.append(load, del);
+      list.appendChild(row);
+    }
+  }
+
+  $("saveSnapshotBtn").addEventListener("click", async () => {
+    const name = window.prompt("Snapshot name", "") || "";
+    await api("/api/snapshots", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    renderSnapshots();
+  });
+
+  $("copyShareBtn").addEventListener("click", async () => {
+    const input = $("shareUrl");
+    input.value = location.href;
+    try { await navigator.clipboard.writeText(location.href); }
+    catch { input.select(); document.execCommand("copy"); }
+  });
+
+  $("drawioExportBtn").addEventListener("click", async () => {
+    const res = await fetch("/api/export/drawio");
+    if (!res.ok) { showError("draw.io export failed"); return; }
+    const url = URL.createObjectURL(await res.blob());
+    const a = el("a", { href: url, download: "architecture-diagram.drawio" });
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+})();

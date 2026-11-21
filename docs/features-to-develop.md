@@ -13,16 +13,18 @@
 |---|---|---|
 | MCP server / agent skill | **Done** | `internal/mcp`, `terraviz mcp [file]`, 7 tools over stdio JSON-RPC (also `TERRAVIZ_DIAGRAM`) |
 | Broader typed AWS coverage | **Done** | 22 more typed services in `models.go` + `terraformTypeMap`, with embedded icons |
-| Local-first AI summary | **Done** | `internal/summary`, `terraviz summary`, `POST /api/summary`; offline by default, optional loopback LLM via `TERRAVIZ_LLM_ENDPOINT` (remote hosts rejected) |
-| draw.io export | **Done** (already existed) | `internal/exporters/drawio.go`, `terraviz export -f drawio`, now also `GET /api/export/drawio` and a UI export button |
+| Local-first AI summary | **Done** | `internal/summary`, `terraviz summary`, `GET /api/summary`; offline by default, optional loopback LLM via `TERRAVIZ_LLM_ENDPOINT` (remote hosts rejected) |
+| draw.io export | **Done** (already existed) | `internal/exporters/drawio.go`, `terraviz export -f drawio`, `GET /api/export/drawio`, dashboard export button |
 | Multi-cloud (GCP / Azure) | **Done (state parsing)** | `internal/parsers/multicloud.go`: 14 GCP + 15 Azure Terraform types; unmapped types from supported providers are retained generically. Live scanners remain AWS-only. |
-| Local snapshot history | **Done** | `internal/snapshots`, `terraviz snapshot` / `terraviz snapshots`, `/api/snapshots` CRUD; stored under `TERRAVIZ_HOME` or the user config dir |
+| Local snapshot history | **Done** | `internal/snapshots`, `terraviz snapshot` / `terraviz snapshots`, `/api/snapshots` CRUD. Snapshots store the ingested statefiles and can be restored. Stored under `TERRAVIZ_HOME` or the user config dir. |
 | Cost overlay | **Done (illustrative)** | `internal/costs`, `GET /api/costs`; coarse offline price table, explicitly labelled "not a bill" |
-| Public share links | **Done, reinterpreted** | Self-contained URL: diagram JSON is base64url-encoded in `#d=` and POSTed to `/api/share/load`. No hosting or account. Very large diagrams fall back to the single-file HTML export. |
+| Public share links | **Done, reinterpreted** | The dashboard's current view is encoded in the URL hash; "Copy link" shares it with no hosting or account. |
 
 **Bugs fixed along the way:** gzip responses advertised the uncompressed `Content-Length` and were rejected by browsers (`ECONNRESET`); the relation type index ranged over a map, making edge selection nondeterministic.
 
-**Validation:** `go test ./...`, `go vet ./...`, `node scripts/check-diagram-js.js`, and 11 Playwright tests (`npm run test:e2e`) covering the API, UI panel, MCP stdio protocol and downloads.
+**Architecture note:** the old `legacyweb/` UI and its Gin server were removed. The only UI is the SQLite-backed dashboard embedded in `api/web/`. The single-file HTML export format was dropped with the legacy UI it depended on; CSV, Mermaid, DOT, draw.io and Markdown exports remain.
+
+**Validation:** `go test ./...`, `go vet ./...`, and 10 Playwright tests (`npm run test:e2e`) covering the dashboard, the new API endpoints, the Insights drawer, MCP stdio protocol and draw.io download.
 
 ---
 

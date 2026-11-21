@@ -24,6 +24,7 @@
   <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5m7-7-7 7 7 7"/></symbol>
   <symbol id="i-maximize" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/></symbol>
   <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  <symbol id="i-insights" viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19V3"/></symbol>
   <symbol id="i-zoom-in" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4M11 8v6M8 11h6"/></symbol>
   <symbol id="i-zoom-out" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4M8 11h6"/></symbol>
   <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></symbol>
@@ -89,6 +90,9 @@
       </div>
       <div class="topbar-actions">
         <span class="badge"><svg class="icon" aria-hidden="true"><use href="#i-cloud"/></svg> <span id="graphCountTop">0 states</span><span id="accountCountTop">· 0 accounts</span></span>
+        <button type="button" id="insightsBtn" class="icon-btn" title="Insights" aria-label="Insights">
+          <svg class="icon" aria-hidden="true"><use href="#i-insights"/></svg>
+        </button>
         <button type="button" id="themeBtn" class="icon-btn" title="Switch theme" aria-label="Switch theme">
           <svg class="icon" aria-hidden="true"><use id="themeIcon" href="#i-sun"/></svg>
         </button>
@@ -238,6 +242,7 @@
                   <button type="button" data-export="csv">CSV</button>
                   <button type="button" data-export="mermaid">Mermaid</button>
                   <button type="button" data-export="dot">DOT</button>
+                  <button type="button" id="drawioExportBtn">draw.io</button>
                 </div>
               </div>
               <div class="toolbar-divider"></div>
@@ -335,6 +340,44 @@
     </button>
   </div>
   <div class="archfull-body" id="archFullBody"></div>
+</div>
+
+<div class="overlay" id="insightsOverlay" hidden>
+  <aside class="drawer" role="dialog" aria-modal="true" aria-label="Insights">
+    <div class="drawer-head">
+      <h2>Insights</h2>
+      <button type="button" class="icon" id="closeInsightsBtn" aria-label="Close insights"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+    </div>
+    <p class="hint">Everything here runs locally against the current graph.</p>
+
+    <section class="card">
+      <div class="drawer-head"><h3>Architecture summary</h3></div>
+      <p class="hint">Offline by default; no data leaves the machine.</p>
+      <div class="drawer-foot"><button type="button" class="primary" id="genSummaryBtn">Generate</button></div>
+      <pre id="summaryOut" class="mono-block" hidden></pre>
+    </section>
+
+    <section class="card">
+      <div class="drawer-head"><h3>Cost overlay</h3></div>
+      <p class="hint">Illustrative on-demand estimates — not a bill.</p>
+      <div class="drawer-foot"><button type="button" class="primary" id="genCostsBtn">Estimate</button></div>
+      <pre id="costsOut" class="mono-block" hidden></pre>
+    </section>
+
+    <section class="card">
+      <div class="drawer-head"><h3>Local snapshots</h3></div>
+      <p class="hint">Timestamped copies of the ingested statefiles, stored on this machine.</p>
+      <div class="drawer-foot"><button type="button" class="primary" id="saveSnapshotBtn">Save snapshot</button></div>
+      <div id="snapshotList" class="snapshot-list"></div>
+    </section>
+
+    <section class="card">
+      <div class="drawer-head"><h3>Share link</h3></div>
+      <p class="hint">The current view is encoded in the URL — no hosting or account needed.</p>
+      <div class="drawer-foot"><button type="button" class="primary" id="copyShareBtn">Copy link</button></div>
+      <input type="text" id="shareUrl" class="share-url" readonly placeholder="Share link appears here">
+    </section>
+  </aside>
 </div>
 
 <footer class="attribution">

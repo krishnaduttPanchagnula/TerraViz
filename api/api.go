@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -181,12 +180,9 @@ func (s *Server) Mux() *http.ServeMux {
 	mux.HandleFunc("/api/remote/ingest", s.handleRemoteIngest)
 	mux.HandleFunc("/api/samples", s.handleSamples)
 	mux.HandleFunc("/api/samples/ingest", s.handleSamplesIngest)
+	s.registerFeatureRoutes(mux)
 
-	sub, err := fs.Sub(webFS, "web")
-	if err != nil {
-		panic(err)
-	}
-	mux.Handle("/", http.FileServer(http.FS(sub)))
+	mux.Handle("/", http.FileServer(http.FS(WebFS())))
 	return mux
 }
 

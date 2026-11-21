@@ -1,27 +1,18 @@
 package snapshots
 
 import (
+	"encoding/json"
 	"testing"
-
-	"terraviz/internal/models"
 )
-
-func result(name string) *models.ScanResult {
-	return &models.ScanResult{Diagram: models.Diagram{
-		Name:        name,
-		Resources:   []models.Resource{{ID: "a"}},
-		Connections: []models.Connection{{ID: "c"}},
-	}}
-}
 
 func TestSaveListLoadDelete(t *testing.T) {
 	t.Setenv("TERRAVIZ_HOME", t.TempDir())
 
-	snap, err := Save(result("prod"), "before-change")
+	snap, err := Save("before-change", []string{"a", "b"}, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !validID(snap.ID) || snap.Name != "before-change" || snap.Resources != 1 || snap.Connections != 1 {
+	if !validID(snap.ID) || snap.Name != "before-change" || snap.Items != 2 {
 		t.Fatalf("unexpected metadata: %#v", snap)
 	}
 
@@ -33,12 +24,13 @@ func TestSaveListLoadDelete(t *testing.T) {
 		t.Fatalf("unexpected list: %#v", list)
 	}
 
-	loaded, err := Load(snap.ID)
+	payload, err := Load(snap.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded.Diagram.Name != "prod" || len(loaded.Diagram.Resources) != 1 {
-		t.Fatalf("unexpected loaded result: %#v", loaded.Diagram)
+	var got []string
+	if err := json.Unmarshal(payload, &got); err != nil || len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Fatalf("unexpected payload: %s (%v)", payload, err)
 	}
 
 	if err := Delete(snap.ID); err != nil {

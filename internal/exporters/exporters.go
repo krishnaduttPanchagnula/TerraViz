@@ -13,7 +13,6 @@ import (
 
 // The formats the export command understands.
 const (
-	FormatHTML     = "html"
 	FormatMermaid  = "mermaid"
 	FormatDOT      = "dot"
 	FormatDrawIO   = "drawio"
@@ -22,11 +21,10 @@ const (
 )
 
 // Formats lists every supported export format.
-var Formats = []string{FormatHTML, FormatMermaid, FormatDOT, FormatDrawIO, FormatCSV, FormatMarkdown}
+var Formats = []string{FormatMermaid, FormatDOT, FormatDrawIO, FormatCSV, FormatMarkdown}
 
 // extensions maps a format to the file extension of its output.
 var extensions = map[string]string{
-	FormatHTML:     ".html",
 	FormatMermaid:  ".mmd",
 	FormatDOT:      ".dot",
 	FormatDrawIO:   ".drawio",
@@ -49,8 +47,6 @@ func Export(d *models.Diagram, format string) ([]byte, error) {
 	}
 
 	switch format {
-	case FormatHTML:
-		return HTML(d)
 	case FormatMermaid:
 		return Mermaid(d)
 	case FormatDOT:
