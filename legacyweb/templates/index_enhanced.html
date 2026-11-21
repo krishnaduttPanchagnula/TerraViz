@@ -2218,6 +2218,93 @@
         .canvas-container { position: static !important; }
         svg { max-width: 100%; height: auto; page-break-inside: avoid; }
     }
+
+    /* Insights panel */
+    .insights-panel {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 380px;
+        max-width: 90vw;
+        z-index: 130;
+        display: flex;
+        flex-direction: column;
+        background: var(--sm-surface);
+        border-left: 1px solid var(--sm-border);
+        box-shadow: var(--sm-shadow-lg);
+        transform: translateX(100%);
+        transition: transform var(--sm-transition-normal);
+    }
+    .insights-panel.open { transform: translateX(0); }
+    .insights-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--sm-border);
+    }
+    .insights-head h2 { font-size: var(--sm-text-xl); font-weight: 600; color: var(--sm-text); }
+    .insights-close {
+        background: transparent;
+        border: none;
+        color: var(--sm-text-muted);
+        font-size: 22px;
+        line-height: 1;
+        cursor: pointer;
+    }
+    .insights-close:hover { color: var(--sm-text); }
+    .insights-body { overflow-y: auto; padding: 4px 20px 24px; }
+    .insights-section { padding: 16px 0; border-bottom: 1px solid var(--sm-border-subtle); }
+    .insights-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .insights-section-head h3 { font-size: var(--sm-text-lg); font-weight: 600; color: var(--sm-text); }
+    .insights-action {
+        padding: 5px 10px;
+        background: transparent;
+        border: 1px solid var(--sm-border);
+        border-radius: var(--sm-radius-sm);
+        color: var(--sm-secondary);
+        font: 600 var(--sm-text-sm) var(--sm-font-sans);
+        cursor: pointer;
+    }
+    .insights-action:hover { background: var(--sm-surface-raised); border-color: var(--sm-secondary); }
+    .insights-note { margin-top: 8px; font-size: var(--sm-text-sm); color: var(--sm-text-muted); line-height: 1.5; }
+    .insights-output {
+        margin-top: 10px;
+        padding: 10px 12px;
+        background: var(--sm-terminal-bg);
+        border: 1px solid var(--sm-border);
+        border-radius: var(--sm-radius-sm);
+        font: var(--sm-text-sm)/1.6 var(--sm-font-mono);
+        color: var(--sm-text);
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 280px;
+        overflow: auto;
+    }
+    .insights-list { margin: 10px 0 0; padding: 0; list-style: none; }
+    .insights-list li {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 6px 0;
+        font-size: var(--sm-text-sm);
+        color: var(--sm-text-muted);
+        border-bottom: 1px solid var(--sm-border-subtle);
+    }
+    .insights-list button { background: none; border: none; color: var(--sm-danger); cursor: pointer; }
+    .insights-url {
+        margin-top: 10px;
+        width: 100%;
+        padding: 7px 9px;
+        background: var(--sm-terminal-bg);
+        border: 1px solid var(--sm-border);
+        border-radius: var(--sm-radius-sm);
+        color: var(--sm-text-muted);
+        font: var(--sm-text-sm) var(--sm-font-mono);
+    }
+    @media print { .insights-panel { display: none !important; } }
     </style>
 </head>
 <body>
@@ -2455,7 +2542,21 @@
                                 <svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M7 7.5l9.5 9"/></svg>
                                 <span>Graphviz DOT</span>
                             </button>
+                            <button class="toolbar-option" id="export-drawio" type="button">
+                                <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg>
+                                <span>draw.io (editable)</span>
+                            </button>
                         </div>
+                    </div>
+
+                    <div class="toolbar-divider"></div>
+
+                    <!-- Insights: summary, cost, snapshots and share -->
+                    <div class="toolbar-group">
+                        <button class="toolbar-btn" id="toggle-insights" title="Insights" aria-expanded="false" aria-controls="insights-panel">
+                            <svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19V3"/></svg>
+                            <span class="toolbar-tooltip">Insights</span>
+                        </button>
                     </div>
 
                     <div class="toolbar-divider"></div>
@@ -2483,6 +2584,48 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Insights panel: summary, cost overlay, local snapshots, share link -->
+                <aside id="insights-panel" class="insights-panel" aria-hidden="true" aria-label="Insights">
+                    <div class="insights-head">
+                        <h2>Insights</h2>
+                        <button id="close-insights" class="insights-close" type="button" aria-label="Close insights">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+                        </button>
+                    </div>
+                    <div class="insights-body">
+                        <section class="insights-section">
+                            <div class="insights-section-head">
+                                <h3>Architecture summary</h3>
+                                <button id="gen-summary" class="insights-action" type="button">Generate</button>
+                            </div>
+                            <p class="insights-note">Offline by default. Set TERRAVIZ_LLM_ENDPOINT to a local model to rewrite it.</p>
+                            <pre id="summary-text" class="insights-output" hidden></pre>
+                        </section>
+                        <section class="insights-section">
+                            <div class="insights-section-head">
+                                <h3>Cost overlay</h3>
+                                <button id="gen-costs" class="insights-action" type="button">Estimate</button>
+                            </div>
+                            <div id="cost-content" class="insights-output" hidden></div>
+                        </section>
+                        <section class="insights-section">
+                            <div class="insights-section-head">
+                                <h3>Local snapshots</h3>
+                                <button id="save-snapshot" class="insights-action" type="button">Save</button>
+                            </div>
+                            <ul id="snapshot-list" class="insights-list"></ul>
+                        </section>
+                        <section class="insights-section">
+                            <div class="insights-section-head">
+                                <h3>Share link</h3>
+                                <button id="make-share" class="insights-action" type="button">Copy link</button>
+                            </div>
+                            <p class="insights-note">The whole diagram is encoded in the URL. No server or account needed.</p>
+                            <input id="share-url" class="insights-url" type="text" readonly placeholder="Share link appears here" />
+                        </section>
+                    </div>
+                </aside>
 
                 <!-- Main Canvas -->
                 <!-- Empty state -->

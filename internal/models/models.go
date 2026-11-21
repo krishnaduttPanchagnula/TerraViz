@@ -83,6 +83,70 @@ const (
 	// Additional Lambda types
 	ResourceTypeLambdaEventSourceMapping ResourceType = "aws:lambda:eventsourcemapping"
 
+	// Data & analytics
+	ResourceTypeDynamoDBTable   ResourceType = "aws:dynamodb:table"
+	ResourceTypeElastiCache     ResourceType = "aws:elasticache:cluster"
+	ResourceTypeRedshift        ResourceType = "aws:redshift:cluster"
+	ResourceTypeKinesisStream   ResourceType = "aws:kinesis:stream"
+	ResourceTypeOpenSearch      ResourceType = "aws:opensearch:domain"
+	ResourceTypeAthenaWorkgroup ResourceType = "aws:athena:workgroup"
+
+	// Storage, containers & compute
+	ResourceTypeEFSFileSystem    ResourceType = "aws:efs:filesystem"
+	ResourceTypeEKSCluster       ResourceType = "aws:eks:cluster"
+	ResourceTypeEKSNodeGroup     ResourceType = "aws:eks:nodegroup"
+	ResourceTypeECSTask          ResourceType = "aws:ecs:task"
+	ResourceTypeAutoScalingGroup ResourceType = "aws:autoscaling:group"
+	ResourceTypeAppRunnerService ResourceType = "aws:apprunner:service"
+
+	// Networking
+	ResourceTypeTransitGateway ResourceType = "aws:ec2:transitgateway"
+
+	// Application integration
+	ResourceTypeEventBridgeRule  ResourceType = "aws:eventbridge:rule"
+	ResourceTypeStepFunction     ResourceType = "aws:stepfunctions:statemachine"
+	ResourceTypeSESEmailIdentity ResourceType = "aws:ses:emailidentity"
+
+	// Security, management & observability
+	ResourceTypeCognitoUserPool ResourceType = "aws:cognito:userpool"
+	ResourceTypeBackupPlan      ResourceType = "aws:backup:plan"
+	ResourceTypeCloudTrail      ResourceType = "aws:cloudtrail:trail"
+	ResourceTypeConfigRule      ResourceType = "aws:config:rule"
+	ResourceTypeXRayGroup       ResourceType = "aws:xray:group"
+
+	// Google Cloud
+	ResourceTypeGCPInstance         ResourceType = "gcp:compute:instance"
+	ResourceTypeGCPNetwork          ResourceType = "gcp:compute:network"
+	ResourceTypeGCPSubnetwork       ResourceType = "gcp:compute:subnetwork"
+	ResourceTypeGCPFirewall         ResourceType = "gcp:compute:firewall"
+	ResourceTypeGCPForwardingRule   ResourceType = "gcp:compute:forwardingrule"
+	ResourceTypeGCPAddress          ResourceType = "gcp:compute:address"
+	ResourceTypeGCPStorageBucket    ResourceType = "gcp:storage:bucket"
+	ResourceTypeGCPSQLInstance      ResourceType = "gcp:sql:instance"
+	ResourceTypeGCPFunction         ResourceType = "gcp:cloudfunctions:function"
+	ResourceTypeGCPContainerCluster ResourceType = "gcp:container:cluster"
+	ResourceTypeGCPPubSubTopic      ResourceType = "gcp:pubsub:topic"
+	ResourceTypeGCPPubSubSub        ResourceType = "gcp:pubsub:subscription"
+	ResourceTypeGCPDNSZone          ResourceType = "gcp:dns:zone"
+	ResourceTypeGCPKMSKey           ResourceType = "gcp:kms:key"
+
+	// Microsoft Azure
+	ResourceTypeAzureVM              ResourceType = "azure:compute:virtualmachine"
+	ResourceTypeAzureVNet            ResourceType = "azure:network:virtualnetwork"
+	ResourceTypeAzureSubnet          ResourceType = "azure:network:subnet"
+	ResourceTypeAzureNSG             ResourceType = "azure:network:securitygroup"
+	ResourceTypeAzurePublicIP        ResourceType = "azure:network:publicip"
+	ResourceTypeAzureLB              ResourceType = "azure:network:loadbalancer"
+	ResourceTypeAzureStorageAccount  ResourceType = "azure:storage:account"
+	ResourceTypeAzureSQLDatabase     ResourceType = "azure:sql:database"
+	ResourceTypeAzureFunctionApp     ResourceType = "azure:function:app"
+	ResourceTypeAzureAKSCluster      ResourceType = "azure:containers:cluster"
+	ResourceTypeAzureServiceBusQueue ResourceType = "azure:servicebus:queue"
+	ResourceTypeAzureEventHub        ResourceType = "azure:eventhub:hub"
+	ResourceTypeAzureKeyVault        ResourceType = "azure:keyvault:vault"
+	ResourceTypeAzureCosmosDB        ResourceType = "azure:cosmosdb:account"
+	ResourceTypeAzureResourceGroup   ResourceType = "azure:resources:group"
+
 	// Generic Types
 	ResourceTypeUnknown ResourceType = "unknown"
 )
@@ -313,6 +377,37 @@ var resourceIconMap = map[ResourceType]string{
 
 	// Management & Governance
 	ResourceTypeCloudWatch: "/icons/Management-Governance/CloudWatch.svg",
+
+	// Data & analytics
+	ResourceTypeDynamoDBTable:   "/icons/Database/DynamoDB.svg",
+	ResourceTypeElastiCache:     "/icons/Database/ElastiCache.svg",
+	ResourceTypeRedshift:        "/icons/Analytics/Redshift.svg",
+	ResourceTypeKinesisStream:   "/icons/Analytics/Kinesis.svg",
+	ResourceTypeOpenSearch:      "/icons/Analytics/OpenSearch-Service.svg",
+	ResourceTypeAthenaWorkgroup: "/icons/Analytics/Athena.svg",
+
+	// Storage, containers & compute
+	ResourceTypeEFSFileSystem:    "/icons/Storage/EFS.svg",
+	ResourceTypeEKSCluster:       "/icons/Containers/Elastic-Kubernetes-Service.svg",
+	ResourceTypeEKSNodeGroup:     "/icons/Containers/Elastic-Kubernetes-Service.svg",
+	ResourceTypeECSTask:          "/icons/Containers/Elastic-Container-Service.svg",
+	ResourceTypeAutoScalingGroup: "/icons/Compute/EC2-Auto-Scaling.svg",
+	ResourceTypeAppRunnerService: "/icons/Compute/App-Runner.svg",
+
+	// Networking
+	ResourceTypeTransitGateway: "/icons/Networking-Content-Delivery/Transit-Gateway.svg",
+
+	// Application integration
+	ResourceTypeEventBridgeRule:  "/icons/App-Integration/EventBridge.svg",
+	ResourceTypeStepFunction:     "/icons/App-Integration/Step-Functions.svg",
+	ResourceTypeSESEmailIdentity: "/icons/Business-Applications/Simple-Email-Service.svg",
+
+	// Security, management & observability
+	ResourceTypeCognitoUserPool: "/icons/Security-Identity-Compliance/Cognito.svg",
+	ResourceTypeBackupPlan:      "/icons/Storage/Backup.svg",
+	ResourceTypeCloudTrail:      "/icons/Management-Governance/CloudTrail.svg",
+	ResourceTypeConfigRule:      "/icons/Management-Governance/Config.svg",
+	ResourceTypeXRayGroup:       "/icons/Developer-Tools/X-Ray.svg",
 }
 
 // GetResourceIcon returns the appropriate icon URL for a resource type.

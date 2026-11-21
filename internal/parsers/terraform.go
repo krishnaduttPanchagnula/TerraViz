@@ -250,17 +250,17 @@ func (p *TerraformParser) convertRawTerraformResource(rawResource RawStateResour
 		}
 	}
 
-	// Unmapped AWS types are kept in the diagram as generic resources so they are
-	// not silently dropped; non-AWS providers are still skipped.
+	// Unmapped types from supported providers are kept as generic resources so
+	// they are not silently dropped.
 	if resourceType == models.ResourceTypeUnknown {
-		if !isAWSProvider(rawResource.Provider) {
+		if !isSupportedProvider(rawResource.Provider) {
 			return nil, nil
 		}
 		return &models.Resource{
 			ID:           resourceID,
 			Name:         rawResource.Name,
 			Type:         models.ResourceTypeUnknown,
-			Provider:     p.extractProvider(rawResource.Provider),
+			Provider:     providerForType(rawResource.Type, p.extractProvider(rawResource.Provider)),
 			State:        models.ResourceStateActive,
 			Properties:   unknownTypeProperties(rawResource.Type, instance.Attributes),
 			Tags:         p.extractTags(instance.Attributes),
@@ -274,7 +274,7 @@ func (p *TerraformParser) convertRawTerraformResource(rawResource RawStateResour
 		ID:           resourceID,
 		Name:         p.extractRawResourceName(rawResource, instance.Attributes),
 		Type:         resourceType,
-		Provider:     p.extractProvider(rawResource.Provider),
+		Provider:     providerForType(rawResource.Type, p.extractProvider(rawResource.Provider)),
 		State:        models.ResourceStateActive, // Assume active if in state
 		Properties:   make(map[string]interface{}),
 		Tags:         p.extractTags(instance.Attributes),
@@ -359,17 +359,17 @@ func (p *TerraformParser) convertTerraformResource(tfResource *tfjson.StateResou
 	// Map Terraform resource types to our internal types
 	resourceType := p.mapTerraformType(tfResource.Type)
 
-	// Unmapped AWS types are kept in the diagram as generic resources so they are
-	// not silently dropped; non-AWS providers are still skipped.
+	// Unmapped types from supported providers are kept as generic resources so
+	// they are not silently dropped.
 	if resourceType == models.ResourceTypeUnknown {
-		if !isAWSProvider(tfResource.ProviderName) {
+		if !isSupportedProvider(tfResource.ProviderName) {
 			return nil, nil
 		}
 		return &models.Resource{
 			ID:           resourceID,
 			Name:         tfResource.Name,
 			Type:         models.ResourceTypeUnknown,
-			Provider:     p.extractProvider(tfResource.ProviderName),
+			Provider:     providerForType(tfResource.Type, p.extractProvider(tfResource.ProviderName)),
 			State:        models.ResourceStateActive,
 			Properties:   unknownTypeProperties(tfResource.Type, tfResource.AttributeValues),
 			Tags:         p.extractTags(tfResource.AttributeValues),
@@ -383,7 +383,7 @@ func (p *TerraformParser) convertTerraformResource(tfResource *tfjson.StateResou
 		ID:           resourceID,
 		Name:         p.extractResourceName(tfResource),
 		Type:         resourceType,
-		Provider:     p.extractProvider(tfResource.ProviderName),
+		Provider:     providerForType(tfResource.Type, p.extractProvider(tfResource.ProviderName)),
 		State:        models.ResourceStateActive, // Assume active if in state
 		Properties:   make(map[string]interface{}),
 		Tags:         p.extractTags(tfResource.AttributeValues),
@@ -491,11 +491,54 @@ var terraformTypeMap = map[string]models.ResourceType{
 
 	// Additional Lambda types
 	"aws_lambda_event_source_mapping": models.ResourceTypeLambdaEventSourceMapping,
+
+	// Data & analytics
+	"aws_dynamodb_table":                models.ResourceTypeDynamoDBTable,
+	"aws_elasticache_cluster":           models.ResourceTypeElastiCache,
+	"aws_elasticache_replication_group": models.ResourceTypeElastiCache,
+	"aws_redshift_cluster":              models.ResourceTypeRedshift,
+	"aws_kinesis_stream":                models.ResourceTypeKinesisStream,
+	"aws_opensearch_domain":             models.ResourceTypeOpenSearch,
+	"aws_elasticsearch_domain":          models.ResourceTypeOpenSearch,
+	"aws_athena_workgroup":              models.ResourceTypeAthenaWorkgroup,
+
+	// Storage, containers & compute
+	"aws_efs_file_system":        models.ResourceTypeEFSFileSystem,
+	"aws_efs_mount_target":       models.ResourceTypeEFSFileSystem,
+	"aws_eks_cluster":            models.ResourceTypeEKSCluster,
+	"aws_eks_node_group":         models.ResourceTypeEKSNodeGroup,
+	"aws_eks_fargate_profile":    models.ResourceTypeEKSNodeGroup,
+	"aws_ecs_task":               models.ResourceTypeECSTask,
+	"aws_autoscaling_group":      models.ResourceTypeAutoScalingGroup,
+	"aws_autoscaling_attachment": models.ResourceTypeAutoScalingGroup,
+	"aws_launch_template":        models.ResourceTypeAutoScalingGroup,
+	"aws_apprunner_service":      models.ResourceTypeAppRunnerService,
+
+	// Networking
+	"aws_ec2_transit_gateway":                models.ResourceTypeTransitGateway,
+	"aws_ec2_transit_gateway_vpc_attachment": models.ResourceTypeTransitGateway,
+
+	// Application integration
+	"aws_cloudwatch_event_rule":   models.ResourceTypeEventBridgeRule,
+	"aws_cloudwatch_event_target": models.ResourceTypeEventBridgeRule,
+	"aws_sfn_state_machine":       models.ResourceTypeStepFunction,
+	"aws_ses_email_identity":      models.ResourceTypeSESEmailIdentity,
+
+	// Security, management & observability
+	"aws_cognito_user_pool":  models.ResourceTypeCognitoUserPool,
+	"aws_backup_plan":        models.ResourceTypeBackupPlan,
+	"aws_backup_vault":       models.ResourceTypeBackupPlan,
+	"aws_cloudtrail":         models.ResourceTypeCloudTrail,
+	"aws_config_config_rule": models.ResourceTypeConfigRule,
+	"aws_xray_group":         models.ResourceTypeXRayGroup,
 }
 
 // mapTerraformType maps a Terraform resource type string to an internal ResourceType.
 func (p *TerraformParser) mapTerraformType(tfType string) models.ResourceType {
 	if rt, ok := terraformTypeMap[tfType]; ok {
+		return rt
+	}
+	if rt, ok := multiCloudTypeMap[tfType]; ok {
 		return rt
 	}
 	return models.ResourceTypeUnknown
@@ -508,12 +551,6 @@ func (p *TerraformParser) extractProvider(providerName string) string {
 		return parts[len(parts)-1]
 	}
 	return providerName
-}
-
-// isAWSProvider reports whether a Terraform provider string refers to the AWS provider.
-func isAWSProvider(providerName string) bool {
-	name := unwrapProviderName(providerName)
-	return name == "aws" || strings.HasSuffix(name, "/aws")
 }
 
 // unwrapProviderName strips the provider["..."] wrapper that raw state files

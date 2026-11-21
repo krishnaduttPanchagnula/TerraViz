@@ -633,11 +633,12 @@ const conn = (source, target) => ({ id: `${source}->${target}`, source_id: sourc
       .map((attrs) => (attrs.match(/id="([^"]+)"/) || [])[1])
       .filter(Boolean);
 
-  // The seven visible controls.
+  // The eight visible controls.
   assert.deepStrictEqual(idsOf("toolbar-btn").sort(), [
     "fit-view",
     "presentation-mode",
     "toggle-export-menu",
+    "toggle-insights",
     "toggle-settings",
     "toggle-view-options",
     "zoom-in",
@@ -648,6 +649,7 @@ const conn = (source, target) => ({ id: `${source}->${target}`, source_id: sourc
   assert.deepStrictEqual(idsOf("toolbar-option").sort(), [
     "export-csv",
     "export-dot",
+    "export-drawio",
     "export-mermaid",
     "export-pdf",
     "export-png",

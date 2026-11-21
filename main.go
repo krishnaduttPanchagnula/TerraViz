@@ -32,10 +32,13 @@ import (
 	"terraviz/api"
 	"terraviz/db"
 	"terraviz/internal/exporters"
+	"terraviz/internal/mcp"
 	"terraviz/internal/models"
 	"terraviz/internal/parsers"
 	"terraviz/internal/scanners"
 	"terraviz/internal/server"
+	"terraviz/internal/snapshots"
+	"terraviz/internal/summary"
 	"terraviz/legacyweb"
 	"terraviz/resolver"
 	"terraviz/state"
@@ -376,6 +379,89 @@ var compareCmd = &cobra.Command{
 	},
 }
 
+// mcpCmd serves a diagram to AI agents over stdio. It must not print anything
+// to stdout: stdout is the JSON-RPC channel.
+var mcpCmd = &cobra.Command{
+	Use:   "mcp [diagram-file]",
+	Short: "Serve the diagram over MCP (stdio JSON-RPC)",
+	Long: `Expose the loaded diagram as MCP tools to an AI assistant.
+
+The diagram can be given as an argument or in TERRAVIZ_DIAGRAM. stdout carries
+JSON-RPC only; diagnostics go to stderr.`,
+	Args: cobra.MaximumNArgs(1),
+	Run:  runMCP,
+}
+
+func runMCP(cmd *cobra.Command, args []string) {
+	path := os.Getenv("TERRAVIZ_DIAGRAM")
+	if len(args) == 1 {
+		path = args[0]
+	}
+	if path == "" {
+		fatalf("mcp: provide a diagram file or set TERRAVIZ_DIAGRAM")
+	}
+
+	result, err := loadScanResult(path)
+	if err != nil {
+		fatalf("mcp: %v", err)
+	}
+
+	if err := mcp.NewServer(result).Serve(cmd.Context(), os.Stdin, os.Stdout); err != nil {
+		fatalf("mcp: %v", err)
+	}
+}
+
+var summaryCmd = &cobra.Command{
+	Use:   "summary [diagram-file]",
+	Short: "Print an offline architecture summary",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		result, err := loadScanResult(args[0])
+		if err != nil {
+			fatalf("summary: %v", err)
+		}
+		fmt.Print(summary.Build(&result.Diagram))
+	},
+}
+
+var snapshotCmd = &cobra.Command{
+	Use:   "snapshot [diagram-file]",
+	Short: "Save a local snapshot of a scan",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		result, err := loadScanResult(args[0])
+		if err != nil {
+			fatalf("snapshot: %v", err)
+		}
+		name, _ := cmd.Flags().GetString("name")
+		snap, err := snapshots.Save(result, name)
+		if err != nil {
+			fatalf("snapshot: %v", err)
+		}
+		fmt.Printf("Saved snapshot %s (%s) with %d resources\n", snap.ID, snap.Name, snap.Resources)
+	},
+}
+
+var snapshotsCmd = &cobra.Command{
+	Use:   "snapshots",
+	Short: "List local snapshots",
+	Args:  cobra.NoArgs,
+	Run: func(cmd *cobra.Command, args []string) {
+		list, err := snapshots.List()
+		if err != nil {
+			fatalf("snapshots: %v", err)
+		}
+		if len(list) == 0 {
+			fmt.Println("No snapshots saved yet.")
+			return
+		}
+		for _, s := range list {
+			fmt.Printf("%s  %-24s %d resources, %d connections  %s\n",
+				s.ID, s.Name, s.Resources, s.Connections, s.CreatedAt.Format(time.RFC3339))
+		}
+	},
+}
+
 var exportCmd = &cobra.Command{
 	Use:   "export [input]",
 	Short: "Export a diagram to HTML, PNG, SVG, CSV, Mermaid, DOT, draw.io or Markdown",
@@ -451,7 +537,7 @@ var serveCmd = &cobra.Command{
 
 func init() {
 	scanCmd.AddCommand(terraformCmd, awsCmd)
-	rootCmd.AddCommand(scanCmd, compareCmd, exportCmd, serveCmd)
+	rootCmd.AddCommand(scanCmd, compareCmd, exportCmd, serveCmd, mcpCmd, summaryCmd, snapshotCmd, snapshotsCmd)
 
 	rootCmd.PersistentFlags().StringP("output", "o", defaultOutputFile, "Output file for scan results")
 	rootCmd.PersistentFlags().BoolP("v", "v", false, "Verbose output")
@@ -469,6 +555,7 @@ func init() {
 	awsCmd.Flags().StringP("profile", "p", "", "AWS profile to use")
 	serveCmd.Flags().String("addr", ":8080", "HTTP listen address")
 	serveCmd.Flags().String("db", "terraviz.db", "SQLite file")
+	snapshotCmd.Flags().String("name", "", "Snapshot name (default: diagram name)")
 
 	rootCmd.SetVersionTemplate(fmt.Sprintf("terraviz %s (commit: %s, built: %s)\n", version, commit, date))
 }
@@ -502,7 +589,7 @@ func main() {
 	for _, a := range args {
 		if !strings.HasPrefix(a, "-") {
 			switch a {
-			case "scan", "compare", "export", "serve":
+			case "scan", "compare", "export", "serve", "mcp", "summary", "snapshot", "snapshots":
 				isSubcommand = true
 			}
 			break

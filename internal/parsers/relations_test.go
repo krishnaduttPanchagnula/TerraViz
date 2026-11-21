@@ -102,12 +102,12 @@ func TestDependencyConnectionNotDuplicatedWhenSemanticEdgeExists(t *testing.T) {
 
 func TestUnmappedResourceTypeIsRetained(t *testing.T) {
 	result := parseRawState(t,
-		rawResource("aws_dynamodb_table", "items", nil, map[string]interface{}{"id": "items"}),
+		rawResource("aws_mystery_service", "items", nil, map[string]interface{}{"id": "items"}),
 	)
 
 	var found *models.Resource
 	for i := range result.Diagram.Resources {
-		if result.Diagram.Resources[i].ID == "aws_dynamodb_table.items" {
+		if result.Diagram.Resources[i].ID == "aws_mystery_service.items" {
 			found = &result.Diagram.Resources[i]
 		}
 	}
@@ -117,7 +117,7 @@ func TestUnmappedResourceTypeIsRetained(t *testing.T) {
 	if found.Type != models.ResourceTypeUnknown {
 		t.Fatalf("resource type = %q, want %q", found.Type, models.ResourceTypeUnknown)
 	}
-	if found.Properties["terraform_type"] != "aws_dynamodb_table" {
+	if found.Properties["terraform_type"] != "aws_mystery_service" {
 		t.Fatalf("terraform_type = %v", found.Properties["terraform_type"])
 	}
 	if !found.InStateFile || found.Source != "terraform" || found.State != models.ResourceStateActive {

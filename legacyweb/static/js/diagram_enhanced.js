@@ -4634,3 +4634,208 @@ EnhancedDiagramViewer.serviceTabPath = serviceTabPath;
 EnhancedDiagramViewer.stripEntranceState = stripEntranceState;
 EnhancedDiagramViewer.truncateLabel = truncateLabel;
 EnhancedDiagramViewer.canvasTypeLabel = canvasTypeLabel;
+
+// ─── Insights, snapshots, share links and server-side draw.io export ────────
+// Kept as a small standalone block so it does not depend on viewer internals.
+(function () {
+  "use strict";
+
+  const byId = (id) => document.getElementById(id);
+
+  function b64encode(str) {
+    const bytes = new TextEncoder().encode(str);
+    let binary = "";
+    for (const b of bytes) binary += String.fromCharCode(b);
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  function b64decode(str) {
+    let s = str.replace(/-/g, "+").replace(/_/g, "/");
+    while (s.length % 4) s += "=";
+    const binary = atob(s);
+    return new TextDecoder().decode(Uint8Array.from(binary, (c) => c.charCodeAt(0)));
+  }
+
+  async function download(url, filename) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Request failed: " + res.status);
+    const blob = await res.blob();
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(link.href);
+  }
+
+  function setOpen(open) {
+    const panel = byId("insights-panel");
+    const button = byId("toggle-insights");
+    if (!panel || !button) return;
+    panel.classList.toggle("open", open);
+    panel.setAttribute("aria-hidden", String(!open));
+    button.setAttribute("aria-expanded", String(open));
+  }
+
+  async function renderSnapshots() {
+    const list = byId("snapshot-list");
+    if (!list) return;
+    const res = await fetch("/terraviz/api/snapshots");
+    if (!res.ok) return;
+    const snaps = await res.json();
+    list.replaceChildren();
+    if (!snaps.length) {
+      const li = document.createElement("li");
+      li.textContent = "No snapshots saved yet.";
+      list.appendChild(li);
+      return;
+    }
+    for (const snap of snaps) {
+      const li = document.createElement("li");
+      const label = document.createElement("span");
+      label.textContent = snap.name + " · " + snap.resources + " resources";
+      li.appendChild(label);
+      const actions = document.createElement("span");
+      const load = document.createElement("button");
+      load.type = "button";
+      load.textContent = "Load";
+      load.addEventListener("click", async () => {
+        const r = await fetch("/terraviz/api/snapshots/" + encodeURIComponent(snap.id), { method: "GET" });
+        if (r.ok) window.location.reload();
+      });
+      const del = document.createElement("button");
+      del.type = "button";
+      del.textContent = "Delete";
+      del.addEventListener("click", async () => {
+        await fetch("/terraviz/api/snapshots/" + encodeURIComponent(snap.id), { method: "DELETE" });
+        renderSnapshots();
+      });
+      actions.append(load, del);
+      li.appendChild(actions);
+      list.appendChild(li);
+    }
+  }
+
+  function wire() {
+    // The layout self-check runs this file in a DOM stub with no navigation or
+    // fetch APIs; there is nothing to wire there.
+    if (typeof location === "undefined" || typeof fetch === "undefined") return;
+
+    const toggle = byId("toggle-insights");
+    const close = byId("close-insights");
+    if (toggle) toggle.addEventListener("click", () => setOpen(!byId("insights-panel").classList.contains("open")));
+    if (close) close.addEventListener("click", () => setOpen(false));
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") setOpen(false);
+    });
+
+    const summaryBtn = byId("gen-summary");
+    if (summaryBtn) summaryBtn.addEventListener("click", async () => {
+      const out = byId("summary-text");
+      out.hidden = false;
+      out.textContent = "Generating…";
+      try {
+        const res = await fetch("/terraviz/api/summary", { method: "POST" });
+        const data = await res.json();
+        out.textContent = (data.warning ? "⚠ " + data.warning + "\n\n" : "") +
+          data.summary + "\n(source: " + data.source + ")";
+      } catch (err) {
+        out.textContent = "Summary failed: " + err.message;
+      }
+    });
+
+    const costBtn = byId("gen-costs");
+    if (costBtn) costBtn.addEventListener("click", async () => {
+      const out = byId("cost-content");
+      out.hidden = false;
+      out.textContent = "Estimating…";
+      try {
+        const res = await fetch("/terraviz/api/costs");
+        const data = await res.json();
+        const lines = [
+          "Estimated total: $" + data.total_monthly_usd.toFixed(2) + " / month (" + data.currency + ")",
+          data.unpriced + " resources unpriced",
+          "",
+          data.disclaimer,
+        ];
+        out.textContent = lines.join("\n");
+      } catch (err) {
+        out.textContent = "Cost estimate failed: " + err.message;
+      }
+    });
+
+    const saveBtn = byId("save-snapshot");
+    if (saveBtn) saveBtn.addEventListener("click", async () => {
+      const name = window.prompt("Snapshot name", "") || "";
+      const res = await fetch("/terraviz/api/snapshots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name }),
+      });
+      if (res.ok) renderSnapshots();
+    });
+
+    const shareBtn = byId("make-share");
+    if (shareBtn) shareBtn.addEventListener("click", async () => {
+      const input = byId("share-url");
+      try {
+        const res = await fetch("/terraviz/api/diagram");
+        if (!res.ok) throw new Error("No diagram loaded");
+        const encoded = b64encode(await res.text());
+        if (encoded.length > 60000) {
+          input.value = "";
+          input.placeholder = "Diagram too large for a URL — use the single-file HTML export instead";
+          return;
+        }
+        const url = location.origin + location.pathname + "#d=" + encoded;
+        input.value = url;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(url);
+        } else {
+          input.select();
+          document.execCommand("copy");
+        }
+      } catch (err) {
+        input.placeholder = "Share link failed: " + err.message;
+      }
+    });
+
+    const drawioBtn = byId("export-drawio");
+    if (drawioBtn) drawioBtn.addEventListener("click", async () => {
+      try {
+        await download("/terraviz/api/export/drawio", "architecture-diagram.drawio");
+      } catch (err) {
+        console.error("draw.io export failed:", err);
+      }
+    });
+
+    renderSnapshots().catch(() => {});
+
+    // A shared link carries the whole diagram in the hash. Load it into the
+    // local server once, then reload cleanly so the normal viewer takes over.
+    const match = location.hash.match(/^#d=(.+)$/);
+    if (match) {
+      try {
+        const payload = b64decode(match[1]);
+        fetch("/terraviz/api/share/load", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: payload,
+        }).then((res) => {
+          if (!res.ok) return;
+          history.replaceState(null, "", location.pathname + location.search);
+          window.location.reload();
+        });
+      } catch (err) {
+        console.error("Invalid share link:", err);
+      }
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", wire);
+  } else {
+    wire();
+  }
+})();

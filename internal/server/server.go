@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/json"
@@ -10,12 +11,17 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"terraviz/internal/costs"
+	"terraviz/internal/exporters"
 	"terraviz/internal/models"
 	"terraviz/internal/parsers"
+	"terraviz/internal/snapshots"
+	"terraviz/internal/summary"
 	"terraviz/legacyweb"
 
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -70,6 +76,9 @@ func (g *gzipResponseWriter) Write(data []byte) (int, error) {
 }
 
 // gzipMiddleware compresses responses for clients that accept gzip encoding.
+// The compressed body is buffered so Content-Length describes the bytes we
+// actually send; streaming straight to the client leaves gin's uncompressed
+// length in place and corrupts the response.
 func gzipMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !strings.Contains(c.GetHeader("Accept-Encoding"), "gzip") {
@@ -77,18 +86,26 @@ func gzipMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		gz, err := gzip.NewWriterLevel(c.Writer, gzip.DefaultCompression)
+		var buf bytes.Buffer
+		gz, err := gzip.NewWriterLevel(&buf, gzip.DefaultCompression)
 		if err != nil {
 			c.Next()
 			return
 		}
-		defer gz.Close()
+
+		original := c.Writer
+		c.Writer = &gzipResponseWriter{ResponseWriter: original, writer: gz}
+		c.Next()
+		if err := gz.Close(); err != nil {
+			c.Writer = original
+			return
+		}
+		c.Writer = original
 
 		c.Header("Content-Encoding", "gzip")
 		c.Header("Vary", "Accept-Encoding")
-
-		c.Writer = &gzipResponseWriter{ResponseWriter: c.Writer, writer: gz}
-		c.Next()
+		c.Header("Content-Length", strconv.Itoa(buf.Len()))
+		_, _ = original.Write(buf.Bytes())
 	}
 }
 
@@ -175,6 +192,13 @@ func (s *Server) setupRoutes() {
 		api.GET("/missing", s.handleGetMissing)
 		api.GET("/stats", s.handleGetStats)
 		api.POST("/export/:format", s.handleExport)
+		api.GET("/export/:format", s.handleExport)
+		api.POST("/summary", s.handleSummary)
+		api.GET("/costs", s.handleGetCosts)
+		api.GET("/snapshots", s.handleListSnapshots)
+		api.POST("/snapshots", s.handleSaveSnapshot)
+		api.GET("/snapshots/:id", s.handleLoadSnapshot)
+		api.DELETE("/snapshots/:id", s.handleDeleteSnapshot)
 
 		// S3 backend integration
 		s3Group := api.Group("/s3")
@@ -186,6 +210,7 @@ func (s *Server) setupRoutes() {
 
 		// Local file upload
 		api.POST("/upload", s.handleUploadStateFile)
+		api.POST("/share/load", s.handleLoadShared)
 	}
 }
 
@@ -480,13 +505,98 @@ func (s *Server) handleExport(c *gin.Context) {
 	case "json":
 		c.Header("Content-Disposition", "attachment; filename=diagram.json")
 		c.JSON(http.StatusOK, d)
+	case exporters.FormatDrawIO:
+		data, err := exporters.DrawIO(&d.Diagram)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to build draw.io file"})
+			return
+		}
+		c.Header("Content-Disposition", "attachment; filename=architecture-diagram.drawio")
+		c.Data(http.StatusOK, "application/xml; charset=utf-8", data)
 	case "svg":
 		c.JSON(http.StatusNotImplemented, gin.H{"error": "SVG export is handled client-side"})
 	case "png":
 		c.JSON(http.StatusNotImplemented, gin.H{"error": "PNG export is handled client-side"})
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported export format. Supported: json, svg, png"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported export format. Supported: json, svg, png, drawio"})
 	}
+}
+
+// handleSummary returns an offline architecture brief. If a loopback LLM
+// endpoint is configured it rewrites the brief; a failure falls back to the
+// offline text rather than returning an error.
+func (s *Server) handleSummary(c *gin.Context) {
+	d := s.requireDiagram(c)
+	if d == nil {
+		return
+	}
+	text, source, err := summary.Generate(c.Request.Context(), &d.Diagram, os.Getenv("TERRAVIZ_LLM_ENDPOINT"))
+	response := gin.H{"summary": text, "source": source}
+	if err != nil {
+		response["warning"] = err.Error()
+	}
+	c.JSON(http.StatusOK, response)
+}
+
+// handleGetCosts returns the offline cost overlay.
+func (s *Server) handleGetCosts(c *gin.Context) {
+	d := s.requireDiagram(c)
+	if d == nil {
+		return
+	}
+	c.JSON(http.StatusOK, costs.Estimate(&d.Diagram))
+}
+
+// handleListSnapshots lists locally stored diagram snapshots.
+func (s *Server) handleListSnapshots(c *gin.Context) {
+	list, err := snapshots.List()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, list)
+}
+
+// handleSaveSnapshot stores the active diagram as a local snapshot.
+func (s *Server) handleSaveSnapshot(c *gin.Context) {
+	d := s.requireDiagram(c)
+	if d == nil {
+		return
+	}
+	var req struct {
+		Name string `json:"name"`
+	}
+	_ = c.ShouldBindJSON(&req)
+	snap, err := snapshots.Save(d, req.Name)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, snap)
+}
+
+// handleLoadSnapshot loads a local snapshot as the active diagram.
+func (s *Server) handleLoadSnapshot(c *gin.Context) {
+	result, err := snapshots.Load(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	s.mu.Lock()
+	s.diagram = result
+	s.cachedDiagram = nil
+	s.rebuildResourceIndex()
+	s.mu.Unlock()
+	c.JSON(http.StatusOK, gin.H{"success": true, "name": result.Diagram.Name})
+}
+
+// handleDeleteSnapshot removes a local snapshot.
+func (s *Server) handleDeleteSnapshot(c *gin.Context) {
+	if err := snapshots.Delete(c.Param("id")); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
 // handleUploadStateFile accepts a multipart file upload of a Terraform state file,
@@ -728,6 +838,33 @@ func (s *Server) handleLoadFromS3(c *gin.Context) {
 		"resource_count":   len(result.Diagram.Resources),
 		"connection_count": len(result.Diagram.Connections),
 	})
+}
+
+// handleLoadShared loads a whole scan result supplied by a shareable URL.
+// The payload is equivalent to what /api/upload accepts from a local file, so
+// no hosting or account is required to share a diagram.
+func (s *Server) handleLoadShared(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadSize)
+	var result models.ScanResult
+	if err := json.NewDecoder(c.Request.Body).Decode(&result); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid shared diagram"})
+		return
+	}
+	if len(result.Diagram.Resources) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Shared diagram has no resources"})
+		return
+	}
+	if result.Diagram.Name == "" {
+		result.Diagram.Name = "Shared diagram"
+	}
+
+	s.mu.Lock()
+	s.diagram = &result
+	s.cachedDiagram = nil
+	s.rebuildResourceIndex()
+	s.mu.Unlock()
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "name": result.Diagram.Name})
 }
 
 // strPtr returns a pointer to the given string.

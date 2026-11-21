@@ -1,6 +1,7 @@
 # Build output
 /dist/
 /terraquery
+/terraviz
 *.exe
 
 # Local database
@@ -13,3 +14,23 @@
 .idea/
 .vscode/
 *.swp
+*.swo
+*~
+Thumbs.db
+*:Zone.Identifier
+
+# Node (Playwright E2E harness)
+node_modules/
+!package.json
+!package-lock.json
+test-results/
+playwright-report/
+blob-report/
+
+# Screenshot script (utility, not needed in repo)
+docs/screenshot.js
+
+# Old prompt notes
+prompt.md
+session*
+CLAUDE.md

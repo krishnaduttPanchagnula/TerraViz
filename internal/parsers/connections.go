@@ -61,10 +61,13 @@ var externalReferenceSpecs = []externalReferenceSpec{
 	{models.ResourceTypeIAMRolePolicyAttachment, []string{"policy_arn"}, models.ResourceTypeIAMPolicy, "arn"},
 }
 
-// buildTypeIndex creates a type-indexed lookup from a resource map.
-func buildTypeIndex(rm resourceMap) typeIndex {
+// buildTypeIndex creates a type-indexed lookup. It walks the resource slice in
+// order: ranging over a map would randomize which resource an analyzer finds
+// first when several share a type (e.g. a real target vs. a placeholder).
+func buildTypeIndex(resources []models.Resource) typeIndex {
 	idx := make(typeIndex)
-	for _, r := range rm {
+	for i := range resources {
+		r := &resources[i]
 		idx[r.Type] = append(idx[r.Type], r)
 	}
 	return idx
@@ -107,13 +110,7 @@ func findAllByType(ti typeIndex, rType models.ResourceType) []*models.Resource {
 func (p *TerraformParser) createConnections(diagram *models.Diagram, builder *models.DiagramBuilder) {
 	p.addExternalReferences(diagram, builder)
 
-	rm := make(resourceMap, len(diagram.Resources))
-	for i := range diagram.Resources {
-		r := &diagram.Resources[i]
-		rm[r.ID] = r
-	}
-
-	ti := buildTypeIndex(rm)
+	ti := buildTypeIndex(diagram.Resources)
 	edges := relations.NewCollector()
 
 	// The generic relations hold for every source, so the Terraform state and
@@ -167,12 +164,7 @@ func baseAddress(address string) string {
 // addExternalReferences creates typed placeholder nodes for recognized resource
 // arguments whose targets are not present in the Terraform state.
 func (p *TerraformParser) addExternalReferences(diagram *models.Diagram, builder *models.DiagramBuilder) {
-	rm := make(resourceMap, len(diagram.Resources))
-	for i := range diagram.Resources {
-		r := &diagram.Resources[i]
-		rm[r.ID] = r
-	}
-	ti := buildTypeIndex(rm)
+	ti := buildTypeIndex(diagram.Resources)
 	seen := make(map[string]bool)
 
 	for i := range diagram.Resources {
