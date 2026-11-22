@@ -49,6 +49,17 @@ test('local snapshot lifecycle: save, list, restore, delete', async ({ request }
   expect((await after.json()).some((s) => s.id === snap.id)).toBeFalsy();
 });
 
+test('share bundle is portable across machines', async ({ request }) => {
+  const bundle = await (await request.get('/api/bundle')).json();
+  expect(bundle.version).toBe(1);
+  expect(bundle.states).toHaveLength(1);
+  expect(bundle.states[0].content).toContain('"version":4');
+
+  const res = await request.post('/api/bundle', { data: bundle });
+  expect(res.ok()).toBeTruthy();
+  expect((await res.json()).states).toBe(1);
+});
+
 test('MCP stdio server answers initialize and exposes tools', async () => {
   const child = spawn('./terraviz', ['mcp', 'diagram_small.json'], {
     cwd: process.cwd(),
@@ -80,8 +91,16 @@ test('insights drawer renders summary, costs and a share URL', async ({ page }) 
   await page.locator('#genCostsBtn').click();
   await expect(page.locator('#costsOut')).toContainText('Estimated total:');
 
+  // On localhost a URL cannot work for another computer: the UI must say so.
   await page.locator('#copyShareBtn').click();
-  await expect(page.locator('#shareUrl')).toHaveValue(/http/);
+  await expect(page.locator('#shareNote')).toContainText('loopback address');
+  await expect(page.locator('#shareUrl')).toHaveValue('');
+
+  const [bundleDownload] = await Promise.all([
+    page.waitForEvent('download'),
+    page.locator('#exportBundleBtn').click(),
+  ]);
+  expect(bundleDownload.suggestedFilename()).toBe('terraviz-share.json');
 
   await page.locator('#closeInsightsBtn').click();
   await expect(page.locator('#insightsOverlay')).toBeHidden();

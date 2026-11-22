@@ -18,7 +18,7 @@
 | Multi-cloud (GCP / Azure) | **Done (state parsing)** | `internal/parsers/multicloud.go`: 14 GCP + 15 Azure Terraform types; unmapped types from supported providers are retained generically. Live scanners remain AWS-only. |
 | Local snapshot history | **Done** | `internal/snapshots`, `terraviz snapshot` / `terraviz snapshots`, `/api/snapshots` CRUD. Snapshots store the ingested statefiles and can be restored. Stored under `TERRAVIZ_HOME` or the user config dir. |
 | Cost overlay | **Done (illustrative)** | `internal/costs`, `GET /api/costs`; coarse offline price table, explicitly labelled "not a bill" |
-| Public share links | **Done, reinterpreted** | The dashboard's current view is encoded in the URL hash; "Copy link" shares it with no hosting or account. |
+| Public share links | **Done, reinterpreted** | A URL cannot work without a reachable host, so sharing uses a portable JSON bundle (`GET/POST /api/bundle`) of the sanitized statefiles, imported from "Add statefiles → Import share file". "Copy link" is kept for same-network access and warns on loopback hosts. |
 
 **Bugs fixed along the way:** gzip responses advertised the uncompressed `Content-Length` and were rejected by browsers (`ECONNRESET`); the relation type index ranged over a map, making edge selection nondeterministic.
 

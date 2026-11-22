@@ -325,6 +325,8 @@
       </label>
       <div class="drawer-foot">
         <button type="button" class="primary" id="uploadBtn" disabled>Upload &amp; resolve</button>
+        <button type="button" id="importBundleBtn" title="Import a share file from another computer">Import share file</button>
+        <input type="file" id="bundleFile" accept=".json,application/json" hidden>
       </div>
     </div>
 
@@ -372,10 +374,14 @@
     </section>
 
     <section class="card">
-      <div class="drawer-head"><h3>Share link</h3></div>
-      <p class="hint">The current view is encoded in the URL — no hosting or account needed.</p>
-      <div class="drawer-foot"><button type="button" class="primary" id="copyShareBtn">Copy link</button></div>
-      <input type="text" id="shareUrl" class="share-url" readonly placeholder="Share link appears here">
+      <div class="drawer-head"><h3>Share</h3></div>
+      <p class="hint">A URL only works while this server is reachable from the other computer. For anyone else, export a share file.</p>
+      <div class="drawer-foot">
+        <button type="button" id="copyShareBtn">Copy link (same network)</button>
+        <button type="button" class="primary" id="exportBundleBtn">Export share file</button>
+      </div>
+      <input type="text" id="shareUrl" class="share-url" readonly placeholder="Link appears here">
+      <p class="hint" id="shareNote" hidden></p>
     </section>
   </aside>
 </div>

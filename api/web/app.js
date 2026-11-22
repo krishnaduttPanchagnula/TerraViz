@@ -1289,11 +1289,65 @@ loadAll();
     renderSnapshots();
   });
 
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = el("a", { href: url, download: filename });
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   $("copyShareBtn").addEventListener("click", async () => {
     const input = $("shareUrl");
-    input.value = location.href;
-    try { await navigator.clipboard.writeText(location.href); }
-    catch { input.select(); document.execCommand("copy"); }
+    const note = $("shareNote");
+    const loopback = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(location.hostname);
+    if (loopback) {
+      input.value = "";
+      note.hidden = false;
+      note.textContent = "This page uses a loopback address, so the link only works on this machine. Use “Export share file” to share with another computer.";
+      return;
+    }
+    note.hidden = false;
+    try {
+      await navigator.clipboard.writeText(location.href);
+      note.textContent = "Link copied. It works only while this server is reachable at " + location.host + ".";
+    } catch {
+      input.value = location.href;
+      input.select();
+      document.execCommand("copy");
+      note.textContent = "Link copied to the field below.";
+    }
+  });
+
+  $("exportBundleBtn").addEventListener("click", async () => {
+    const res = await fetch("/api/bundle");
+    if (!res.ok) { showError("Share file export failed"); return; }
+    downloadBlob(await res.blob(), "terraviz-share.json");
+    $("shareNote").hidden = false;
+    $("shareNote").textContent = "Share file downloaded. Send it to anyone; they can import it from “Add statefiles → Import share file”.";
+  });
+
+  $("importBundleBtn").addEventListener("click", () => $("bundleFile").click());
+  $("bundleFile").addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    drawerMsg("Importing share file…");
+    try {
+      const res = await fetch("/api/bundle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: await file.text(),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      drawerMsg("Imported " + data.states + " statefile(s).");
+      closeDrawer();
+      await loadAll();
+    } catch (err) {
+      drawerMsg("Import failed: " + err.message, false);
+    }
+    e.target.value = "";
   });
 
   $("drawioExportBtn").addEventListener("click", async () => {

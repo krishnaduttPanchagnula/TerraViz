@@ -37,6 +37,66 @@ func (s *Server) registerFeatureRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/snapshots", s.handleSaveSnapshot)
 	mux.HandleFunc("GET /api/snapshots/{id}", s.handleRestoreSnapshot)
 	mux.HandleFunc("DELETE /api/snapshots/{id}", s.handleDeleteSnapshot)
+	mux.HandleFunc("GET /api/bundle", s.handleExportBundle)
+	mux.HandleFunc("POST /api/bundle", s.handleImportBundle)
+}
+
+// shareBundle is a portable, self-contained export of the sanitized statefiles.
+// Unlike a URL it works on any machine, with no hosted service.
+type shareBundle struct {
+	Version int           `json:"version"`
+	States  []db.RawState `json:"states"`
+}
+
+func (s *Server) handleExportBundle(w http.ResponseWriter, r *http.Request) {
+	if !method(w, r, http.MethodGet) {
+		return
+	}
+	states, err := s.DB.RawStates()
+	if err != nil {
+		fail(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, shareBundle{Version: 1, States: states})
+}
+
+func (s *Server) handleImportBundle(w http.ResponseWriter, r *http.Request) {
+	if !method(w, r, http.MethodPost) {
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 32<<20)
+	var bundle shareBundle
+	if err := json.NewDecoder(r.Body).Decode(&bundle); err != nil {
+		fail(w, 400, fmt.Errorf("invalid share file: %w", err))
+		return
+	}
+	if bundle.Version != 1 || len(bundle.States) == 0 {
+		fail(w, 400, fmt.Errorf("unsupported or empty share file"))
+		return
+	}
+	s.ingestRaw(w, bundle.States)
+}
+
+// ingestRaw parses and ingests sanitized statefiles, writing the HTTP result.
+func (s *Server) ingestRaw(w http.ResponseWriter, states []db.RawState) {
+	srcs := make([]resolver.Source, 0, len(states))
+	for _, raw := range states {
+		f, err := state.Parse([]byte(raw.Content), raw.Filename)
+		if err != nil {
+			fail(w, 400, err)
+			return
+		}
+		srcs = append(srcs, resolver.Source{Name: raw.Name, Filename: raw.Filename, File: f})
+	}
+	if err := s.DB.Ingest(srcs); err != nil {
+		fail(w, 500, err)
+		return
+	}
+	if err := s.DB.ResolveAll(); err != nil {
+		fail(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"success": true, "states": len(srcs)})
 }
 
 // graphDiagram adapts the SQLite graph into the shared Diagram model so the
@@ -191,24 +251,7 @@ func (s *Server) handleRestoreSnapshot(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, err)
 		return
 	}
-	srcs := make([]resolver.Source, 0, len(states))
-	for _, raw := range states {
-		f, err := state.Parse([]byte(raw.Content), raw.Filename)
-		if err != nil {
-			fail(w, 400, err)
-			return
-		}
-		srcs = append(srcs, resolver.Source{Name: raw.Name, Filename: raw.Filename, File: f})
-	}
-	if err := s.DB.Ingest(srcs); err != nil {
-		fail(w, 500, err)
-		return
-	}
-	if err := s.DB.ResolveAll(); err != nil {
-		fail(w, 500, err)
-		return
-	}
-	writeJSON(w, 200, map[string]any{"success": true, "states": len(srcs)})
+	s.ingestRaw(w, states)
 }
 
 func (s *Server) handleDeleteSnapshot(w http.ResponseWriter, r *http.Request) {
