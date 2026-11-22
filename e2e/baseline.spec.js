@@ -6,6 +6,15 @@ test('new dashboard loads with the ingested state', async ({ page }) => {
   await expect(page).toHaveTitle(/terraquery|terraviz/i);
   await expect(page.locator('#statStates')).toHaveText('1', { timeout: 15_000 });
   await expect(page.locator('#graph')).toBeVisible();
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', 'icon.svg');
+  await expect(page.locator('.brand img')).toHaveAttribute('src', 'icon.svg');
+});
+
+test('app icon is served as an SVG', async ({ request }) => {
+  const res = await request.get('/icon.svg');
+  expect(res.ok()).toBeTruthy();
+  expect(res.headers()['content-type']).toContain('image/svg+xml');
+  expect(await res.text()).toContain('<svg');
 });
 
 test('states API returns the ingested state', async ({ request }) => {
