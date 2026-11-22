@@ -154,6 +154,8 @@ td.num{text-align:right;font-family:ui-monospace,monospace;font-variant-numeric:
 .tile-sub{fill:var(--muted);font:9px ui-monospace,monospace;text-anchor:middle}
 .tile-scope{fill:var(--accent);font:9px ui-monospace,monospace}
 .flow-line{stroke:var(--line-strong)}
+.dep-line{stroke:var(--accent);stroke-width:2;opacity:.9}
+.arrow-marker-dep{fill:var(--accent)}
 .flow-label{fill:var(--warn)}
 .arrow-marker{fill:var(--muted)}
 .donut-track{stroke:var(--line)}

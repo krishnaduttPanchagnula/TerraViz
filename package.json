@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "description": "Playwright end-to-end validation for TerraViz",
   "scripts": {
-    "test:e2e": "go build -o terraviz . && playwright test",
-    "test:e2e:ui": "go build -o terraviz . && playwright test --ui"
+    "test:e2e": "rm -rf /tmp/opencode/terraviz-e2e-home && go build -o terraviz . && playwright test",
+    "test:e2e:ui": "rm -rf /tmp/opencode/terraviz-e2e-home && go build -o terraviz . && playwright test --ui"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1"

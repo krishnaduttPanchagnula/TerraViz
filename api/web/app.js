@@ -316,6 +316,11 @@ function svgBase(svg) {
     markerWidth: "6", markerHeight: "6", orient: "auto-start-reverse" });
   marker.appendChild(svgEl("path", { class: "arrow-marker", d: "M 0 0 L 10 5 L 0 10 z" }));
   defs.appendChild(marker);
+  // A higher-contrast head for cross-state dependency arrows in the drilldown.
+  const depMarker = svgEl("marker", { id: "arrow-dep", viewBox: "0 0 10 10", refX: "9", refY: "5",
+    markerWidth: "8", markerHeight: "8", orient: "auto-start-reverse" });
+  depMarker.appendChild(svgEl("path", { class: "arrow-marker-dep", d: "M 0 0 L 10 5 L 0 10 z" }));
+  defs.appendChild(depMarker);
   svg.appendChild(defs);
 }
 
@@ -545,14 +550,32 @@ function svgImage(href, attrs) {
   return n;
 }
 
+// Point on a tile's border on the side facing `other`. Ending the arrow at
+// the border keeps the head visible instead of hiding it under the tile.
+function tileBorderPoint(p, other, hw, hh, pad = 3) {
+  const dx = other.gx - p.gx, dy = other.gy - p.gy;
+  if (!dx && !dy) return { x: p.gx, y: p.gy };
+  let tx = Infinity, ty = Infinity;
+  if (dx) tx = hw / Math.abs(dx);
+  if (dy) ty = hh / Math.abs(dy);
+  const t = Math.min(tx, ty);
+  const s = Math.min(1, t + pad / Math.hypot(dx, dy));
+  return { x: p.gx + dx * s, y: p.gy + dy * s };
+}
+
 function drawNumberedEdges(svg, lines, pos) {
   const eg = svgEl("g");
+  const hw = 48, hh = 38; // tile is (tileW - 8) x (tileH - 10)
   for (const l of lines) {
     const a = pos[l.from], b = pos[l.to];
     if (!a || !b) continue;
-    eg.appendChild(svgEl("line", { class: "flow-line", "data-from": l.from, "data-to": l.to,
-      "data-kind": l.kind || "", x1: a.cx, y1: a.cy, x2: b.cx,
-      y2: b.cy, "stroke-width": 1.5, "marker-end": "url(#arrow)" }));
+    const start = tileBorderPoint(a, b, hw, hh);
+    const end = tileBorderPoint(b, a, hw, hh, 5);
+    const line = svgEl("line", { class: "flow-line dep-line", "data-from": l.from, "data-to": l.to,
+      "data-kind": l.kind || "", x1: start.x, y1: start.y, x2: end.x, y2: end.y,
+      "marker-end": "url(#arrow-dep)" });
+    line.appendChild(svgEl("title", {}, l.matched || `${l.from} → ${l.to}`));
+    eg.appendChild(line);
   }
   svg.appendChild(eg);
 }
@@ -643,7 +666,8 @@ function renderResourceGraph(svg, owner) {
     p.list.forEach((n, i) => {
       const col = i % cols, row = Math.floor(i / cols);
       const x = p.x + gap + col * tileW, y = p.y + 28 + gap + row * tileH;
-      pos[n.key] = { x, y, cx: x + (tileW - 8) / 2, cy: y + 26 };
+      pos[n.key] = { x, y, cx: x + (tileW - 8) / 2, cy: y + 26,
+        gx: x + (tileW - 8) / 2, gy: y + (tileH - 10) / 2 };
     });
   }
   drawNumberedEdges(svg, lines, pos);

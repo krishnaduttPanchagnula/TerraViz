@@ -116,3 +116,14 @@ test('draw.io export button downloads an editable file', async ({ page }) => {
   ]);
   expect(download.suggestedFilename()).toBe('architecture-diagram.drawio');
 });
+
+// Keep this last: it loads all bundled samples, which changes the shared DB.
+test('architecture drill-down shows visible dependency arrows', async ({ page, request }) => {
+  await request.post('/api/samples/ingest', { data: { samples: [] } });
+  await page.goto('/#state=acme-network');
+  await expect(page.locator('#graph g.node').first()).toBeVisible({ timeout: 15_000 });
+  const arrows = page.locator('#graph line.dep-line');
+  expect(await arrows.count()).toBeGreaterThan(0);
+  await expect(arrows.first()).toHaveAttribute('marker-end', 'url(#arrow-dep)');
+  await expect(page.locator('#graph marker#arrow-dep')).toHaveCount(1);
+});
