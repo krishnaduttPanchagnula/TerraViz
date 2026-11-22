@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="api/web/icon.svg" alt="TerraViz" width="112" height="112">
+</p>
+
 # TerraViz
 
 [![Release](https://img.shields.io/github/v/release/krishnaduttPanchagnula/TerraViz?style=flat-square)](https://github.com/krishnaduttPanchagnula/TerraViz/releases/latest)
